@@ -21,6 +21,7 @@ import { Route as PositionsPositionIdRouteImport } from './routes/positions.$pos
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
+import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
@@ -84,6 +85,11 @@ const ClientPositionsRoute = ClientPositionsRouteImport.update({
   path: '/client/positions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientDocumentsRoute = ClientDocumentsRouteImport.update({
+  id: '/client/documents',
+  path: '/client/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminClientsRoute = AdminClientsRouteImport.update({
   id: '/admin/clients',
   path: '/admin/clients',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
+  '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
+  '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
+  '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/admin/clients'
+    | '/client/documents'
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/admin/clients'
+    | '/client/documents'
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/admin/clients'
+    | '/client/documents'
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
   AdminClientsRoute: typeof AdminClientsRoute
+  ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientUploadRoute: typeof ClientUploadRoute
   ClientIndexRoute: typeof ClientIndexRoute
@@ -296,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPositionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/documents': {
+      id: '/client/documents'
+      path: '/client/documents'
+      fullPath: '/client/documents'
+      preLoaderRoute: typeof ClientDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/clients': {
       id: '/admin/clients'
       path: '/admin/clients'
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
   AdminClientsRoute: AdminClientsRoute,
+  ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientUploadRoute: ClientUploadRoute,
   ClientIndexRoute: ClientIndexRoute,
