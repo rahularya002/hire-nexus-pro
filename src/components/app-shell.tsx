@@ -1,4 +1,4 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Building2,
@@ -28,7 +28,7 @@ const nav = [
   { to: "/admin/clients", label: "Clients (Admin)", icon: Users },
 ];
 
-export function AppShell() {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -135,7 +135,7 @@ export function AppShell() {
         </header>
 
         <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-[1400px] w-full mx-auto">
-          <Outlet />
+          {children}
         </main>
       </div>
     </div>
