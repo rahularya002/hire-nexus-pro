@@ -73,8 +73,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <div className="text-[11px] text-muted-foreground mt-1">TalentFlow · Aarav Reddy</div>
             <div className="text-[11px] text-muted-foreground">aarav@talentflow.in</div>
           </div>
-          <Link
-            to={returnPath}
+          <a
+            href={returnPath}
             className="mt-3 flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
             title={`Return to ${returnPath}`}
           >
@@ -83,7 +83,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               <span className="block font-medium text-foreground/80">Switch to Agency view</span>
               <span className="block truncate text-muted-foreground">Resume · {returnLabel}</span>
             </span>
-          </Link>
+          </a>
         </div>
       </aside>
 
