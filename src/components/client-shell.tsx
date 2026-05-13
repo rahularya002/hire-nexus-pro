@@ -76,7 +76,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           </div>
           <button
             type="button"
-            onClick={() => navigate({ to: returnPath })}
+            onClick={() => navigate({ to: returnPath as string })}
             className="mt-3 w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
             title={`Return to ${returnPath}`}
           >
