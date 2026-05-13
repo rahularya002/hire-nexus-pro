@@ -13,6 +13,7 @@ import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as OngoingRouteImport } from './routes/ongoing'
 import { Route as InterviewsRouteImport } from './routes/interviews'
+import { Route as ClosedRouteImport } from './routes/closed'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
@@ -36,6 +37,11 @@ const OngoingRoute = OngoingRouteImport.update({
 const InterviewsRoute = InterviewsRouteImport.update({
   id: '/interviews',
   path: '/interviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClosedRoute = ClosedRouteImport.update({
+  id: '/closed',
+  path: '/closed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -62,6 +68,7 @@ const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/clients'
+    | '/closed'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/clients'
+    | '/closed'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/clients'
+    | '/closed'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientsRoute: typeof ClientsRouteWithChildren
+  ClosedRoute: typeof ClosedRoute
   InterviewsRoute: typeof InterviewsRoute
   OngoingRoute: typeof OngoingRoute
   PipelineRoute: typeof PipelineRoute
@@ -160,6 +173,13 @@ declare module '@tanstack/react-router' {
       path: '/interviews'
       fullPath: '/interviews'
       preLoaderRoute: typeof InterviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/closed': {
+      id: '/closed'
+      path: '/closed'
+      fullPath: '/closed'
+      preLoaderRoute: typeof ClosedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -219,6 +239,7 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRouteWithChildren,
+  ClosedRoute: ClosedRoute,
   InterviewsRoute: InterviewsRoute,
   OngoingRoute: OngoingRoute,
   PipelineRoute: PipelineRoute,
