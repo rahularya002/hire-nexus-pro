@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const nav = [
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
 
   // Persist the "selected client" the user was viewing on the agency side.
   // Falls back to the first client so the link is always meaningful.
@@ -73,9 +74,10 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <div className="text-[11px] text-muted-foreground mt-1">TalentFlow · Aarav Reddy</div>
             <div className="text-[11px] text-muted-foreground">aarav@talentflow.in</div>
           </div>
-          <a
-            href={returnPath}
-            className="mt-3 flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
+          <button
+            type="button"
+            onClick={() => navigate({ to: returnPath })}
+            className="mt-3 w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
             title={`Return to ${returnPath}`}
           >
             <ArrowLeft className="size-3.5 shrink-0 group-hover:-translate-x-0.5 transition" />
@@ -83,7 +85,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               <span className="block font-medium text-foreground/80">Switch to Agency view</span>
               <span className="block truncate text-muted-foreground">Resume · {returnLabel}</span>
             </span>
-          </a>
+          </button>
         </div>
       </aside>
 
