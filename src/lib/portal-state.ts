@@ -29,14 +29,13 @@ export function setSelectedClientId(id: string) {
 /** Records every agency route the user visits so we can return here from the client portal. */
 export function useTrackAgencyPath() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.searchStr });
   useEffect(() => {
     if (pathname.startsWith("/client")) return;
-    setAgencyLastPath(pathname + (search || ""));
+    setAgencyLastPath(pathname);
     // If we're on a client detail page, remember which client is "selected"
     const m = pathname.match(/^\/clients\/([^/]+)/);
     if (m) setSelectedClientId(m[1]);
-  }, [pathname, search]);
+  }, [pathname]);
 }
 
 /** From the client portal, navigate back to the last agency route visited. */
