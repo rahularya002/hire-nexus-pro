@@ -21,6 +21,7 @@ import { Route as PositionsPositionIdRouteImport } from './routes/positions.$pos
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
+import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
 const PositionsRoute = PositionsRouteImport.update({
   id: '/positions',
@@ -82,6 +83,12 @@ const AdminClientsRoute = AdminClientsRouteImport.update({
   path: '/admin/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientPositionsPositionIdRoute =
+  ClientPositionsPositionIdRouteImport.update({
+    id: '/$positionId',
+    path: '/$positionId',
+    getParentRoute: () => ClientPositionsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -92,10 +99,11 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
-  '/client/positions': typeof ClientPositionsRoute
+  '/client/positions': typeof ClientPositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -106,10 +114,11 @@ export interface FileRoutesByTo {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
-  '/client/positions': typeof ClientPositionsRoute
+  '/client/positions': typeof ClientPositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
+  '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -121,10 +130,11 @@ export interface FileRoutesById {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
-  '/client/positions': typeof ClientPositionsRoute
+  '/client/positions': typeof ClientPositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client/'
+    | '/client/positions/$positionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client'
+    | '/client/positions/$positionId'
   id:
     | '__root__'
     | '/'
@@ -169,6 +181,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client/'
+    | '/client/positions/$positionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -180,7 +193,7 @@ export interface RootRouteChildren {
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
   AdminClientsRoute: typeof AdminClientsRoute
-  ClientPositionsRoute: typeof ClientPositionsRoute
+  ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientIndexRoute: typeof ClientIndexRoute
 }
 
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/positions/$positionId': {
+      id: '/client/positions/$positionId'
+      path: '/$positionId'
+      fullPath: '/client/positions/$positionId'
+      preLoaderRoute: typeof ClientPositionsPositionIdRouteImport
+      parentRoute: typeof ClientPositionsRoute
+    }
   }
 }
 
@@ -296,6 +316,18 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
   PositionsRouteChildren,
 )
 
+interface ClientPositionsRouteChildren {
+  ClientPositionsPositionIdRoute: typeof ClientPositionsPositionIdRoute
+}
+
+const ClientPositionsRouteChildren: ClientPositionsRouteChildren = {
+  ClientPositionsPositionIdRoute: ClientPositionsPositionIdRoute,
+}
+
+const ClientPositionsRouteWithChildren = ClientPositionsRoute._addFileChildren(
+  ClientPositionsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRouteWithChildren,
@@ -305,7 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
   AdminClientsRoute: AdminClientsRoute,
-  ClientPositionsRoute: ClientPositionsRoute,
+  ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientIndexRoute: ClientIndexRoute,
 }
 export const routeTree = rootRouteImport
