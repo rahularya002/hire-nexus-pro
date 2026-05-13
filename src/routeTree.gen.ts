@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PositionsRouteImport } from './routes/positions'
+import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +20,11 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 const PositionsRoute = PositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PipelineRoute = PipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InterviewsRoute = InterviewsRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
   '/interviews': typeof InterviewsRoute
+  '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
   '/interviews': typeof InterviewsRoute
+  '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRouteWithChildren
   '/interviews': typeof InterviewsRoute
+  '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients'
     | '/interviews'
+    | '/pipeline'
     | '/positions'
     | '/clients/$clientId'
     | '/positions/$positionId'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients'
     | '/interviews'
+    | '/pipeline'
     | '/positions'
     | '/clients/$clientId'
     | '/positions/$positionId'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients'
     | '/interviews'
+    | '/pipeline'
     | '/positions'
     | '/clients/$clientId'
     | '/positions/$positionId'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientsRoute: typeof ClientsRouteWithChildren
   InterviewsRoute: typeof InterviewsRoute
+  PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
 }
 
@@ -113,6 +126,13 @@ declare module '@tanstack/react-router' {
       path: '/positions'
       fullPath: '/positions'
       preLoaderRoute: typeof PositionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pipeline': {
+      id: '/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof PipelineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/interviews': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRouteWithChildren,
   InterviewsRoute: InterviewsRoute,
+  PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
