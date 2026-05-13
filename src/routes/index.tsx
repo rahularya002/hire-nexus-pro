@@ -12,12 +12,16 @@ import { Avatar, PriorityBadge, Section, StatusBadge } from "@/components/ui-bit
 import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/")({
-  component: () => (
+  component: IndexPage,
+});
+
+function IndexPage() {
+  return (
     <AppShell>
       <Dashboard />
     </AppShell>
-  ) as unknown as () => JSX.Element,
-});
+  );
+}
 
 const kpis = [
   { label: "Active Clients", value: clients.length, delta: "+2 this month", icon: Building2, tone: "primary" },
