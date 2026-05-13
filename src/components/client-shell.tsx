@@ -13,6 +13,33 @@ const nav = [
   { to: "/client/documents", label: "Documents", icon: FileText },
 ];
 
+// Map an agency route path to a human-readable page name.
+function describeAgencyPath(path: string): string {
+  if (!path || path === "/") return "Dashboard";
+  // /clients/:id  → "{Client name}"
+  const clientMatch = path.match(/^\/clients\/([^/]+)$/);
+  if (clientMatch) {
+    const c = clients.find((x) => x.id === clientMatch[1]);
+    return c ? c.name : "Client";
+  }
+  // /positions/:id → "Position detail"
+  if (/^\/positions\/[^/]+$/.test(path)) return "Position detail";
+  // /admin/clients → "Clients (Admin)"
+  if (path.startsWith("/admin/clients")) return "Clients (Admin)";
+  const labels: Record<string, string> = {
+    "/clients": "Active Clients",
+    "/positions": "Open Requirements",
+    "/ongoing": "Ongoing",
+    "/interviews": "Interviews",
+    "/pipeline": "Pipeline",
+    "/closed": "Closed",
+  };
+  if (labels[path]) return labels[path];
+  // Fallback: prettify the first segment.
+  const seg = path.split("/").filter(Boolean)[0] ?? "";
+  return seg ? seg.charAt(0).toUpperCase() + seg.slice(1) : "Agency view";
+}
+
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
@@ -20,7 +47,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   // Persist the "selected client" the user was viewing on the agency side.
   // Falls back to the first client so the link is always meaningful.
   const [returnPath, setReturnPath] = useState<string>("/");
-  const [returnLabel, setReturnLabel] = useState<string>("Agency view");
+  const [returnLabel, setReturnLabel] = useState<string>("Dashboard");
 
   useEffect(() => {
     const lastPath = getAgencyLastPath();
@@ -34,9 +61,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       ? lastPath
       : selectedId ? `/clients/${selectedId}` : "/";
     setReturnPath(target);
-
-    const selected = clients.find((c) => c.id === selectedId);
-    setReturnLabel(selected ? selected.name : "Agency view");
+    setReturnLabel(describeAgencyPath(target));
   }, [pathname]);
 
   return (
