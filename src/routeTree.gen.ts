@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
+import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
@@ -73,6 +74,11 @@ const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
   path: '/$clientId',
   getParentRoute: () => ClientsRoute,
 } as any)
+const ClientUploadRoute = ClientUploadRouteImport.update({
+  id: '/client/upload',
+  path: '/client/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientPositionsRoute = ClientPositionsRouteImport.update({
   id: '/client/positions',
   path: '/client/positions',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/positions': typeof PositionsRouteWithChildren
   '/admin/clients': typeof AdminClientsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/admin/clients'
     | '/client/positions'
+    | '/client/upload'
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client/'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/admin/clients'
     | '/client/positions'
+    | '/client/upload'
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/positions'
     | '/admin/clients'
     | '/client/positions'
+    | '/client/upload'
     | '/clients/$clientId'
     | '/positions/$positionId'
     | '/client/'
@@ -194,6 +206,7 @@ export interface RootRouteChildren {
   PositionsRoute: typeof PositionsRouteWithChildren
   AdminClientsRoute: typeof AdminClientsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
+  ClientUploadRoute: typeof ClientUploadRoute
   ClientIndexRoute: typeof ClientIndexRoute
 }
 
@@ -269,6 +282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientsClientIdRouteImport
       parentRoute: typeof ClientsRoute
     }
+    '/client/upload': {
+      id: '/client/upload'
+      path: '/client/upload'
+      fullPath: '/client/upload'
+      preLoaderRoute: typeof ClientUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/positions': {
       id: '/client/positions'
       path: '/client/positions'
@@ -338,6 +358,7 @@ const rootRouteChildren: RootRouteChildren = {
   PositionsRoute: PositionsRouteWithChildren,
   AdminClientsRoute: AdminClientsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
+  ClientUploadRoute: ClientUploadRoute,
   ClientIndexRoute: ClientIndexRoute,
 }
 export const routeTree = rootRouteImport
