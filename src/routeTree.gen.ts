@@ -9,38 +9,199 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PositionsRouteImport } from './routes/positions'
+import { Route as PipelineRouteImport } from './routes/pipeline'
+import { Route as OngoingRouteImport } from './routes/ongoing'
+import { Route as InterviewsRouteImport } from './routes/interviews'
+import { Route as ClosedRouteImport } from './routes/closed'
+import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
+import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
+import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 
+const PositionsRoute = PositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PipelineRoute = PipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OngoingRoute = OngoingRouteImport.update({
+  id: '/ongoing',
+  path: '/ongoing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterviewsRoute = InterviewsRouteImport.update({
+  id: '/interviews',
+  path: '/interviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClosedRoute = ClosedRouteImport.update({
+  id: '/closed',
+  path: '/closed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
+  id: '/$positionId',
+  path: '/$positionId',
+  getParentRoute: () => PositionsRoute,
+} as any)
+const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
+  id: '/$clientId',
+  path: '/$clientId',
+  getParentRoute: () => ClientsRoute,
+} as any)
+const AdminClientsRoute = AdminClientsRouteImport.update({
+  id: '/admin/clients',
+  path: '/admin/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
+  '/interviews': typeof InterviewsRoute
+  '/ongoing': typeof OngoingRoute
+  '/pipeline': typeof PipelineRoute
+  '/positions': typeof PositionsRouteWithChildren
+  '/admin/clients': typeof AdminClientsRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/positions/$positionId': typeof PositionsPositionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
+  '/interviews': typeof InterviewsRoute
+  '/ongoing': typeof OngoingRoute
+  '/pipeline': typeof PipelineRoute
+  '/positions': typeof PositionsRouteWithChildren
+  '/admin/clients': typeof AdminClientsRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/positions/$positionId': typeof PositionsPositionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRouteWithChildren
+  '/closed': typeof ClosedRoute
+  '/interviews': typeof InterviewsRoute
+  '/ongoing': typeof OngoingRoute
+  '/pipeline': typeof PipelineRoute
+  '/positions': typeof PositionsRouteWithChildren
+  '/admin/clients': typeof AdminClientsRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/positions/$positionId': typeof PositionsPositionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/clients'
+    | '/closed'
+    | '/interviews'
+    | '/ongoing'
+    | '/pipeline'
+    | '/positions'
+    | '/admin/clients'
+    | '/clients/$clientId'
+    | '/positions/$positionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/clients'
+    | '/closed'
+    | '/interviews'
+    | '/ongoing'
+    | '/pipeline'
+    | '/positions'
+    | '/admin/clients'
+    | '/clients/$clientId'
+    | '/positions/$positionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/clients'
+    | '/closed'
+    | '/interviews'
+    | '/ongoing'
+    | '/pipeline'
+    | '/positions'
+    | '/admin/clients'
+    | '/clients/$clientId'
+    | '/positions/$positionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientsRoute: typeof ClientsRouteWithChildren
+  ClosedRoute: typeof ClosedRoute
+  InterviewsRoute: typeof InterviewsRoute
+  OngoingRoute: typeof OngoingRoute
+  PipelineRoute: typeof PipelineRoute
+  PositionsRoute: typeof PositionsRouteWithChildren
+  AdminClientsRoute: typeof AdminClientsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/positions': {
+      id: '/positions'
+      path: '/positions'
+      fullPath: '/positions'
+      preLoaderRoute: typeof PositionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pipeline': {
+      id: '/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof PipelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ongoing': {
+      id: '/ongoing'
+      path: '/ongoing'
+      fullPath: '/ongoing'
+      preLoaderRoute: typeof OngoingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interviews': {
+      id: '/interviews'
+      path: '/interviews'
+      fullPath: '/interviews'
+      preLoaderRoute: typeof InterviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/closed': {
+      id: '/closed'
+      path: '/closed'
+      fullPath: '/closed'
+      preLoaderRoute: typeof ClosedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +209,63 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/positions/$positionId': {
+      id: '/positions/$positionId'
+      path: '/$positionId'
+      fullPath: '/positions/$positionId'
+      preLoaderRoute: typeof PositionsPositionIdRouteImport
+      parentRoute: typeof PositionsRoute
+    }
+    '/clients/$clientId': {
+      id: '/clients/$clientId'
+      path: '/$clientId'
+      fullPath: '/clients/$clientId'
+      preLoaderRoute: typeof ClientsClientIdRouteImport
+      parentRoute: typeof ClientsRoute
+    }
+    '/admin/clients': {
+      id: '/admin/clients'
+      path: '/admin/clients'
+      fullPath: '/admin/clients'
+      preLoaderRoute: typeof AdminClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface ClientsRouteChildren {
+  ClientsClientIdRoute: typeof ClientsClientIdRoute
+}
+
+const ClientsRouteChildren: ClientsRouteChildren = {
+  ClientsClientIdRoute: ClientsClientIdRoute,
+}
+
+const ClientsRouteWithChildren =
+  ClientsRoute._addFileChildren(ClientsRouteChildren)
+
+interface PositionsRouteChildren {
+  PositionsPositionIdRoute: typeof PositionsPositionIdRoute
+}
+
+const PositionsRouteChildren: PositionsRouteChildren = {
+  PositionsPositionIdRoute: PositionsPositionIdRoute,
+}
+
+const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
+  PositionsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientsRoute: ClientsRouteWithChildren,
+  ClosedRoute: ClosedRoute,
+  InterviewsRoute: InterviewsRoute,
+  OngoingRoute: OngoingRoute,
+  PipelineRoute: PipelineRoute,
+  PositionsRoute: PositionsRouteWithChildren,
+  AdminClientsRoute: AdminClientsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
