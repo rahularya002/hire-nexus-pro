@@ -16,6 +16,7 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTrackAgencyPath } from "@/lib/portal-state";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -30,6 +31,7 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useTrackAgencyPath();
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">

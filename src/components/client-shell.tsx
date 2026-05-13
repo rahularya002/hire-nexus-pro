@@ -1,7 +1,10 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { clientCompany } from "@/lib/client-data";
+import { getAgencyLastPath, getSelectedClientId, setSelectedClientId } from "@/lib/portal-state";
+import { clients } from "@/lib/mock-data";
 
 const nav = [
   { to: "/client", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -12,6 +15,29 @@ const nav = [
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+
+  // Persist the "selected client" the user was viewing on the agency side.
+  // Falls back to the first client so the link is always meaningful.
+  const [returnPath, setReturnPath] = useState<string>("/");
+  const [returnLabel, setReturnLabel] = useState<string>("Agency view");
+
+  useEffect(() => {
+    const lastPath = getAgencyLastPath();
+    let selectedId = getSelectedClientId();
+    if (!selectedId && clients.length) {
+      selectedId = clients[0].id;
+      setSelectedClientId(selectedId);
+    }
+    // Prefer the last agency page; if none recorded yet, deep-link to the selected client.
+    const target = lastPath && lastPath !== "/"
+      ? lastPath
+      : selectedId ? `/clients/${selectedId}` : "/";
+    setReturnPath(target);
+
+    const selected = clients.find((c) => c.id === selectedId);
+    setReturnLabel(selected ? selected.name : "Agency view");
+  }, [pathname]);
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -48,9 +74,19 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <div className="text-[11px] text-muted-foreground mt-1">TalentFlow · Aarav Reddy</div>
             <div className="text-[11px] text-muted-foreground">aarav@talentflow.in</div>
           </div>
-          <Link to="/" className="block text-[11px] text-muted-foreground hover:text-foreground mt-3 px-2">
-            ← Switch to Agency view
-          </Link>
+          <button
+            type="button"
+            // returnPath is a runtime string (last visited agency route); cast to bypass route literal typing.
+            onClick={() => navigate({ to: returnPath as never })}
+            className="mt-3 w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
+            title={`Return to ${returnPath}`}
+          >
+            <ArrowLeft className="size-3.5 shrink-0 group-hover:-translate-x-0.5 transition" />
+            <span className="leading-tight min-w-0">
+              <span className="block font-medium text-foreground/80">Switch to Agency view</span>
+              <span className="block truncate text-muted-foreground">Resume · {returnLabel}</span>
+            </span>
+          </button>
         </div>
       </aside>
 
