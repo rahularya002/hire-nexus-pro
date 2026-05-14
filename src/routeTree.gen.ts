@@ -19,7 +19,6 @@ import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClosedRouteImport } from './routes/closed'
-import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
@@ -28,6 +27,7 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
+import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
 const TeamRoute = TeamRouteImport.update({
@@ -80,11 +80,6 @@ const ClosedRoute = ClosedRouteImport.update({
   path: '/closed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -106,9 +101,9 @@ const InterviewsProcessIdRoute = InterviewsProcessIdRouteImport.update({
   getParentRoute: () => InterviewsRoute,
 } as any)
 const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
-  id: '/$clientId',
-  path: '/$clientId',
-  getParentRoute: () => ClientsRoute,
+  id: '/clients/$clientId',
+  path: '/clients/$clientId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ClientUploadRoute = ClientUploadRouteImport.update({
   id: '/client/upload',
@@ -125,6 +120,11 @@ const ClientDocumentsRoute = ClientDocumentsRouteImport.update({
   path: '/client/documents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminClientsRoute = AdminClientsRouteImport.update({
+  id: '/admin/clients',
+  path: '/admin/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientPositionsPositionIdRoute =
   ClientPositionsPositionIdRouteImport.update({
     id: '/$positionId',
@@ -134,7 +134,6 @@ const ClientPositionsPositionIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -145,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
+  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -156,7 +156,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -167,6 +166,7 @@ export interface FileRoutesByTo {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
+  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -179,7 +179,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -190,6 +189,7 @@ export interface FileRoutesById {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
+  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -203,7 +203,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/clients'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -214,6 +213,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
+    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -225,7 +225,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/clients'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -236,6 +235,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
+    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -247,7 +247,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/clients'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -258,6 +257,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
+    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -270,7 +270,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ClientsRoute: typeof ClientsRouteWithChildren
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
   DatabaseRoute: typeof DatabaseRoute
@@ -281,9 +280,11 @@ export interface RootRouteChildren {
   ScoutRoute: typeof ScoutRoute
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
+  AdminClientsRoute: typeof AdminClientsRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientUploadRoute: typeof ClientUploadRoute
+  ClientsClientIdRoute: typeof ClientsClientIdRoute
   ClientIndexRoute: typeof ClientIndexRoute
 }
 
@@ -359,13 +360,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClosedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -396,10 +390,10 @@ declare module '@tanstack/react-router' {
     }
     '/clients/$clientId': {
       id: '/clients/$clientId'
-      path: '/$clientId'
+      path: '/clients/$clientId'
       fullPath: '/clients/$clientId'
       preLoaderRoute: typeof ClientsClientIdRouteImport
-      parentRoute: typeof ClientsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/client/upload': {
       id: '/client/upload'
@@ -422,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientDocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/clients': {
+      id: '/admin/clients'
+      path: '/admin/clients'
+      fullPath: '/admin/clients'
+      preLoaderRoute: typeof AdminClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/positions/$positionId': {
       id: '/client/positions/$positionId'
       path: '/$positionId'
@@ -431,17 +432,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface ClientsRouteChildren {
-  ClientsClientIdRoute: typeof ClientsClientIdRoute
-}
-
-const ClientsRouteChildren: ClientsRouteChildren = {
-  ClientsClientIdRoute: ClientsClientIdRoute,
-}
-
-const ClientsRouteWithChildren =
-  ClientsRoute._addFileChildren(ClientsRouteChildren)
 
 interface InterviewsRouteChildren {
   InterviewsProcessIdRoute: typeof InterviewsProcessIdRoute
@@ -481,7 +471,6 @@ const ClientPositionsRouteWithChildren = ClientPositionsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ClientsRoute: ClientsRouteWithChildren,
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
   DatabaseRoute: DatabaseRoute,
@@ -492,9 +481,11 @@ const rootRouteChildren: RootRouteChildren = {
   ScoutRoute: ScoutRoute,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
+  AdminClientsRoute: AdminClientsRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientUploadRoute: ClientUploadRoute,
+  ClientsClientIdRoute: ClientsClientIdRoute,
   ClientIndexRoute: ClientIndexRoute,
 }
 export const routeTree = rootRouteImport
