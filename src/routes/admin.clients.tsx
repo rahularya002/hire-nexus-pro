@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, KeyRound, Check } from "lucide-react";
+import { Plus, Building2, KeyRound, Check, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { clients } from "@/lib/mock-data";
+import { clients, isClientInactive, INACTIVITY_THRESHOLD_DAYS } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/admin/clients")({
   component: () => <AppShell><Page /></AppShell>,
@@ -10,16 +10,33 @@ export const Route = createFileRoute("/admin/clients")({
 
 function Page() {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const inactiveCount = clients.filter(isClientInactive).length;
+  const visible = clients.filter((c) => {
+    if (filter === "all") return true;
+    const inactive = isClientInactive(c);
+    return filter === "inactive" ? inactive : !inactive;
+  });
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Client administration</h1>
-          <p className="text-sm text-muted-foreground mt-1">Onboard new clients, manage agreements & access credentials</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {clients.length} total · {clients.length - inactiveCount} active · {inactiveCount} inactive
+            <span className="ml-2 text-[11px]">(auto-inactive after {INACTIVITY_THRESHOLD_DAYS}d of no activity unless they have open requirements)</span>
+          </p>
         </div>
-        <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
-          <Plus className="size-4" /> Onboard new client
-        </button>
+        <div className="flex gap-2">
+          <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
+            {(["all", "active", "inactive"] as const).map((f) => (
+              <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
+            ))}
+          </div>
+          <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+            <Plus className="size-4" /> Onboard new client
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -31,23 +48,30 @@ function Page() {
           <div className="col-span-1 text-right">Status</div>
         </div>
         <div className="divide-y divide-border">
-          {clients.map(c => (
-            <div key={c.id} className="grid grid-cols-12 gap-4 px-5 py-4 items-center">
+          {visible.map(c => {
+            const inactive = isClientInactive(c);
+            return (
+            <Link to="/clients/$clientId" params={{ clientId: c.id }} key={c.id} className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-secondary/30 transition">
               <div className="col-span-4 flex items-center gap-3 min-w-0">
                 <div className="size-9 rounded-md grid place-items-center text-xs font-bold text-primary-foreground" style={{background: c.color}}>{c.initials}</div>
                 <div className="min-w-0">
                   <div className="font-medium truncate">{c.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.industry}</div>
+                  <div className="text-xs text-muted-foreground truncate">{c.industry} · {c.lastActivityDays === 0 ? "Active today" : `Last activity ${c.lastActivityDays}d ago`}</div>
                 </div>
               </div>
               <div className="col-span-3 text-sm">{c.contact}</div>
               <div className="col-span-2 text-xs text-muted-foreground">Signed · 12mo retainer</div>
               <div className="col-span-2 text-xs font-mono text-muted-foreground">{c.id}@talentflow</div>
               <div className="col-span-1 text-right">
-                <span className="inline-flex items-center gap-1 text-xs text-success font-medium"><Check className="size-3" /> Active</span>
+                {inactive ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-warning font-medium"><AlertCircle className="size-3" /> Inactive</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-success font-medium"><Check className="size-3" /> Active</span>
+                )}
               </div>
-            </div>
-          ))}
+            </Link>
+            );
+          })}
         </div>
       </div>
 
