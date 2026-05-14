@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import {
   Building2, Briefcase, CalendarClock, ClipboardList,
-  TrendingUp, Trophy, ArrowUpRight, Sparkles, Upload, Star, CheckCircle2, UserPlus, Bell,
+  TrendingUp, Trophy, ArrowUpRight, Sparkles, Upload, Star, CheckCircle2, UserPlus, Bell, LogOut,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -65,6 +65,12 @@ function Dashboard() {
           <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90">
             <Sparkles className="size-4" /> AI Talent Scout
           </button>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary"
+          >
+            <LogOut className="size-4" /> Sign Out
+          </Link>
         </div>
       </div>
 
