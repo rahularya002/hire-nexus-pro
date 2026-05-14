@@ -88,3 +88,161 @@ export const dailyDigest = {
 export function tasksByState(state: TaskState) {
   return opsTasks.filter((t) => t.state === state);
 }
+
+/* ----- Candidate detail (drilldown) ----- */
+
+export interface CandidateDetail {
+  id: string;
+  name: string;
+  initials: string;
+  experience: string;
+  salary: string;
+  prevOrg: string;
+  location: string;
+  noticePeriod: string;
+  aiMatch: number;
+  resumeSummary: string;
+  source: string;
+  history: string[];
+  comms: { channel: "WhatsApp" | "Email" | "Call"; state: string; when: string }[];
+}
+
+export const candidateDetails: Record<string, CandidateDetail> = {
+  default: {
+    id: "default",
+    name: "Candidate",
+    initials: "C",
+    experience: "—",
+    salary: "—",
+    prevOrg: "—",
+    location: "—",
+    noticePeriod: "—",
+    aiMatch: 0,
+    resumeSummary: "Resume preview not available.",
+    source: "Internal DB",
+    history: [],
+    comms: [],
+  },
+};
+
+export function detailFor(c: { id: string; name: string; initials: string; experience: string; location: string; matchScore: number }): CandidateDetail {
+  // Deterministic synthetic detail from base candidate fields.
+  const orgs = ["Tata Digital", "Reliance Brands", "Razorpay", "Zomato", "Tanishq", "Tag Heuer India", "Titan", "Flipkart"];
+  const salaries = ["₹18 LPA", "₹26 LPA", "₹34 LPA", "₹42 LPA", "₹55 LPA", "₹68 LPA"];
+  const notices = ["Immediate", "15 days", "30 days", "60 days", "90 days"];
+  const seed = c.id.length + c.name.length;
+  return {
+    id: c.id,
+    name: c.name,
+    initials: c.initials,
+    experience: c.experience,
+    salary: salaries[seed % salaries.length],
+    prevOrg: orgs[seed % orgs.length],
+    location: c.location,
+    noticePeriod: notices[seed % notices.length],
+    aiMatch: c.matchScore,
+    resumeSummary:
+      `${c.experience} of experience leading cross-functional teams. Currently at ${orgs[seed % orgs.length]}. Strong fit on the top 3 must-have competencies for this role.`,
+    source: seed % 2 === 0 ? "AI Talent Scout" : "Internal database",
+    history: [
+      "Sourced via AI Scout · 4d ago",
+      "AI matched · 92% relevance",
+      "Recruiter shortlisted by Aarav · 3d ago",
+      "Shared with client · 2d ago",
+    ],
+    comms: [
+      { channel: "WhatsApp", state: "Sent", when: "2h ago" },
+      { channel: "Email", state: "Awaiting response", when: "Yesterday" },
+      { channel: "Call", state: "Completed", when: "2d ago" },
+    ],
+  };
+}
+
+/* ----- Interview orchestration ----- */
+
+export type RoundKind = "HR Screen" | "Technical" | "Hiring Manager" | "Panel" | "CEO" | "Culture Fit" | "Case Study";
+export type RoundStatus = "Pending confirmation" | "Confirmed" | "Reschedule requested" | "Completed" | "No-show";
+export type MeetingProvider = "Google Meet" | "Microsoft Teams" | "Zoom" | "On-site";
+
+export interface InterviewRound {
+  id: string;
+  index: number;
+  kind: RoundKind;
+  interviewer: string;
+  scheduledFor: string;
+  status: RoundStatus;
+  provider: MeetingProvider;
+  meetingLink?: string;
+  cvAttached: boolean;
+  recruiterReminder: boolean;
+  candidateReminder: boolean;
+  notes?: string;
+}
+
+export interface InterviewProcess {
+  id: string;
+  candidate: string;
+  candidateInitials: string;
+  position: string;
+  client: string;
+  clientId: string;
+  rounds: InterviewRound[];
+}
+
+export const interviewProcesses: InterviewProcess[] = [
+  {
+    id: "ip1",
+    candidate: "Arjun Malhotra",
+    candidateInitials: "AM",
+    position: "Sr. Product Designer",
+    client: "Razorpay",
+    clientId: "razorpay",
+    rounds: [
+      { id: "ip1-r1", index: 1, kind: "HR Screen", interviewer: "Pooja N. (HR)", scheduledFor: "Mon · 10:00 AM", status: "Completed", provider: "Google Meet", meetingLink: "meet.google.com/abc-defg-hij", cvAttached: true, recruiterReminder: true, candidateReminder: true, notes: "Strong communication, good culture fit." },
+      { id: "ip1-r2", index: 2, kind: "Technical", interviewer: "Rahul B. (Design Lead)", scheduledFor: "Wed · 4:30 PM", status: "Confirmed", provider: "Google Meet", meetingLink: "meet.google.com/xyz-1234-pqr", cvAttached: true, recruiterReminder: true, candidateReminder: true },
+      { id: "ip1-r3", index: 3, kind: "Hiring Manager", interviewer: "Aditya R. (VP Design)", scheduledFor: "Fri · 11:00 AM", status: "Pending confirmation", provider: "Google Meet", cvAttached: true, recruiterReminder: true, candidateReminder: false },
+      { id: "ip1-r4", index: 4, kind: "CEO", interviewer: "Harshil M. (CEO)", scheduledFor: "Next Mon · TBD", status: "Pending confirmation", provider: "Zoom", cvAttached: false, recruiterReminder: false, candidateReminder: false },
+    ],
+  },
+  {
+    id: "ip2",
+    candidate: "Sneha Kulkarni",
+    candidateInitials: "SK",
+    position: "Engineering Manager",
+    client: "Tata Digital",
+    clientId: "tata-digital",
+    rounds: [
+      { id: "ip2-r1", index: 1, kind: "HR Screen", interviewer: "Anjali P. (HR)", scheduledFor: "Last Tue · 11:00 AM", status: "Completed", provider: "Microsoft Teams", cvAttached: true, recruiterReminder: true, candidateReminder: true, notes: "Cleared HR." },
+      { id: "ip2-r2", index: 2, kind: "Technical", interviewer: "Karan S. (Principal Eng)", scheduledFor: "Thu · 2:00 PM", status: "Reschedule requested", provider: "Microsoft Teams", meetingLink: "teams.microsoft.com/l/meet/abc", cvAttached: true, recruiterReminder: true, candidateReminder: true, notes: "Candidate requested reschedule due to conflict." },
+      { id: "ip2-r3", index: 3, kind: "Hiring Manager", interviewer: "Rohan K. (Director Eng)", scheduledFor: "TBD", status: "Pending confirmation", provider: "Microsoft Teams", cvAttached: true, recruiterReminder: false, candidateReminder: false },
+    ],
+  },
+  {
+    id: "ip3",
+    candidate: "Ishita Banerjee",
+    candidateInitials: "IB",
+    position: "Data Scientist",
+    client: "Reliance Brands",
+    clientId: "reliance-brands",
+    rounds: [
+      { id: "ip3-r1", index: 1, kind: "Technical", interviewer: "Vivek L. (Sr. DS)", scheduledFor: "Today · 3:30 PM", status: "Confirmed", provider: "Zoom", meetingLink: "zoom.us/j/9876543210", cvAttached: true, recruiterReminder: true, candidateReminder: true },
+      { id: "ip3-r2", index: 2, kind: "Case Study", interviewer: "Take-home · 48h", scheduledFor: "After R1", status: "Pending confirmation", provider: "On-site", cvAttached: false, recruiterReminder: false, candidateReminder: false },
+      { id: "ip3-r3", index: 3, kind: "Hiring Manager", interviewer: "Vikram S. (Head of DS)", scheduledFor: "TBD", status: "Pending confirmation", provider: "Zoom", cvAttached: false, recruiterReminder: false, candidateReminder: false },
+    ],
+  },
+  {
+    id: "ip4",
+    candidate: "Devansh Singh",
+    candidateInitials: "DS",
+    position: "DevOps Engineer",
+    client: "Tata Digital",
+    clientId: "tata-digital",
+    rounds: [
+      { id: "ip4-r1", index: 1, kind: "HR Screen", interviewer: "Anjali P. (HR)", scheduledFor: "Yesterday · 11:00 AM", status: "No-show", provider: "Microsoft Teams", cvAttached: true, recruiterReminder: true, candidateReminder: true, notes: "Candidate did not join. Follow-up scheduled." },
+    ],
+  },
+];
+
+export function getInterviewProcess(id: string) {
+  return interviewProcesses.find((p) => p.id === id);
+}
