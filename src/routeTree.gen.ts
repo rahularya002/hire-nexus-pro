@@ -24,6 +24,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as PipelineStageRouteImport } from './routes/pipeline.$stage'
+import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
@@ -106,6 +107,11 @@ const PipelineStageRoute = PipelineStageRouteImport.update({
   path: '/$stage',
   getParentRoute: () => PipelineRoute,
 } as any)
+const InterviewsProcessIdRoute = InterviewsProcessIdRouteImport.update({
+  id: '/$processId',
+  path: '/$processId',
+  getParentRoute: () => InterviewsRoute,
+} as any)
 const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
   id: '/$clientId',
   path: '/$clientId',
@@ -144,7 +150,7 @@ export interface FileRoutesByFullPath {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/interviews': typeof InterviewsRoute
+  '/interviews': typeof InterviewsRouteWithChildren
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
@@ -167,7 +174,7 @@ export interface FileRoutesByTo {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/interviews': typeof InterviewsRoute
+  '/interviews': typeof InterviewsRouteWithChildren
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
@@ -191,7 +199,7 @@ export interface FileRoutesById {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/interviews': typeof InterviewsRoute
+  '/interviews': typeof InterviewsRouteWithChildren
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/interviews/$processId'
     | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client/'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/interviews/$processId'
     | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/interviews/$processId'
     | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client/'
@@ -286,7 +298,7 @@ export interface RootRouteChildren {
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
   DatabaseRoute: typeof DatabaseRoute
-  InterviewsRoute: typeof InterviewsRoute
+  InterviewsRoute: typeof InterviewsRouteWithChildren
   OngoingRoute: typeof OngoingRoute
   PipelineRoute: typeof PipelineRouteWithChildren
   PositionsRoute: typeof PositionsRouteWithChildren
@@ -407,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PipelineStageRouteImport
       parentRoute: typeof PipelineRoute
     }
+    '/interviews/$processId': {
+      id: '/interviews/$processId'
+      path: '/$processId'
+      fullPath: '/interviews/$processId'
+      preLoaderRoute: typeof InterviewsProcessIdRouteImport
+      parentRoute: typeof InterviewsRoute
+    }
     '/clients/$clientId': {
       id: '/clients/$clientId'
       path: '/$clientId'
@@ -463,6 +482,18 @@ const ClientsRouteChildren: ClientsRouteChildren = {
 const ClientsRouteWithChildren =
   ClientsRoute._addFileChildren(ClientsRouteChildren)
 
+interface InterviewsRouteChildren {
+  InterviewsProcessIdRoute: typeof InterviewsProcessIdRoute
+}
+
+const InterviewsRouteChildren: InterviewsRouteChildren = {
+  InterviewsProcessIdRoute: InterviewsProcessIdRoute,
+}
+
+const InterviewsRouteWithChildren = InterviewsRoute._addFileChildren(
+  InterviewsRouteChildren,
+)
+
 interface PipelineRouteChildren {
   PipelineStageRoute: typeof PipelineStageRoute
 }
@@ -505,7 +536,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
   DatabaseRoute: DatabaseRoute,
-  InterviewsRoute: InterviewsRoute,
+  InterviewsRoute: InterviewsRouteWithChildren,
   OngoingRoute: OngoingRoute,
   PipelineRoute: PipelineRouteWithChildren,
   PositionsRoute: PositionsRouteWithChildren,

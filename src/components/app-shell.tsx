@@ -16,6 +16,7 @@ import {
   Plus,
   ClipboardList,
   UsersRound,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
@@ -28,6 +29,7 @@ const nav = [
   { to: "/ongoing", label: "Ongoing", icon: Activity },
   { to: "/interviews", label: "Interviews", icon: CalendarClock },
   { to: "/pipeline", label: "Pipeline", icon: Workflow },
+  { to: "/database", label: "Candidate DB", icon: Database },
   { to: "/closed", label: "Closed", icon: CheckCircle2 },
   { to: "/team", label: "Recruiter Roster", icon: UsersRound },
   { to: "/admin/clients", label: "Clients (Admin)", icon: Users },
