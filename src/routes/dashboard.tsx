@@ -74,14 +74,8 @@ function Cockpit() {
               </button>
             ))}
           </div>
-          <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
-            <Bell className="size-4" /> 4
-          </button>
           <Link to="/scout" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90">
             <Sparkles className="size-4" /> AI Scout
-          </Link>
-          <Link to="/" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
-            <LogOut className="size-4" /> Sign Out
           </Link>
         </div>
       </div>
