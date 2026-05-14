@@ -16,6 +16,7 @@ import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as OngoingRouteImport } from './routes/ongoing'
 import { Route as InterviewsRouteImport } from './routes/interviews'
+import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClosedRouteImport } from './routes/closed'
 import { Route as ClientsRouteImport } from './routes/clients'
@@ -63,6 +64,11 @@ const OngoingRoute = OngoingRouteImport.update({
 const InterviewsRoute = InterviewsRouteImport.update({
   id: '/interviews',
   path: '/interviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DatabaseRoute = DatabaseRouteImport.update({
+  id: '/database',
+  path: '/database',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
+  '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
+  '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/clients': typeof ClientsRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
+  '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRouteWithChildren
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/closed'
     | '/dashboard'
+    | '/database'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/closed'
     | '/dashboard'
+    | '/database'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/closed'
     | '/dashboard'
+    | '/database'
     | '/interviews'
     | '/ongoing'
     | '/pipeline'
@@ -273,6 +285,7 @@ export interface RootRouteChildren {
   ClientsRoute: typeof ClientsRouteWithChildren
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
+  DatabaseRoute: typeof DatabaseRoute
   InterviewsRoute: typeof InterviewsRoute
   OngoingRoute: typeof OngoingRoute
   PipelineRoute: typeof PipelineRouteWithChildren
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/interviews'
       fullPath: '/interviews'
       preLoaderRoute: typeof InterviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/database': {
+      id: '/database'
+      path: '/database'
+      fullPath: '/database'
+      preLoaderRoute: typeof DatabaseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -484,6 +504,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientsRoute: ClientsRouteWithChildren,
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
+  DatabaseRoute: DatabaseRoute,
   InterviewsRoute: InterviewsRoute,
   OngoingRoute: OngoingRoute,
   PipelineRoute: PipelineRouteWithChildren,
