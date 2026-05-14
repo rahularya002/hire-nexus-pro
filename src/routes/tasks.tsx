@@ -18,7 +18,7 @@ const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed
 function TasksPage() {
   const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", client: "", candidate: "", kind: "Call", due: "Today" });
+  const [form, setForm] = useState({ title: "", client: "", candidate: "", kind: "Call candidate" as OpsTask["kind"], due: "Today" });
 
   const move = (id: string, dir: 1 | -1) => {
     setTasks((prev) =>
@@ -42,14 +42,15 @@ function TasksPage() {
         title: form.title,
         client: form.client,
         candidate: form.candidate || undefined,
-        kind: form.kind as OpsTask["kind"],
+        kind: form.kind,
         state: "Pending",
         sla: "ok",
         due: form.due,
+        recruiterId: "r1",
       },
       ...prev,
     ]);
-    setForm({ title: "", client: "", candidate: "", kind: "Call", due: "Today" });
+    setForm({ title: "", client: "", candidate: "", kind: "Call candidate", due: "Today" });
     setOpen(false);
     toast.success("Task created");
   };
@@ -129,13 +130,15 @@ function TasksPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Kind</Label>
-                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
+                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as OpsTask["kind"] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Call">Call</SelectItem>
-                    <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                    <SelectItem value="Interview">Interview</SelectItem>
+                    <SelectItem value="Call candidate">Call candidate</SelectItem>
+                    <SelectItem value="Confirm interview">Confirm interview</SelectItem>
+                    <SelectItem value="Share shortlist">Share shortlist</SelectItem>
+                    <SelectItem value="Follow up with client">Follow up with client</SelectItem>
+                    <SelectItem value="Schedule interview round">Schedule interview round</SelectItem>
+                    <SelectItem value="Collect feedback">Collect feedback</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
