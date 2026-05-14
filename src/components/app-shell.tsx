@@ -7,7 +7,6 @@ import {
   CalendarClock,
   Workflow,
   CheckCircle2,
-  Users,
   Bell,
   Search,
   Sparkles,
@@ -42,7 +41,6 @@ const nav = [
   { to: "/database", label: "Candidate DB", icon: Database },
   { to: "/closed", label: "Closed", icon: CheckCircle2 },
   { to: "/team", label: "Recruiter Roster", icon: UsersRound },
-  { to: "/admin/clients", label: "Clients (Admin)", icon: Users },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

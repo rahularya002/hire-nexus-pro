@@ -28,7 +28,6 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
-import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
 const TeamRoute = TeamRouteImport.update({
@@ -126,11 +125,6 @@ const ClientDocumentsRoute = ClientDocumentsRouteImport.update({
   path: '/client/documents',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminClientsRoute = AdminClientsRouteImport.update({
-  id: '/admin/clients',
-  path: '/admin/clients',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ClientPositionsPositionIdRoute =
   ClientPositionsPositionIdRouteImport.update({
     id: '/$positionId',
@@ -151,7 +145,6 @@ export interface FileRoutesByFullPath {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
-  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -174,7 +167,6 @@ export interface FileRoutesByTo {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
-  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -198,7 +190,6 @@ export interface FileRoutesById {
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
-  '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
@@ -223,7 +214,6 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
-    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -246,7 +236,6 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
-    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -269,7 +258,6 @@ export interface FileRouteTypes {
     | '/scout'
     | '/tasks'
     | '/team'
-    | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
     | '/client/upload'
@@ -293,7 +281,6 @@ export interface RootRouteChildren {
   ScoutRoute: typeof ScoutRoute
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
-  AdminClientsRoute: typeof AdminClientsRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientUploadRoute: typeof ClientUploadRoute
@@ -435,13 +422,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientDocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/clients': {
-      id: '/admin/clients'
-      path: '/admin/clients'
-      fullPath: '/admin/clients'
-      preLoaderRoute: typeof AdminClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/client/positions/$positionId': {
       id: '/client/positions/$positionId'
       path: '/$positionId'
@@ -512,7 +492,6 @@ const rootRouteChildren: RootRouteChildren = {
   ScoutRoute: ScoutRoute,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
-  AdminClientsRoute: AdminClientsRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientUploadRoute: ClientUploadRoute,
