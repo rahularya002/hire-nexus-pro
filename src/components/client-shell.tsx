@@ -178,9 +178,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="size-9 grid place-items-center rounded-md hover:bg-secondary">
-            <Settings className="size-4" />
-          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 pl-2 ml-1 border-l border-border outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
               <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">VS</div>
@@ -195,6 +192,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 <div className="text-[11px] text-muted-foreground font-normal">Head of Talent</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer">
+                <Settings className="size-4 mr-2" /> Settings
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/" className="flex items-center gap-2 cursor-pointer">
                   <LogOut className="size-4" /> Sign Out
