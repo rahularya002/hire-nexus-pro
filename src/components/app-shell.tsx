@@ -33,7 +33,7 @@ import {
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
-  { to: "/clients", label: "Clients", icon: Building2 },
+  { to: "/admin/clients", label: "Clients", icon: Building2 },
   { to: "/positions", label: "Open Requirements", icon: Briefcase },
   { to: "/ongoing", label: "Ongoing", icon: Activity },
   { to: "/interviews", label: "Interviews", icon: CalendarClock },
