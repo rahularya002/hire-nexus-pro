@@ -1,8 +1,14 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { MapPin, Users, Plus } from "lucide-react";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { positions, clients } from "@/lib/mock-data";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/positions")({
   component: () => <AppShell><PositionsShell /></AppShell>,
@@ -14,6 +20,7 @@ function PositionsShell() {
 }
 
 function PositionsPage() {
+  const [open, setOpen] = useState(false);
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
@@ -21,7 +28,7 @@ function PositionsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Open requirements</h1>
           <p className="text-sm text-muted-foreground mt-1">{positions.filter(p=>p.status!=="closed").length} active mandates across {clients.length} clients</p>
         </div>
-        <button className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+        <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
           <Plus className="size-4" /> New position
         </button>
       </div>
@@ -63,6 +70,43 @@ function PositionsPage() {
           })}
         </div>
       </div>
+
+      <NewPositionDialog open={open} onOpenChange={setOpen} />
     </div>
+  );
+}
+
+function NewPositionDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New position</DialogTitle>
+          <DialogDescription>Create a new open requirement.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            toast.success("Position created");
+            onOpenChange(false);
+          }}
+        >
+          <div className="space-y-1.5"><Label>Title</Label><Input required placeholder="Senior Frontend Engineer" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Client</Label><Input required placeholder="Acme Corp" /></div>
+            <div className="space-y-1.5"><Label>Location</Label><Input required placeholder="Bengaluru" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Experience</Label><Input required placeholder="5-8 yrs" /></div>
+            <div className="space-y-1.5"><Label>Salary</Label><Input required placeholder="₹30-40 LPA" /></div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit">Create position</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
