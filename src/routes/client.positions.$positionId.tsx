@@ -80,7 +80,7 @@ function Detail() {
       {tab === "candidates" && <CandidateList candidates={candidates} onUpdate={update} />}
       {tab === "interviews" && <Interviews slots={initial.interviewSlots ?? []} />}
       {tab === "documents" && <Documents docs={initial.documents ?? []} />}
-      {tab === "messages" && <Messages messages={messages} onSend={(body) => setMessages(prev => [...prev, { id: `m-${Date.now()}`, from: "client", authorName: "You", initials: "VS", body, timeAgo: "Just now" }])} />}
+      {tab === "messages" && <MessageThreadPanel messages={messages} onSend={(body: string) => setMessages(prev => [...prev, { id: `m-${Date.now()}`, from: "client", authorName: "You", initials: "VS", body, timeAgo: "Just now" }])} />}
     </div>
   );
 }
@@ -233,7 +233,7 @@ function Documents({ docs }: { docs: { name: string; required: boolean; received
   );
 }
 
-function Messages({ messages, onSend }: { messages: ClientMessage[]; onSend: (body: string) => void }) {
+function MessageThreadPanel({ messages, onSend }: { messages: ClientMessage[]; onSend: (body: string) => void }) {
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
