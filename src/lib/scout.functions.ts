@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 type ScoutInput = {
   messages: { role: "user" | "assistant"; content: string }[];
+  sources?: string[];
 };
 
 export const scoutChat = createServerFn({ method: "POST" })
@@ -15,9 +16,14 @@ export const scoutChat = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
+    const sources = data.sources && data.sources.length > 0
+      ? data.sources.join(", ")
+      : "all available platforms";
+
     const systemPrompt = `You are AI Talent Scout, an expert technical recruiter assistant for TalentFlow, a recruitment agency in India.
 Help recruiters source, evaluate and shortlist candidates for open roles.
 Be concise, structured (use markdown lists & headings), and action-oriented.
+Active sourcing channels for this session: ${sources}. Tailor sourcing strategies, boolean search strings, and outreach templates to these channels. When "Internal database" is selected, prioritize the recruiter's existing candidate pool first.
 When given a job description or role brief, respond with: ideal candidate profile, must-have skills, sourcing channels, and 3 sample outreach message templates.
 When asked about a candidate, give a balanced evaluation with strengths, gaps, and suggested interview questions.`;
 
