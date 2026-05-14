@@ -12,6 +12,7 @@ import {
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
 const nav = [
@@ -81,7 +82,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
-      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0 h-screen self-start">
         <div className="h-16 flex items-center gap-3 px-5 border-b border-sidebar-border">
           <div className="size-9 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground shadow-sm" style={{ background: clientCompany.color }}>
             {clientCompany.initials}
@@ -145,6 +146,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           <Link to="/client/upload" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
             <Upload className="size-4" /> Upload JD
           </Link>
+          <div className="flex-1" />
           <DropdownMenu>
             <DropdownMenuTrigger className="relative size-9 grid place-items-center rounded-md hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
               <Bell className="size-4" />
@@ -179,16 +181,27 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           <button className="size-9 grid place-items-center rounded-md hover:bg-secondary">
             <Settings className="size-4" />
           </button>
-          <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border">
-            <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">VS</div>
-            <div className="hidden sm:block text-xs leading-tight">
-              <div className="font-medium">Vikram Shah</div>
-              <div className="text-muted-foreground">Head of Talent</div>
-            </div>
-          </div>
-          <Link to="/" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
-            <LogOut className="size-4" /> Sign Out
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 pl-2 ml-1 border-l border-border outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
+              <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">VS</div>
+              <div className="hidden sm:block text-xs leading-tight text-left">
+                <div className="font-medium">Vikram Shah</div>
+                <div className="text-muted-foreground">Head of Talent</div>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="text-sm font-medium">Vikram Shah</div>
+                <div className="text-[11px] text-muted-foreground font-normal">Head of Talent</div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/" className="flex items-center gap-2 cursor-pointer">
+                  <LogOut className="size-4" /> Sign Out
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
         <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-[1400px] w-full mx-auto">{children}</main>
       </div>
