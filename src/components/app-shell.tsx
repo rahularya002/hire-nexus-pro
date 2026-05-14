@@ -133,7 +133,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Live
           </div>
 
-          <div className="ml-auto pl-2 border-l border-border">
+          <button className="ml-auto relative size-9 grid place-items-center rounded-md hover:bg-secondary">
+            <Bell className="size-4" />
+            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-destructive" />
+          </button>
+
+          <div className="pl-2 border-l border-border">
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <div className="relative size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
@@ -150,10 +155,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <User className="size-4" /> Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Bell className="size-4" /> Notifications
-                  <span className="ml-auto size-1.5 rounded-full bg-destructive" />
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="size-4" /> Settings
