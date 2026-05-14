@@ -3,7 +3,7 @@ import { ArrowUpRight, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/ui-bits";
-import { clients } from "@/lib/mock-data";
+import { clients, isClientInactive, INACTIVITY_THRESHOLD_DAYS } from "@/lib/mock-data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,14 +20,29 @@ export const Route = createFileRoute("/clients")({
 
 function ClientsPage() {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const visible = clients.filter((c) => {
+    if (filter === "all") return true;
+    const inactive = isClientInactive(c);
+    return filter === "inactive" ? inactive : !inactive;
+  });
+  const inactiveCount = clients.filter(isClientInactive).length;
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Active clients</h1>
-          <p className="text-sm text-muted-foreground mt-1">{clients.length} clients · {clients.reduce((a, c) => a + c.openPositions, 0)} open positions</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {clients.length} total · {clients.length - inactiveCount} active · {inactiveCount} inactive
+            <span className="ml-2 text-[11px]">(auto-inactive after {INACTIVITY_THRESHOLD_DAYS}d of no activity unless requirements are open)</span>
+          </p>
         </div>
         <div className="flex gap-2">
+          <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
+            {(["all", "active", "inactive"] as const).map((f) => (
+              <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
+            ))}
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <input placeholder="Search clients" className="h-9 w-64 rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
@@ -39,13 +54,18 @@ function ClientsPage() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {clients.map((c) => (
+        {visible.map((c) => {
+          const inactive = isClientInactive(c);
+          return (
           <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }}
-            className="group rounded-xl border border-border bg-card p-5 hover:shadow-md hover:border-primary/30 transition-all">
+            className={`group rounded-xl border bg-card p-5 hover:shadow-md transition-all ${inactive ? "border-warning/40 opacity-90" : "border-border hover:border-primary/30"}`}>
             <div className="flex items-center gap-3">
               <Avatar initials={c.initials} color={c.color} />
               <div className="min-w-0">
-                <div className="font-semibold truncate">{c.name}</div>
+                <div className="font-semibold truncate flex items-center gap-2">
+                  {c.name}
+                  {inactive && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/15 text-warning">Inactive</span>}
+                </div>
                 <div className="text-xs text-muted-foreground truncate">{c.industry}</div>
               </div>
               <ArrowUpRight className="ml-auto size-4 text-muted-foreground group-hover:text-primary transition" />
@@ -60,9 +80,13 @@ function ClientsPage() {
                 <div className="text-lg font-semibold tabular-nums">{c.activeCandidates}</div>
               </div>
             </div>
-            <div className="mt-3 text-[11px] text-muted-foreground">SPOC · {c.contact}</div>
+            <div className="mt-3 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span>SPOC · {c.contact}</span>
+              <span>{c.lastActivityDays === 0 ? "Active today" : `Last activity ${c.lastActivityDays}d ago`}</span>
+            </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
