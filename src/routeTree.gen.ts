@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TeamRouteImport } from './routes/team'
+import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as ScoutRouteImport } from './routes/scout'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
@@ -27,6 +29,16 @@ import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
+const TeamRoute = TeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScoutRoute = ScoutRouteImport.update({
   id: '/scout',
   path: '/scout',
@@ -124,6 +136,8 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
+  '/tasks': typeof TasksRoute
+  '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -143,6 +157,8 @@ export interface FileRoutesByTo {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
+  '/tasks': typeof TasksRoute
+  '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -163,6 +179,8 @@ export interface FileRoutesById {
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
+  '/tasks': typeof TasksRoute
+  '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -184,6 +202,8 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/scout'
+    | '/tasks'
+    | '/team'
     | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
@@ -203,6 +223,8 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/scout'
+    | '/tasks'
+    | '/team'
     | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
@@ -222,6 +244,8 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/positions'
     | '/scout'
+    | '/tasks'
+    | '/team'
     | '/admin/clients'
     | '/client/documents'
     | '/client/positions'
@@ -242,6 +266,8 @@ export interface RootRouteChildren {
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
   ScoutRoute: typeof ScoutRoute
+  TasksRoute: typeof TasksRoute
+  TeamRoute: typeof TeamRoute
   AdminClientsRoute: typeof AdminClientsRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
@@ -251,6 +277,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/team': {
+      id: '/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof TeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/scout': {
       id: '/scout'
       path: '/scout'
@@ -418,6 +458,8 @@ const rootRouteChildren: RootRouteChildren = {
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
   ScoutRoute: ScoutRoute,
+  TasksRoute: TasksRoute,
+  TeamRoute: TeamRoute,
   AdminClientsRoute: AdminClientsRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
@@ -427,13 +469,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
