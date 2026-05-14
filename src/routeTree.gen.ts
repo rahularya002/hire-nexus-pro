@@ -26,7 +26,9 @@ import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$pr
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
+import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
+import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
 import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
@@ -119,9 +121,19 @@ const ClientTeamRoute = ClientTeamRouteImport.update({
   path: '/client/team',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientReportsRoute = ClientReportsRouteImport.update({
+  id: '/client/reports',
+  path: '/client/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientPositionsRoute = ClientPositionsRouteImport.update({
   id: '/client/positions',
   path: '/client/positions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientPlacementsRoute = ClientPlacementsRouteImport.update({
+  id: '/client/placements',
+  path: '/client/placements',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientPipelineRoute = ClientPipelineRouteImport.update({
@@ -173,7 +185,9 @@ export interface FileRoutesByFullPath {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/pipeline': typeof ClientPipelineRoute
+  '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/reports': typeof ClientReportsRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -199,7 +213,9 @@ export interface FileRoutesByTo {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/pipeline': typeof ClientPipelineRoute
+  '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/reports': typeof ClientReportsRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -226,7 +242,9 @@ export interface FileRoutesById {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/pipeline': typeof ClientPipelineRoute
+  '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/reports': typeof ClientReportsRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -254,7 +272,9 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/pipeline'
+    | '/client/placements'
     | '/client/positions'
+    | '/client/reports'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -280,7 +300,9 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/pipeline'
+    | '/client/placements'
     | '/client/positions'
+    | '/client/reports'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -306,7 +328,9 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/pipeline'
+    | '/client/placements'
     | '/client/positions'
+    | '/client/reports'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -333,7 +357,9 @@ export interface RootRouteChildren {
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
   ClientPipelineRoute: typeof ClientPipelineRoute
+  ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
+  ClientReportsRoute: typeof ClientReportsRoute
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -461,11 +487,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientTeamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/reports': {
+      id: '/client/reports'
+      path: '/client/reports'
+      fullPath: '/client/reports'
+      preLoaderRoute: typeof ClientReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/positions': {
       id: '/client/positions'
       path: '/client/positions'
       fullPath: '/client/positions'
       preLoaderRoute: typeof ClientPositionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/placements': {
+      id: '/client/placements'
+      path: '/client/placements'
+      fullPath: '/client/placements'
+      preLoaderRoute: typeof ClientPlacementsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/pipeline': {
@@ -566,7 +606,9 @@ const rootRouteChildren: RootRouteChildren = {
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
   ClientPipelineRoute: ClientPipelineRoute,
+  ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
+  ClientReportsRoute: ClientReportsRoute,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
@@ -575,3 +617,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
