@@ -7,7 +7,6 @@ import {
   CalendarClock,
   Workflow,
   CheckCircle2,
-  Users,
   Bell,
   Search,
   Sparkles,
