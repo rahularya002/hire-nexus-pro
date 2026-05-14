@@ -1,16 +1,30 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { clientCompany } from "@/lib/client-data";
+import { activityEvents } from "@/lib/client-data";
 import { getAgencyLastPath, getSelectedClientId, setSelectedClientId } from "@/lib/portal-state";
 import { clients } from "@/lib/mock-data";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const nav = [
-  { to: "/client", label: "Overview", icon: LayoutDashboard, exact: true },
-  { to: "/client/positions", label: "Positions", icon: Briefcase },
-  { to: "/client/upload", label: "Upload JD", icon: Upload },
-  { to: "/client/documents", label: "Documents", icon: FileText },
+  { to: "/client",            label: "Overview",        icon: LayoutDashboard, exact: true },
+  { to: "/client/positions",  label: "My Requirements", icon: Briefcase },
+  { to: "/client/pipeline",   label: "Pipeline",        icon: Workflow },
+  { to: "/client/interviews", label: "Interviews",      icon: CalendarClock },
+  { to: "/client/placements", label: "Placements",      icon: CheckCircle2 },
+  { to: "/client/reports",    label: "Reports",         icon: BarChart3 },
+  { to: "/client/activity",   label: "Activity",        icon: ActivityIcon },
+  { to: "/client/team",       label: "Account Team",    icon: UsersRound },
+  { to: "/client/upload",     label: "Upload JD",       icon: Upload },
+  { to: "/client/documents",  label: "Documents",       icon: FileText },
 ];
 
 // Map an agency route path to a human-readable page name.
@@ -43,6 +57,7 @@ function describeAgencyPath(path: string): string {
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const unread = activityEvents.filter((e) => e.unread).length;
 
   // Persist the "selected client" the user was viewing on the agency side.
   // Falls back to the first client so the link is always meaningful.
@@ -77,7 +92,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
           {nav.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
@@ -130,10 +145,37 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           <Link to="/client/upload" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
             <Upload className="size-4" /> Upload JD
           </Link>
-          <button className="relative size-9 grid place-items-center rounded-md hover:bg-secondary">
-            <Bell className="size-4" />
-            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-destructive" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="relative size-9 grid place-items-center rounded-md hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <Bell className="size-4" />
+              {unread > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground grid place-items-center">
+                  {unread}
+                </span>
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 p-0">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notifications</span>
+                <Link to="/client/activity" className="text-[11px] text-primary font-medium">View all</Link>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="max-h-80 overflow-y-auto">
+                {activityEvents.slice(0, 6).map((e) => (
+                  <div key={e.id} className="px-3 py-2.5 border-b border-border last:border-0 hover:bg-secondary/50">
+                    <div className="flex items-start gap-2">
+                      {e.unread && <span className="mt-1.5 size-1.5 rounded-full bg-primary shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium truncate">{e.title}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">{e.detail}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{e.timeAgo}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button className="size-9 grid place-items-center rounded-md hover:bg-secondary">
             <Settings className="size-4" />
           </button>
