@@ -1,12 +1,17 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { MapPin, Users, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { positions, clients } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/positions")({
-  component: () => <AppShell><PositionsPage /></AppShell>,
+  component: () => <AppShell><PositionsShell /></AppShell>,
 });
+
+function PositionsShell() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname === "/positions" ? <PositionsPage /> : <Outlet />;
+}
 
 function PositionsPage() {
   return (
