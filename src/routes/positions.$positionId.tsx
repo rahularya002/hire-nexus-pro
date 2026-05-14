@@ -1,11 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  ArrowLeft, MapPin, Calendar, Users, Sparkles, FileText, X, Mail, Star, Eye,
+  ArrowLeft, MapPin, Calendar, Users, Sparkles, FileText, X, Check, Send, Undo2, Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge, StageBadge } from "@/components/ui-bits";
 import { getPosition, getClient, PIPELINE_STAGES } from "@/lib/mock-data";
+import { detailFor } from "@/lib/ops/store";
 
 export const Route = createFileRoute("/positions/$positionId")({
   component: () => <AppShell><PositionDetail /></AppShell>,
@@ -17,6 +18,10 @@ function PositionDetail() {
   if (!position) throw notFound();
   const client = getClient(position.clientId)!;
   const [scoutOpen, setScoutOpen] = useState(false);
+  const [decisions, setDecisions] = useState<Record<string, "selected" | "rejected" | "shared" | "returned">>({});
+  const [resumeFor, setResumeFor] = useState<string | null>(null);
+  const setDecision = (id: string, v: "selected" | "rejected" | "shared" | "returned") =>
+    setDecisions((d) => ({ ...d, [id]: d[id] === v ? undefined as any : v }));
 
   return (
     <div className="space-y-6">
@@ -80,48 +85,114 @@ function PositionDetail() {
         </div>
       </div>
 
-      {/* Candidates */}
+      {/* Candidates table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
           <div>
             <h3 className="font-semibold tracking-tight">Candidates</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Sorted by AI match score</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Sorted by AI match score · {position.candidates.length} total</p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {Object.values(decisions).filter(v => v === "selected").length} selected ·{" "}
+            {Object.values(decisions).filter(v => v === "shared").length} shared ·{" "}
+            {Object.values(decisions).filter(v => v === "rejected").length} rejected
           </div>
         </div>
-        <div className="divide-y divide-border">
-          {[...position.candidates].sort((a,b) => b.matchScore - a.matchScore).map((c) => (
-            <div key={c.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-secondary/40 transition">
-              <div className="md:col-span-4 flex items-center gap-3 min-w-0">
-                <div className="size-10 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">{c.initials}</div>
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{c.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.role} · {c.experience}</div>
-                </div>
-              </div>
-              <div className="md:col-span-2 text-xs text-muted-foreground inline-flex items-center gap-1">
-                <MapPin className="size-3" /> {c.location}
-              </div>
-              <div className="md:col-span-2">
-                <MatchScore score={c.matchScore} />
-              </div>
-              <div className="md:col-span-2"><StageBadge stage={c.stage} /></div>
-              <div className="md:col-span-2 flex items-center gap-1 md:justify-end">
-                <button className="size-8 grid place-items-center rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground" title="View CV">
-                  <Eye className="size-4" />
-                </button>
-                <button className="size-8 grid place-items-center rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground" title="Email">
-                  <Mail className="size-4" />
-                </button>
-                <button className="size-8 grid place-items-center rounded-md hover:bg-warning/15 text-warning" title="Shortlist">
-                  <Star className="size-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-secondary/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+              <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Candidate</th>
+                <th className="px-4 py-3 font-medium">Experience</th>
+                <th className="px-4 py-3 font-medium">Salary</th>
+                <th className="px-4 py-3 font-medium">Previous org</th>
+                <th className="px-4 py-3 font-medium">Location</th>
+                <th className="px-4 py-3 font-medium">Notice</th>
+                <th className="px-4 py-3 font-medium w-[140px]">AI match</th>
+                <th className="px-4 py-3 font-medium">Stage</th>
+                <th className="px-4 py-3 font-medium">Resume</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[...position.candidates].sort((a,b) => b.matchScore - a.matchScore).map((c) => {
+                const d = detailFor(c);
+                const decision = decisions[c.id];
+                const rowTone =
+                  decision === "selected" ? "bg-success/5"
+                  : decision === "rejected" ? "bg-destructive/5 opacity-70"
+                  : decision === "shared" ? "bg-info/5"
+                  : decision === "returned" ? "bg-secondary/40 opacity-70"
+                  : "";
+                return (
+                  <tr key={c.id} className={`hover:bg-secondary/40 transition ${rowTone}`}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="size-9 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">{c.initials}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{c.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{c.role}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{c.experience}</td>
+                    <td className="px-4 py-3 tabular-nums whitespace-nowrap">{d.salary}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5"><Building2 className="size-3.5 text-muted-foreground" />{d.prevOrg}</span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{c.location}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">{d.noticePeriod}</td>
+                    <td className="px-4 py-3"><MatchScore score={c.matchScore} /></td>
+                    <td className="px-4 py-3"><StageBadge stage={c.stage} /></td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => setResumeFor(c.id)}
+                        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border hover:bg-secondary"
+                      >
+                        <FileText className="size-3.5" /> Preview
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => setDecision(c.id, "selected")}
+                          title="Select"
+                          className={`size-8 grid place-items-center rounded-md transition ${decision === "selected" ? "bg-success/20 text-success" : "hover:bg-success/10 text-muted-foreground hover:text-success"}`}
+                        ><Check className="size-4" /></button>
+                        <button
+                          onClick={() => setDecision(c.id, "rejected")}
+                          title="Reject"
+                          className={`size-8 grid place-items-center rounded-md transition ${decision === "rejected" ? "bg-destructive/20 text-destructive" : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive"}`}
+                        ><X className="size-4" /></button>
+                        <button
+                          onClick={() => setDecision(c.id, "shared")}
+                          title="Share to client"
+                          className={`size-8 grid place-items-center rounded-md transition ${decision === "shared" ? "bg-info/20 text-info" : "hover:bg-info/10 text-muted-foreground hover:text-info"}`}
+                        ><Send className="size-4" /></button>
+                        <button
+                          onClick={() => setDecision(c.id, "returned")}
+                          title="Return to database"
+                          className={`size-8 grid place-items-center rounded-md transition ${decision === "returned" ? "bg-secondary text-foreground" : "hover:bg-secondary text-muted-foreground hover:text-foreground"}`}
+                        ><Undo2 className="size-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
       {scoutOpen && <AIScoutModal onClose={() => setScoutOpen(false)} title={position.title} />}
+      {resumeFor && (() => {
+        const cand = position.candidates.find(x => x.id === resumeFor);
+        if (!cand) return null;
+        const d = detailFor(cand);
+        return <ResumePreviewModal onClose={() => setResumeFor(null)} candidate={cand} detail={d} />;
+      })()}
     </div>
   );
 }
