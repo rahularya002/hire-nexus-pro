@@ -4,6 +4,12 @@ import { AppShell } from "@/components/app-shell";
 import { opsTasks, type OpsTask, type TaskState } from "@/lib/ops/store";
 import { ClipboardList, Phone, Mail, Send, Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/tasks")({ component: TasksPage });
 
@@ -11,6 +17,8 @@ const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed
 
 function TasksPage() {
   const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", client: "", candidate: "", kind: "Call candidate" as OpsTask["kind"], due: "Today" });
 
   const move = (id: string, dir: 1 | -1) => {
     setTasks((prev) =>
@@ -21,6 +29,30 @@ function TasksPage() {
         return { ...t, state: next };
       })
     );
+  };
+
+  const createTask = () => {
+    if (!form.title || !form.client) {
+      toast.error("Title and client are required");
+      return;
+    }
+    setTasks((prev) => [
+      {
+        id: `t-${Date.now()}`,
+        title: form.title,
+        client: form.client,
+        candidate: form.candidate || undefined,
+        kind: form.kind,
+        state: "Pending",
+        sla: "ok",
+        due: form.due,
+        recruiterId: "r1",
+      },
+      ...prev,
+    ]);
+    setForm({ title: "", client: "", candidate: "", kind: "Call candidate", due: "Today" });
+    setOpen(false);
+    toast.success("Task created");
   };
 
   return (
@@ -34,7 +66,7 @@ function TasksPage() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1">Trello-style cockpit for daily recruiter work — move tasks across operational states.</p>
           </div>
-          <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+          <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
             <Plus className="size-4" /> New task
           </button>
         </div>
@@ -82,6 +114,43 @@ function TasksPage() {
           })}
         </div>
       </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New task</DialogTitle>
+            <DialogDescription>Add a task to the Pending column.</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); createTask(); }}>
+            <div className="space-y-1.5"><Label>Title</Label><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Follow up on offer" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Client</Label><Input required value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} placeholder="Acme Corp" /></div>
+              <div className="space-y-1.5"><Label>Candidate</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Kind</Label>
+                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as OpsTask["kind"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Call candidate">Call candidate</SelectItem>
+                    <SelectItem value="Confirm interview">Confirm interview</SelectItem>
+                    <SelectItem value="Share shortlist">Share shortlist</SelectItem>
+                    <SelectItem value="Follow up with client">Follow up with client</SelectItem>
+                    <SelectItem value="Schedule interview round">Schedule interview round</SelectItem>
+                    <SelectItem value="Collect feedback">Collect feedback</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5"><Label>Due</Label><Input value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} placeholder="Today / Tomorrow" /></div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit">Create task</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

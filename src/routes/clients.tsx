@@ -1,8 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight, Plus, Search } from "lucide-react";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/ui-bits";
 import { clients } from "@/lib/mock-data";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/clients")({
   component: () => (
@@ -13,6 +19,7 @@ export const Route = createFileRoute("/clients")({
 });
 
 function ClientsPage() {
+  const [open, setOpen] = useState(false);
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -25,7 +32,7 @@ function ClientsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <input placeholder="Search clients" className="h-9 w-64 rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
           </div>
-          <button className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+          <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
             <Plus className="size-4" /> New client
           </button>
         </div>
@@ -57,6 +64,30 @@ function ClientsPage() {
           </Link>
         ))}
       </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New client</DialogTitle>
+            <DialogDescription>Add a new client to your active roster.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => { e.preventDefault(); toast.success("Client added"); setOpen(false); }}
+          >
+            <div className="space-y-1.5"><Label>Company name</Label><Input required placeholder="Acme Corp" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Industry</Label><Input required placeholder="FinTech" /></div>
+              <div className="space-y-1.5"><Label>SPOC</Label><Input required placeholder="Jane Doe" /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Email</Label><Input required type="email" placeholder="hr@acme.com" /></div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit">Add client</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
