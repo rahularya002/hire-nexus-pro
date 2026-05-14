@@ -152,10 +152,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <User className="size-4" /> Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem>
-                  <Bell className="size-4" /> Notifications
-                  <span className="ml-auto size-1.5 rounded-full bg-destructive" />
-                </DropdownMenuItem>
-                <DropdownMenuItem>
                   <Settings className="size-4" /> Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
