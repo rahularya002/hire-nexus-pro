@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { clientCompany } from "@/lib/client-data";
@@ -144,6 +144,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               <div className="text-muted-foreground">Head of Talent</div>
             </div>
           </div>
+          <Link to="/" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
+            <LogOut className="size-4" /> Sign Out
+          </Link>
         </header>
         <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-[1400px] w-full mx-auto">{children}</main>
       </div>
