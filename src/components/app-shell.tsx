@@ -14,18 +14,22 @@ import {
   Settings,
   ChevronRight,
   Plus,
+  ClipboardList,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/tasks", label: "Tasks", icon: ClipboardList },
   { to: "/clients", label: "Active Clients", icon: Building2 },
   { to: "/positions", label: "Open Requirements", icon: Briefcase },
   { to: "/ongoing", label: "Ongoing", icon: Activity },
   { to: "/interviews", label: "Interviews", icon: CalendarClock },
   { to: "/pipeline", label: "Pipeline", icon: Workflow },
   { to: "/closed", label: "Closed", icon: CheckCircle2 },
+  { to: "/team", label: "Recruiter Roster", icon: UsersRound },
   { to: "/admin/clients", label: "Clients (Admin)", icon: Users },
 ];
 
