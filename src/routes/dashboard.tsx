@@ -62,9 +62,9 @@ function Dashboard() {
           <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
             <Bell className="size-4" /> 4 alerts
           </button>
-          <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90">
+          <Link to="/scout" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90">
             <Sparkles className="size-4" /> AI Talent Scout
-          </button>
+          </Link>
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary"
