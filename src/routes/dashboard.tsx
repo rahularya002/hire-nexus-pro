@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Building2, Briefcase, CalendarClock, ClipboardList,
-  ArrowUpRight, Sparkles, Bell, LogOut, AlertTriangle, MessageSquare,
+  ArrowUpRight, Sparkles, AlertTriangle, MessageSquare,
   PhoneCall, Mail, CheckCircle2, RotateCcw, UserX, Activity, Coffee, Circle,
   Send, Phone, Clock,
 } from "lucide-react";
