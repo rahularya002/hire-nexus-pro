@@ -22,6 +22,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
+import { Route as PipelineStageRouteImport } from './routes/pipeline.$stage'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
@@ -94,6 +95,11 @@ const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   path: '/$positionId',
   getParentRoute: () => PositionsRoute,
 } as any)
+const PipelineStageRoute = PipelineStageRouteImport.update({
+  id: '/$stage',
+  path: '/$stage',
+  getParentRoute: () => PipelineRoute,
+} as any)
 const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
   id: '/$clientId',
   path: '/$clientId',
@@ -133,7 +139,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
-  '/pipeline': typeof PipelineRoute
+  '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -154,7 +161,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
-  '/pipeline': typeof PipelineRoute
+  '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -176,7 +184,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/interviews': typeof InterviewsRoute
   '/ongoing': typeof OngoingRoute
-  '/pipeline': typeof PipelineRoute
+  '/pipeline': typeof PipelineRouteWithChildren
   '/positions': typeof PositionsRouteWithChildren
   '/scout': typeof ScoutRoute
   '/tasks': typeof TasksRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
+  '/pipeline/$stage': typeof PipelineStageRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client/'
     | '/client/positions/$positionId'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client'
     | '/client/positions/$positionId'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/upload'
     | '/clients/$clientId'
+    | '/pipeline/$stage'
     | '/positions/$positionId'
     | '/client/'
     | '/client/positions/$positionId'
@@ -263,7 +275,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   InterviewsRoute: typeof InterviewsRoute
   OngoingRoute: typeof OngoingRoute
-  PipelineRoute: typeof PipelineRoute
+  PipelineRoute: typeof PipelineRouteWithChildren
   PositionsRoute: typeof PositionsRouteWithChildren
   ScoutRoute: typeof ScoutRoute
   TasksRoute: typeof TasksRoute
@@ -368,6 +380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PositionsPositionIdRouteImport
       parentRoute: typeof PositionsRoute
     }
+    '/pipeline/$stage': {
+      id: '/pipeline/$stage'
+      path: '/$stage'
+      fullPath: '/pipeline/$stage'
+      preLoaderRoute: typeof PipelineStageRouteImport
+      parentRoute: typeof PipelineRoute
+    }
     '/clients/$clientId': {
       id: '/clients/$clientId'
       path: '/$clientId'
@@ -424,6 +443,18 @@ const ClientsRouteChildren: ClientsRouteChildren = {
 const ClientsRouteWithChildren =
   ClientsRoute._addFileChildren(ClientsRouteChildren)
 
+interface PipelineRouteChildren {
+  PipelineStageRoute: typeof PipelineStageRoute
+}
+
+const PipelineRouteChildren: PipelineRouteChildren = {
+  PipelineStageRoute: PipelineStageRoute,
+}
+
+const PipelineRouteWithChildren = PipelineRoute._addFileChildren(
+  PipelineRouteChildren,
+)
+
 interface PositionsRouteChildren {
   PositionsPositionIdRoute: typeof PositionsPositionIdRoute
 }
@@ -455,7 +486,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   InterviewsRoute: InterviewsRoute,
   OngoingRoute: OngoingRoute,
-  PipelineRoute: PipelineRoute,
+  PipelineRoute: PipelineRouteWithChildren,
   PositionsRoute: PositionsRouteWithChildren,
   ScoutRoute: ScoutRoute,
   TasksRoute: TasksRoute,
@@ -469,3 +500,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
