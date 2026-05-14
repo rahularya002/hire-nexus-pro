@@ -80,9 +80,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-muted-foreground mt-1">
               Auto-source matched candidates for any open role.
             </p>
-            <button className="mt-3 w-full text-xs font-medium bg-primary text-primary-foreground rounded-md py-1.5 hover:bg-primary/90 transition">
+            <Link to="/scout" className="mt-3 w-full inline-flex items-center justify-center text-xs font-medium bg-primary text-primary-foreground rounded-md py-1.5 hover:bg-primary/90 transition">
               Try Scout
-            </button>
+            </Link>
           </div>
         </div>
       </aside>
