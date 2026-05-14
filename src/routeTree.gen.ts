@@ -101,9 +101,9 @@ const InterviewsProcessIdRoute = InterviewsProcessIdRouteImport.update({
   getParentRoute: () => InterviewsRoute,
 } as any)
 const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
-  id: '/$clientId',
-  path: '/$clientId',
-  getParentRoute: () => ClientsRoute,
+  id: '/clients/$clientId',
+  path: '/clients/$clientId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ClientUploadRoute = ClientUploadRouteImport.update({
   id: '/client/upload',
@@ -284,6 +284,7 @@ export interface RootRouteChildren {
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientUploadRoute: typeof ClientUploadRoute
+  ClientsClientIdRoute: typeof ClientsClientIdRoute
   ClientIndexRoute: typeof ClientIndexRoute
 }
 
@@ -389,10 +390,10 @@ declare module '@tanstack/react-router' {
     }
     '/clients/$clientId': {
       id: '/clients/$clientId'
-      path: '/$clientId'
+      path: '/clients/$clientId'
       fullPath: '/clients/$clientId'
       preLoaderRoute: typeof ClientsClientIdRouteImport
-      parentRoute: typeof ClientsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/client/upload': {
       id: '/client/upload'
@@ -484,18 +485,9 @@ const rootRouteChildren: RootRouteChildren = {
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientUploadRoute: ClientUploadRoute,
+  ClientsClientIdRoute: ClientsClientIdRoute,
   ClientIndexRoute: ClientIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

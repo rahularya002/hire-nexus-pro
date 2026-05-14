@@ -102,7 +102,7 @@ function Cockpit() {
 
       {/* Top row: My Active Clients, My Open Positions, Today's Interviews */}
       <div className="grid lg:grid-cols-3 gap-4">
-        <CockpitCard title="Inactive clients" count={inactiveClients.length} icon={UserX} link="/clients" tone="warning">
+        <CockpitCard title="Inactive clients" count={inactiveClients.length} icon={UserX} link="/admin/clients" tone="warning">
           <div className="space-y-2">
             {inactiveClients.length === 0 && (
               <div className="text-xs text-muted-foreground p-2">No inactive clients — all accounts active in the last {INACTIVITY_THRESHOLD_DAYS} days.</div>
