@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BarChart3 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Cell } from "recharts";
 import { ClientShell } from "@/components/client-shell";
 import { aggregateFunnel, monthlyHires, sourceMix, accountTeam } from "@/lib/client-data";
 
@@ -20,6 +20,14 @@ function Page() {
   ];
   const conv = f.sourced > 0 ? Math.round((f.joined / f.sourced) * 100) : 0;
   const avgResponse = (accountTeam.reduce((a, r) => a + r.responseHrs, 0) / accountTeam.length).toFixed(1);
+  const funnelColors = [
+    "var(--info)",
+    "var(--purple)",
+    "var(--primary)",
+    "var(--warning)",
+    "var(--chart-1)",
+    "var(--success)",
+  ];
 
   return (
     <div className="space-y-6">
@@ -43,11 +51,15 @@ function Page() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={funnelData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="stage" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6,6,0,0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="stage" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: "var(--accent)", opacity: 0.3 }} contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} />
+                <Bar dataKey="count" radius={[6,6,0,0]}>
+                  {funnelData.map((_, i) => (
+                    <Cell key={i} fill={funnelColors[i % funnelColors.length]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -57,11 +69,11 @@ function Page() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyHires}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <YAxis allowDecimals={false} stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="hires" fill="hsl(var(--success, var(--primary)))" radius={[6,6,0,0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="month" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: "var(--accent)", opacity: 0.3 }} contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} />
+                <Bar dataKey="hires" fill="var(--primary)" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
