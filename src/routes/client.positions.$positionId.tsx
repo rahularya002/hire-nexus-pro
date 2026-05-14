@@ -1,11 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, FileText, CheckCircle2, Clock, Users, MessageSquare,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, FileText, CheckCircle2, Clock, MessageSquare, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
-import { getClientPosition, type SharedCandidate } from "@/lib/client-data";
+import { getClientPosition, messageThreads, type SharedCandidate, type ClientMessage } from "@/lib/client-data";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -17,7 +17,8 @@ function Detail() {
   if (!initial) throw notFound();
 
   const [candidates, setCandidates] = useState<SharedCandidate[]>(initial.candidates);
-  const [tab, setTab] = useState<"candidates" | "interviews" | "documents">("candidates");
+  const [tab, setTab] = useState<"candidates" | "interviews" | "documents" | "messages">("candidates");
+  const [messages, setMessages] = useState<ClientMessage[]>(messageThreads[positionId] ?? []);
 
   const update = (id: string, status: SharedCandidate["status"]) =>
     setCandidates(prev => prev.map(c => c.id === id ? { ...c, status } : c));
@@ -47,8 +48,15 @@ function Detail() {
               {initial.skills.map(s => <span key={s} className="text-xs px-2.5 py-1 rounded-md bg-secondary font-medium">{s}</span>)}
             </div>
           </div>
-          <button className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-card text-sm font-medium hover:bg-secondary">
+          <button
+            onClick={() => setTab("messages")}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-card text-sm font-medium hover:bg-secondary relative">
             <MessageSquare className="size-4" /> Message recruiter
+            {messages.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                {messages.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -59,6 +67,7 @@ function Detail() {
           { id: "candidates" as const, label: `Candidates (${candidates.length})` },
           { id: "interviews" as const, label: "Interviews" },
           { id: "documents" as const, label: "Documents" },
+          { id: "messages" as const, label: `Messages (${messages.length})` },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={cn("px-4 py-2 rounded-md text-sm font-medium transition",
@@ -71,6 +80,7 @@ function Detail() {
       {tab === "candidates" && <CandidateList candidates={candidates} onUpdate={update} />}
       {tab === "interviews" && <Interviews slots={initial.interviewSlots ?? []} />}
       {tab === "documents" && <Documents docs={initial.documents ?? []} />}
+      {tab === "messages" && <Messages messages={messages} onSend={(body) => setMessages(prev => [...prev, { id: `m-${Date.now()}`, from: "client", authorName: "You", initials: "VS", body, timeAgo: "Just now" }])} />}
     </div>
   );
 }
