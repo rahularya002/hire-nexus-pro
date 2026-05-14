@@ -27,6 +27,7 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
+import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
@@ -122,6 +123,11 @@ const ClientPositionsRoute = ClientPositionsRouteImport.update({
   path: '/client/positions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientInterviewsRoute = ClientInterviewsRouteImport.update({
+  id: '/client/interviews',
+  path: '/client/interviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientDocumentsRoute = ClientDocumentsRouteImport.update({
   id: '/client/documents',
   path: '/client/documents',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients': typeof AdminClientsRoute
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
+  '/client/interviews': typeof ClientInterviewsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/admin/clients': typeof AdminClientsRoute
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
+  '/client/interviews': typeof ClientInterviewsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/admin/clients': typeof AdminClientsRoute
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
+  '/client/interviews': typeof ClientInterviewsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/client/activity'
     | '/client/documents'
+    | '/client/interviews'
     | '/client/positions'
     | '/client/team'
     | '/client/upload'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/client/activity'
     | '/client/documents'
+    | '/client/interviews'
     | '/client/positions'
     | '/client/team'
     | '/client/upload'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/client/activity'
     | '/client/documents'
+    | '/client/interviews'
     | '/client/positions'
     | '/client/team'
     | '/client/upload'
@@ -307,6 +319,7 @@ export interface RootRouteChildren {
   AdminClientsRoute: typeof AdminClientsRoute
   ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
+  ClientInterviewsRoute: typeof ClientInterviewsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
@@ -442,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPositionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/interviews': {
+      id: '/client/interviews'
+      path: '/client/interviews'
+      fullPath: '/client/interviews'
+      preLoaderRoute: typeof ClientInterviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/documents': {
       id: '/client/documents'
       path: '/client/documents'
@@ -524,6 +544,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminClientsRoute: AdminClientsRoute,
   ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
+  ClientInterviewsRoute: ClientInterviewsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
