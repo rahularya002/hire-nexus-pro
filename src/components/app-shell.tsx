@@ -124,9 +124,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1 md:hidden" />
 
-          <button className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition">
+          <Link to="/positions" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition">
             <Plus className="size-4" /> New Position
-          </button>
+          </Link>
 
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-success/10 text-success text-xs font-medium">
             <span className="size-1.5 rounded-full bg-success animate-pulse" />
