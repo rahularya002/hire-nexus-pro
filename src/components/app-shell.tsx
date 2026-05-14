@@ -17,9 +17,19 @@ import {
   ClipboardList,
   UsersRound,
   Database,
+  LogOut,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -123,22 +133,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Live
           </div>
 
-          <button className="relative size-9 grid place-items-center rounded-md hover:bg-secondary">
-            <Bell className="size-4" />
-            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-destructive" />
-          </button>
-          <button className="size-9 grid place-items-center rounded-md hover:bg-secondary">
-            <Settings className="size-4" />
-          </button>
-
-          <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border">
-            <div className="size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
-              AR
-            </div>
-            <div className="hidden sm:block text-xs leading-tight">
-              <div className="font-medium">Aarav Reddy</div>
-              <div className="text-muted-foreground">Senior Recruiter</div>
-            </div>
+          <div className="ml-auto pl-2 border-l border-border">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <div className="relative size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
+                  AR
+                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                </div>
+                <div className="hidden sm:block text-xs leading-tight text-left">
+                  <div className="font-medium">Aarav Reddy</div>
+                  <div className="text-muted-foreground">Senior Recruiter</div>
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <User className="size-4" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Bell className="size-4" /> Notifications
+                  <span className="ml-auto size-1.5 rounded-full bg-destructive" />
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="size-4" /> Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/" className="cursor-pointer">
+                    <LogOut className="size-4" /> Sign Out
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
