@@ -114,7 +114,9 @@ function Scout() {
         }
         text = parts.join("\n\n");
       } else if (lower.endsWith(".docx")) {
-        const mammoth = await import("mammoth/mammoth.browser");
+        const mammoth = (await import("mammoth/mammoth.browser" as string)) as {
+          extractRawText: (i: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
+        };
         const buf = await file.arrayBuffer();
         const res = await mammoth.extractRawText({ arrayBuffer: buf });
         text = res.value;
