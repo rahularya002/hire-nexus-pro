@@ -7,8 +7,8 @@ const CLIENT_SELECTED_ID = "talentflow:client:selectedId";
 const isBrowser = () => typeof window !== "undefined";
 
 export function getAgencyLastPath(): string {
-  if (!isBrowser()) return "/";
-  return sessionStorage.getItem(AGENCY_LAST_PATH) || "/";
+  if (!isBrowser()) return "/dashboard";
+  return sessionStorage.getItem(AGENCY_LAST_PATH) || "/dashboard";
 }
 
 export function setAgencyLastPath(path: string) {
@@ -30,7 +30,7 @@ export function setSelectedClientId(id: string) {
 export function useTrackAgencyPath() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => {
-    if (pathname.startsWith("/client")) return;
+    if (pathname.startsWith("/client") || pathname === "/") return;
     setAgencyLastPath(pathname);
     // If we're on a client detail page, remember which client is "selected"
     const m = pathname.match(/^\/clients\/([^/]+)/);

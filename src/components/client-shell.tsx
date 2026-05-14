@@ -57,9 +57,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       setSelectedClientId(selectedId);
     }
     // Prefer the last agency page; if none recorded yet, deep-link to the selected client.
-    const target = lastPath && lastPath !== "/"
+    const target = lastPath && lastPath !== "/" && lastPath !== "/dashboard"
       ? lastPath
-      : selectedId ? `/clients/${selectedId}` : "/";
+      : selectedId ? `/clients/${selectedId}` : "/dashboard";
     setReturnPath(target);
     setReturnLabel(describeAgencyPath(target));
   }, [pathname]);

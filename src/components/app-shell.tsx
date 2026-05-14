@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Active Clients", icon: Building2 },
   { to: "/positions", label: "Open Requirements", icon: Briefcase },
   { to: "/ongoing", label: "Ongoing", icon: Activity },
