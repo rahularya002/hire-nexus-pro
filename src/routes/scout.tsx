@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check } from "lucide-react";
+import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { scoutChat } from "@/lib/scout.functions";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,10 @@ function Scout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SourceId[]>(["internal", "linkedin", "naukri"]);
+  const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
+  const [parsingCv, setParsingCv] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -58,11 +61,15 @@ function Scout() {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    if ((!trimmed && !cv) || loading) return;
     setError(null);
-    const next: Msg[] = [...messages, { role: "user", content: trimmed }];
+    const userContent = cv
+      ? `${trimmed || "Please review the attached CV."}\n\n--- Attached CV: ${cv.name} ---\n${cv.text.slice(0, 18000)}`
+      : trimmed;
+    const next: Msg[] = [...messages, { role: "user", content: userContent }];
     setMessages(next);
     setInput("");
+    setCv(null);
     setLoading(true);
     try {
       const sourceLabels = SOURCES.filter((s) => selected.includes(s.id)).map((s) =>
@@ -83,6 +90,53 @@ function Scout() {
 
   function toggle(id: SourceId) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  async function handleFile(file: File) {
+    setError(null);
+    setParsingCv(true);
+    try {
+      const name = file.name;
+      const lower = name.toLowerCase();
+      let text = "";
+      if (lower.endsWith(".pdf")) {
+        const pdfjs = await import("pdfjs-dist");
+        // Use a worker shipped with the package via Vite ?url import
+        const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+        const buf = await file.arrayBuffer();
+        const doc = await pdfjs.getDocument({ data: buf }).promise;
+        const parts: string[] = [];
+        for (let i = 1; i <= doc.numPages; i++) {
+          const page = await doc.getPage(i);
+          const content = await page.getTextContent();
+          parts.push(content.items.map((it) => ("str" in it ? it.str : "")).join(" "));
+        }
+        text = parts.join("\n\n");
+      } else if (lower.endsWith(".docx")) {
+        const mammoth = (await import("mammoth/mammoth.browser" as string)) as {
+          extractRawText: (i: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
+        };
+        const buf = await file.arrayBuffer();
+        const res = await mammoth.extractRawText({ arrayBuffer: buf });
+        text = res.value;
+      } else {
+        // txt, md, rtf, doc, csv — best-effort plain read
+        text = await file.text();
+      }
+      text = text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+      if (!text) {
+        setError(`Couldn't extract text from ${name}. Try a PDF, DOCX, or TXT export.`);
+        return;
+      }
+      setCv({ name, text });
+    } catch (e) {
+      console.error(e);
+      setError("Failed to read CV. Try PDF, DOCX, or TXT.");
+    } finally {
+      setParsingCv(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
@@ -199,8 +253,43 @@ function Scout() {
           e.preventDefault();
           send(input);
         }}
-        className="pt-3 border-t border-border flex items-end gap-2"
+        className="pt-3 border-t border-border space-y-2"
       >
+        {cv && (
+          <div className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
+            <FileText className="size-3.5 text-primary" />
+            <span className="font-medium truncate max-w-[220px]">{cv.name}</span>
+            <span className="text-muted-foreground">· {Math.round(cv.text.length / 1000)}k chars</span>
+            <button
+              type="button"
+              onClick={() => setCv(null)}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Remove CV"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc,.txt,.md,.rtf,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={parsingCv || loading}
+          title="Upload CV (PDF, DOCX, TXT)"
+          className="h-11 w-11 shrink-0 rounded-lg border border-input bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 inline-flex items-center justify-center disabled:opacity-50"
+        >
+          {parsingCv ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+        </button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -211,16 +300,17 @@ function Scout() {
             }
           }}
           rows={1}
-          placeholder="Describe the role, paste a JD, or ask anything..."
+          placeholder={cv ? "Add a question about the CV (optional)..." : "Describe the role, paste a JD, or ask anything..."}
           className="flex-1 resize-none rounded-lg border border-input bg-secondary/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 focus:bg-background min-h-[44px] max-h-40"
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || parsingCv || (!input.trim() && !cv)}
           className="h-11 px-4 rounded-lg bg-primary text-primary-foreground font-medium text-sm inline-flex items-center gap-1.5 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send className="size-4" /> Send
         </button>
+        </div>
       </form>
     </div>
   );
