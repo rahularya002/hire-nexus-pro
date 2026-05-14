@@ -74,11 +74,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "TalentFlow — Recruitment OS for agencies & clients" },
       { name: "description", content: "Multi-tenant recruitment platform for agencies, recruiters and hiring clients. Source, shortlist, schedule and place — in one workspace." },
-      { property: "og:title", content: "TalentFlow — Recruitment OS" },
-      { property: "og:description", content: "Multi-tenant recruitment platform for agencies and hiring clients." },
+      { property: "og:title", content: "TalentFlow — Recruitment OS for agencies & clients" },
+      { property: "og:description", content: "Multi-tenant recruitment platform for agencies, recruiters and hiring clients. Source, shortlist, schedule and place — in one workspace." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "TalentFlow — Recruitment OS for agencies & clients" },
+      { name: "twitter:description", content: "Multi-tenant recruitment platform for agencies, recruiters and hiring clients. Source, shortlist, schedule and place — in one workspace." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/58cb1ce7-7880-42eb-90af-4a74f947801f/id-preview-8fabfe55--cd062b91-4def-4aa6-a87a-d20b6e899a5e.lovable.app-1778722984454.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/58cb1ce7-7880-42eb-90af-4a74f947801f/id-preview-8fabfe55--cd062b91-4def-4aa6-a87a-d20b6e899a5e.lovable.app-1778722984454.png" },
     ],
     links: [
       {
