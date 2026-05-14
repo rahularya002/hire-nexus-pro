@@ -3,13 +3,12 @@ import { useState } from "react";
 import {
   ArrowLeft, MapPin, Calendar, Users, Sparkles, FileText, X, Check, Send, Undo2, Building2,
 } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge, StageBadge } from "@/components/ui-bits";
 import { getPosition, getClient, PIPELINE_STAGES } from "@/lib/mock-data";
 import { detailFor } from "@/lib/ops/store";
 
 export const Route = createFileRoute("/positions/$positionId")({
-  component: () => <AppShell><PositionDetail /></AppShell>,
+  component: PositionDetail,
 });
 
 function PositionDetail() {
