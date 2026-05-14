@@ -30,6 +30,7 @@ export interface Client {
   activeCandidates: number;
   initials: string;
   color: string;
+  lastActivityDays: number;
 }
 
 export interface Position {
@@ -61,13 +62,18 @@ export interface Candidate {
 }
 
 export const clients: Client[] = [
-  { id: "rolex-india", name: "Rolex India", industry: "Luxury Retail", contact: "Aanya Mehta", openPositions: 6, activeCandidates: 28, initials: "RX", color: "oklch(0.55 0.20 255)" },
-  { id: "reliance-brands", name: "Reliance Brands", industry: "Retail Conglomerate", contact: "Vikram Shah", openPositions: 11, activeCandidates: 47, initials: "RB", color: "oklch(0.62 0.20 295)" },
-  { id: "urban-works", name: "Urban Works", industry: "Co-working & Real Estate", contact: "Priya Iyer", openPositions: 4, activeCandidates: 19, initials: "UW", color: "oklch(0.65 0.18 230)" },
-  { id: "tata-digital", name: "Tata Digital", industry: "Technology", contact: "Rohan Kapoor", openPositions: 8, activeCandidates: 35, initials: "TD", color: "oklch(0.65 0.18 150)" },
-  { id: "zomato", name: "Zomato", industry: "Food Tech", contact: "Neha Sharma", openPositions: 5, activeCandidates: 22, initials: "Z", color: "oklch(0.60 0.22 27)" },
-  { id: "razorpay", name: "Razorpay", industry: "Fintech", contact: "Aditya Rao", openPositions: 7, activeCandidates: 31, initials: "RP", color: "oklch(0.55 0.20 255)" },
+  { id: "rolex-india", name: "Rolex India", industry: "Luxury Retail", contact: "Aanya Mehta", openPositions: 6, activeCandidates: 28, initials: "RX", color: "oklch(0.55 0.20 255)", lastActivityDays: 1 },
+  { id: "reliance-brands", name: "Reliance Brands", industry: "Retail Conglomerate", contact: "Vikram Shah", openPositions: 11, activeCandidates: 47, initials: "RB", color: "oklch(0.62 0.20 295)", lastActivityDays: 0 },
+  { id: "urban-works", name: "Urban Works", industry: "Co-working & Real Estate", contact: "Priya Iyer", openPositions: 0, activeCandidates: 4, initials: "UW", color: "oklch(0.65 0.18 230)", lastActivityDays: 12 },
+  { id: "tata-digital", name: "Tata Digital", industry: "Technology", contact: "Rohan Kapoor", openPositions: 8, activeCandidates: 35, initials: "TD", color: "oklch(0.65 0.18 150)", lastActivityDays: 2 },
+  { id: "zomato", name: "Zomato", industry: "Food Tech", contact: "Neha Sharma", openPositions: 0, activeCandidates: 0, initials: "Z", color: "oklch(0.60 0.22 27)", lastActivityDays: 22 },
+  { id: "razorpay", name: "Razorpay", industry: "Fintech", contact: "Aditya Rao", openPositions: 7, activeCandidates: 31, initials: "RP", color: "oklch(0.55 0.20 255)", lastActivityDays: 0 },
 ];
+
+export const INACTIVITY_THRESHOLD_DAYS = 7;
+export function isClientInactive(c: Client) {
+  return c.openPositions === 0 && c.lastActivityDays >= INACTIVITY_THRESHOLD_DAYS;
+}
 
 const candidatePool: Omit<Candidate, "stage">[] = [
   { id: "c1", name: "Arjun Malhotra", role: "Senior Product Designer", experience: "7 yrs", location: "Bengaluru", matchScore: 94, initials: "AM", email: "arjun.m@mail.com" },
