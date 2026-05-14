@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Send, Loader2, User } from "lucide-react";
+import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { scoutChat } from "@/lib/scout.functions";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,21 @@ export const Route = createFileRoute("/scout")({
 });
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+type SourceId = "internal" | "linkedin" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "github" | "angellist" | "cutshort" | "referrals";
+
+const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: string }[] = [
+  { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool" },
+  { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Recruiter & Sales Navigator" },
+  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Naukri.com resdex" },
+  { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "Mid-senior roles" },
+  { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "Tech hiring" },
+  { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "Curated tech talent" },
+  { id: "cutshort",  label: "Cutshort",          icon: Briefcase, hint: "Startup talent" },
+  { id: "github",    label: "GitHub",            icon: Github,    hint: "Engineers & contributors" },
+  { id: "angellist", label: "Wellfound",         icon: Globe,     hint: "Startup ecosystem" },
+  { id: "referrals", label: "Referrals",         icon: Users,     hint: "Internal employee referrals" },
+];
 
 const STARTERS = [
   "Source 5 senior React engineers in Bengaluru with fintech experience.",
@@ -34,6 +49,7 @@ function Scout() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SourceId[]>(["internal", "linkedin", "naukri"]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,7 +65,10 @@ function Scout() {
     setInput("");
     setLoading(true);
     try {
-      const res = await ask({ data: { messages: next } });
+      const sourceLabels = SOURCES.filter((s) => selected.includes(s.id)).map((s) =>
+        s.id === "internal" ? "Internal database" : s.label
+      );
+      const res = await ask({ data: { messages: next, sources: sourceLabels } });
       if (res.error) {
         setError(res.error);
       } else {
@@ -62,6 +81,10 @@ function Scout() {
     }
   }
 
+  function toggle(id: SourceId) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto">
       <div className="flex items-center gap-3 pb-6 border-b border-border">
@@ -71,6 +94,36 @@ function Scout() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">AI Talent Scout</h1>
           <p className="text-xs text-muted-foreground">Source, evaluate and shortlist candidates faster.</p>
+        </div>
+      </div>
+
+      <div className="pt-4 pb-3 border-b border-border">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sourcing channels</div>
+          <div className="text-[11px] text-muted-foreground">{selected.length} selected</div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {SOURCES.map((s) => {
+            const active = selected.includes(s.id);
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => toggle(s.id)}
+                title={s.hint}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition",
+                  active
+                    ? "border-primary/40 bg-primary/10 text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30"
+                )}
+              >
+                {active ? <Check className="size-3 text-primary" /> : <Icon className="size-3" />}
+                {s.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
