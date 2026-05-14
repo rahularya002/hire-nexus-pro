@@ -282,3 +282,62 @@ function AIScoutModal({ onClose, title }: { onClose: () => void; title: string }
     </div>
   );
 }
+function ResumePreviewModal({
+  onClose,
+  candidate,
+  detail,
+}: {
+  onClose: () => void;
+  candidate: { name: string; initials: string; role: string; experience: string; location: string; matchScore: number };
+  detail: { salary: string; prevOrg: string; noticePeriod: string; resumeSummary: string; source: string };
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl bg-card border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
+              {candidate.initials}
+            </div>
+            <div>
+              <div className="font-semibold">{candidate.name}</div>
+              <div className="text-xs text-muted-foreground">{candidate.role} · {candidate.experience}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="size-9 grid place-items-center rounded-md hover:bg-secondary"><X className="size-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+            <Kv label="Location" value={candidate.location} />
+            <Kv label="Salary" value={detail.salary} />
+            <Kv label="Notice" value={detail.noticePeriod} />
+            <Kv label="Previous org" value={detail.prevOrg} />
+            <Kv label="AI match" value={`${candidate.matchScore}%`} />
+            <Kv label="Source" value={detail.source} />
+          </div>
+          <div className="rounded-lg border border-border bg-secondary/30 p-4">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 inline-flex items-center gap-1.5">
+              <FileText className="size-3.5" /> Resume preview
+            </div>
+            <p className="text-sm text-foreground/90 leading-relaxed">{detail.resumeSummary}</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="h-9 px-4 rounded-md border border-border text-sm">Close</button>
+            <button className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-1.5">
+              <FileText className="size-4" /> Open full CV
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Kv({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="font-medium mt-0.5">{value}</div>
+    </div>
+  );
+}
