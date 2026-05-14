@@ -25,8 +25,10 @@ import { Route as PositionsPositionIdRouteImport } from './routes/positions.$pos
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
+import { Route as ClientTeamRouteImport } from './routes/client.team'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
+import { Route as ClientActivityRouteImport } from './routes/client.activity'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 
@@ -110,6 +112,11 @@ const ClientUploadRoute = ClientUploadRouteImport.update({
   path: '/client/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientTeamRoute = ClientTeamRouteImport.update({
+  id: '/client/team',
+  path: '/client/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientPositionsRoute = ClientPositionsRouteImport.update({
   id: '/client/positions',
   path: '/client/positions',
@@ -118,6 +125,11 @@ const ClientPositionsRoute = ClientPositionsRouteImport.update({
 const ClientDocumentsRoute = ClientDocumentsRouteImport.update({
   id: '/client/documents',
   path: '/client/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientActivityRoute = ClientActivityRouteImport.update({
+  id: '/client/activity',
+  path: '/client/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminClientsRoute = AdminClientsRouteImport.update({
@@ -145,8 +157,10 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
+  '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
@@ -167,8 +181,10 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
+  '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
@@ -190,8 +206,10 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
+  '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
+  '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
@@ -214,8 +232,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/team'
     | '/admin/clients'
+    | '/client/activity'
     | '/client/documents'
     | '/client/positions'
+    | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
@@ -236,8 +256,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/team'
     | '/admin/clients'
+    | '/client/activity'
     | '/client/documents'
     | '/client/positions'
+    | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
@@ -258,8 +280,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/team'
     | '/admin/clients'
+    | '/client/activity'
     | '/client/documents'
     | '/client/positions'
+    | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
@@ -281,8 +305,10 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
   AdminClientsRoute: typeof AdminClientsRoute
+  ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
+  ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
   ClientIndexRoute: typeof ClientIndexRoute
@@ -402,6 +428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/team': {
+      id: '/client/team'
+      path: '/client/team'
+      fullPath: '/client/team'
+      preLoaderRoute: typeof ClientTeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/positions': {
       id: '/client/positions'
       path: '/client/positions'
@@ -414,6 +447,13 @@ declare module '@tanstack/react-router' {
       path: '/client/documents'
       fullPath: '/client/documents'
       preLoaderRoute: typeof ClientDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/activity': {
+      id: '/client/activity'
+      path: '/client/activity'
+      fullPath: '/client/activity'
+      preLoaderRoute: typeof ClientActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/clients': {
@@ -482,8 +522,10 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
   AdminClientsRoute: AdminClientsRoute,
+  ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
+  ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
   ClientIndexRoute: ClientIndexRoute,
@@ -491,3 +533,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
