@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Building2, User, BadgeCheck, Sparkles, Workflow, CalendarClock } from "lucide-react";
+import { ArrowRight, Building2, BadgeCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -34,11 +34,6 @@ function LandingPage() {
             <div className="text-[11px] text-white/50">Recruitment OS</div>
           </div>
         </div>
-        <nav className="hidden items-center gap-7 text-sm text-white/70 md:flex">
-          <a href="#product" className="hover:text-white">Product</a>
-          <a href="#workflow" className="hover:text-white">Workflow</a>
-          <a href="#pricing" className="hover:text-white">Pricing</a>
-        </nav>
         <Link
           to="/dashboard"
           className="hidden items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 backdrop-blur hover:bg-white/10 sm:inline-flex"
@@ -48,73 +43,44 @@ function LandingPage() {
       </header>
 
       {/* Hero */}
-      <main className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-16 text-center md:pt-24">
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-180px)] max-w-3xl flex-col items-center justify-center px-6 pb-24 pt-10 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-400">
           <BadgeCheck className="size-3.5" /> AI-Powered Recruitment OS
         </div>
 
-        <h1 className="mx-auto mt-7 max-w-4xl text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
-          The recruitment platform
+        <h1 className="mx-auto mt-7 max-w-3xl text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
+          Hire smarter.
           <br />
           <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-rose-500 bg-clip-text text-transparent">
-            built for agencies.
+            Together.
           </span>
         </h1>
 
-        <p className="mx-auto mt-6 max-w-2xl text-base text-white/65 md:text-lg">
-          Source, screen, schedule and place candidates 10× faster — with one workspace your whole team
-          actually uses every day.
+        <p className="mx-auto mt-6 max-w-xl text-base text-white/65 md:text-lg">
+          One workspace where recruitment agencies and their clients move every role from open to placed.
         </p>
 
         {/* CTAs */}
-        <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div className="mt-10 flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             to="/dashboard"
-            className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 px-7 py-3.5 text-sm font-semibold text-black shadow-[0_12px_30px_-10px_rgba(255,120,40,0.8)] transition hover:brightness-110"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 px-7 py-3.5 text-sm font-semibold text-black shadow-[0_12px_30px_-10px_rgba(255,120,40,0.8)] transition hover:brightness-110 sm:w-auto"
           >
+            Enter Workspace
             <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
-            Enter workspace
           </Link>
           <Link
             to="/client"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10 sm:w-auto"
           >
             <Building2 className="size-4" />
             I'm a client
           </Link>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10"
-          >
-            <User className="size-4" />
-            I'm a candidate
-          </button>
         </div>
 
-        <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-          Manage owners, managers, recruiters and freelancers under{" "}
-          <span className="text-orange-400">employees</span> inside the workspace.
+        <p className="mt-8 text-xs text-white/40">
+          Choose your portal · switch anytime
         </p>
-
-        {/* Feature trio */}
-        <div id="product" className="mx-auto mt-20 grid max-w-4xl gap-4 text-left sm:grid-cols-3">
-          {[
-            { icon: Sparkles, title: "AI Talent Scout", body: "Ranks candidates against your JD in seconds." },
-            { icon: Workflow, title: "Pipeline OS", body: "Drag-drop stages from sourced to placed." },
-            { icon: CalendarClock, title: "Smart Scheduling", body: "Coordinate panel + candidate availability." },
-          ].map((f) => (
-            <div
-              key={f.title}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur transition hover:border-orange-500/30 hover:bg-white/[0.05]"
-            >
-              <div className="grid size-9 place-items-center rounded-lg bg-orange-500/15 text-orange-400">
-                <f.icon className="size-4" />
-              </div>
-              <div className="mt-4 font-semibold">{f.title}</div>
-              <div className="mt-1 text-sm text-white/60">{f.body}</div>
-            </div>
-          ))}
-        </div>
       </main>
 
       <footer className="relative z-10 border-t border-white/10 py-6 text-center text-xs text-white/40">
