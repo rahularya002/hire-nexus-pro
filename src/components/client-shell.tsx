@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { clientCompany } from "@/lib/client-data";
@@ -24,6 +24,7 @@ const nav = [
   { to: "/client/reports",    label: "Reports",         icon: BarChart3 },
   { to: "/client/activity",   label: "Activity",        icon: ActivityIcon },
   { to: "/client/team",       label: "Account Team",    icon: UsersRound },
+  { to: "/client/messages",   label: "Messages",        icon: MessageSquare },
   { to: "/client/upload",     label: "Upload JD",       icon: Upload },
   { to: "/client/documents",  label: "Documents",       icon: FileText },
 ];
