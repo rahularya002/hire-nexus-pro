@@ -100,8 +100,32 @@ function seedFor(channelId: string, clientName: string, agencyName: string, agen
   return base.map((m, i) => ({ ...m, id: `m-${channelId}-${i}`, channelId }));
 }
 
+const tailVariants: Array<{ body: string; from: ChatParty; mins: number }> = [
+  { body: "Quick one — can we squeeze in a profile review tomorrow morning?", from: "client", mins: 38 },
+  { body: "Sharing the offer template now. Legal cleared it this morning.", from: "agency", mins: 12 },
+  { body: "Two of the shortlisted candidates are open to relocating. Worth pushing forward.", from: "agency", mins: 92 },
+  { body: "Background check came back clean for Karan. We're good to extend the offer.", from: "client", mins: 5 },
+  { body: "Panel availability confirmed for Thu 4pm IST — sending invites shortly.", from: "agency", mins: 200 },
+  { body: "We need to revisit the comp band on the Director role — internal feedback came in.", from: "client", mins: 22 },
+];
+
 const messages: Record<string, ChatMessage[]> = {};
-for (const ch of channels) messages[ch.id] = seedFor(ch.id, ch.clientName, ch.agencyOwnerName, ch.agencyOwnerInitials, ch.clientInitials);
+channels.forEach((ch, idx) => {
+  const list = seedFor(ch.id, ch.clientName, ch.agencyOwnerName, ch.agencyOwnerInitials, ch.clientInitials);
+  const t = tailVariants[idx % tailVariants.length];
+  list.push({
+    id: `m-${ch.id}-tail`,
+    channelId: ch.id,
+    from: t.from,
+    authorName: t.from === "agency" ? ch.agencyOwnerName : "Vikram Shah",
+    initials: t.from === "agency" ? ch.agencyOwnerInitials : "VS",
+    body: t.body,
+    attachments: [],
+    sentAt: now - t.mins * 60 * 1000,
+    readBy: t.from === "agency" ? ["agency"] : ["client"],
+  });
+  messages[ch.id] = list;
+});
 
 // ---------- subscribe / notify ----------
 type Listener = () => void;
