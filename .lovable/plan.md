@@ -1,74 +1,66 @@
-## Billing module — per-client custom terms, joining-based invoicing
+## Direct Chat: Client ↔ Agency
 
-A new "Billing" section in the agency workspace that models real-world recruitment invoicing: each client has its own commercial terms, billing cycle and invoice day, and invoices are generated only for candidates who **actually joined** during that cycle — with full visibility into placements, replacements, and exits.
+Add a dedicated messaging surface in both portals where a client and the agency account team can chat in real-time threads and share files. Currently messaging only exists nested inside a single position detail page (`client.positions.$positionId.tsx`); this elevates it to a top-level channel per client.
 
-### 1. Sidebar entry
+### Navigation
 
-Add a **Billing** item to `agencyNav` in `src/components/app-shell.tsx` (between "Closed" and "Recruiter Roster"), icon `Receipt`. Agency workspace only — not exposed in the recruiter portal or client portal.
+- **Agency sidebar** (`src/components/app-shell.tsx` → `agencyNav`): add `Messages` (icon: `MessageSquare`) between `Clients` and `Open Requirements`.
+- **Client sidebar** (`src/components/client-shell.tsx`): add `Messages` between `Account Team` and `Upload JD`.
 
-### 2. Data model (mock, in `src/lib/billing-data.ts`)
+### Routes
 
-- **ClientBillingTerms** — per client:
-  - `feeModel`: `"percent_ctc" | "flat_per_hire" | "tiered"`
-  - `feeValue`: e.g. 8.33% of CTC, ₹1.5L flat, or tier table by CTC band
-  - `replacementWindowDays` (e.g. 90)
-  - `replacementPolicy`: `"free_replacement" | "pro_rata_credit" | "none"`
-  - `billingCycle`: `"monthly" | "per_joining"`
-  - `invoiceDayOfMonth` (e.g. 5th, 15th, 25th — different per client)
-  - `paymentTermsDays` (Net 15 / 30 / 45)
-  - `gstPct`, `tdsPct`, `currency`, `poRequired`, `poNumber`
-- **JoiningEvent** — one row per candidate movement (the source of truth for billing):
-  - `clientId`, `positionId`, `candidateName`, `ctc`
-  - `offerDate`, `joiningDate`, `status`: `"joined" | "replacement_for" | "left_in_window" | "no_show"`
-  - `replacesEventId?` (links a replacement back to the original)
-  - `billable: boolean` (computed from terms + status)
-  - `feeAmount` (computed)
-- **Invoice** — generated per client per cycle:
-  - `clientId`, `invoiceNo`, `period` (from/to), `issueDate`, `dueDate`
-  - `lineItems[]` derived from `JoiningEvent`s in the cycle (placement, replacement = ₹0 if covered, credit note for in-window exits if pro-rata)
-  - subtotal, GST, TDS, total
-  - `status`: `"draft" | "sent" | "paid" | "overdue" | "cancelled"`
+1. `src/routes/messages.tsx` (agency)
+   - Two-pane layout: left = client list with last-message preview, unread badge, online dot; right = active thread.
+   - Search clients, filter (Unread / All / Pinned).
+2. `src/routes/client.messages.tsx` (client)
+   - Single-thread view with the agency account team (no list pane needed — one channel).
 
-Seed 6 clients (reuse existing client list) with **different terms** (e.g. Razorpay = 8.33% CTC monthly billing on the 1st, Net 30; Rolex India = flat ₹2L per hire, billed on joining; Tata Digital = tiered, billed on the 15th, Net 45) and seed joining events that include placements + one replacement + one in-window exit so all line-item types render.
+Both reuse a shared `<ChatThread />` component.
 
-### 3. Routes
+### Shared component
 
-- **`/billing`** — overview
-  - KPI strip: MTD billable, outstanding (sent + overdue), this-month forecast (joinings expected this cycle), replacements active
-  - "Upcoming invoice runs" — list of clients whose invoice day falls in the next 14 days, with preview of accrued line items
-  - Recent invoices table (client, period, total, status, due date) with filters
-  - Tab/section: "Joinings ledger" — all `JoiningEvent`s with status chips (Joined / Replacement / Left in window / No-show)
+`src/components/chat-thread.tsx`
+- Header: counterpart name + avatars, online status, "View account team" link.
+- Scrollable message list, day separators, grouped consecutive messages, read receipts.
+- Composer: textarea (Enter to send, Shift+Enter newline), emoji shortcut, file attach button, paste-to-attach.
+- Attachment chips above composer (name, size, remove); rendered inline in messages as file cards (icon by mime, size, "Download" button — mock link).
+- Typing indicator (mocked) + "Recruiter typically replies within 2 hours" hint.
 
-- **`/billing/clients/$clientId`** — per-client billing profile
-  - Terms card (editable mock form: fee model, replacement window/policy, cycle, invoice day, payment terms, GST/TDS, PO)
-  - Current cycle accrual: live list of joinings in the open period with computed fee
-  - Invoice history table
-  - Replacement tracker: who's still inside the guarantee window, days remaining
+### Data layer
 
-- **`/billing/invoices/$invoiceId`** — invoice detail
-  - Header: invoice no, client, period, issue/due dates, PO, status
-  - Detailed line items — for each candidate row show: name, position, joining date, CTC, fee basis, fee amount, **status badge** (Placed / Replacement (covered) / Left in window / Credit note)
-  - Totals: subtotal, GST, TDS, net payable
-  - Actions: Mark sent, Mark paid, Download PDF (mock), Send reminder
+`src/lib/chat-data.ts` (new, in-memory mock with subscribe/notify, same pattern as `billing-data.ts`):
 
-### 4. Generation logic (pure functions in `billing-data.ts`)
+```ts
+ChatChannel { id, clientId, agencyTeamIds[], lastMessageAt, unreadForClient, unreadForAgency, pinned }
+ChatMessage { id, channelId, from: "client" | "agency", authorId, authorName, initials, body, attachments: ChatAttachment[], sentAt, readBy[] }
+ChatAttachment { id, name, sizeBytes, mime, url } // mock blob URLs via URL.createObjectURL on upload
+```
 
-- `getOpenCycle(client, today)` → `{from, to}` based on `invoiceDayOfMonth`.
-- `accruedLineItems(clientId, cycle)` → walks `JoiningEvent`s with `joiningDate` inside the cycle, applies terms:
-  - `joined` → billable line, fee per `feeModel`
-  - `replacement_for` → ₹0 line tagged "Replacement (covered)" if within window and policy = free
-  - `left_in_window` → negative-amount credit note line if policy = pro_rata
-  - `no_show` → not billed
-- `generateInvoice(clientId, cycle)` → builds `Invoice` from accrual + GST/TDS.
+Helpers: `getChannels()`, `getChannel(clientId)`, `sendMessage(channelId, payload)`, `markRead(channelId, viewer)`, `attachFiles(files)` (returns `ChatAttachment[]`).
 
-### 5. Cross-links
+Seed: 6 channels (one per existing client in `client-data.ts` / `mock-data.ts`), each with 8–15 messages mixing text, a PDF JD, an offer letter, and a screenshot, varied timestamps.
 
-- Client detail page (`/clients/$clientId`) gets a "Billing" tab linking to `/billing/clients/$clientId`.
-- Closed positions page gets a "View invoice" link when a joining produced one.
-- Existing `placements` data on the client portal stays untouched; the agency-side billing is the new source of truth.
+### Cross-links
 
-### Technical notes
+- Existing position-level message thread (`client.positions.$positionId.tsx` → MessageThreadPanel) gets a small "Open full conversation →" link to `/client/messages`.
+- Client detail page `clients.$clientId.tsx` (agency side) gets a "Message client" button linking to `/messages?client={id}`.
 
-- All UI uses existing semantic tokens and shadcn primitives (Card, Table, Badge, Tabs, Dialog for the terms-edit form).
-- No backend yet — everything is in-memory mock with a tiny subscribe/notify store like `setRecruiterStatus` so "Mark paid" updates KPIs live.
-- File additions: `src/lib/billing-data.ts`, `src/routes/billing.tsx`, `src/routes/billing.clients.$clientId.tsx`, `src/routes/billing.invoices.$invoiceId.tsx`. Edits: `src/components/app-shell.tsx` (nav), `src/routes/clients.$clientId.tsx` (Billing tab link).
+### Out of scope (mock prototype)
+
+- No real backend, websocket, or persistent file storage. Files are held in-memory via blob URLs; reload clears them. A note in the empty state explains this.
+- No push notifications.
+
+### Files
+
+**New**
+- `src/routes/messages.tsx`
+- `src/routes/client.messages.tsx`
+- `src/components/chat-thread.tsx`
+- `src/lib/chat-data.ts`
+
+**Edited**
+- `src/components/app-shell.tsx` (nav)
+- `src/components/client-shell.tsx` (nav)
+- `src/routes/client.positions.$positionId.tsx` (cross-link)
+- `src/routes/clients.$clientId.tsx` (cross-link)
+- `src/routeTree.gen.ts` (auto-regenerated)
