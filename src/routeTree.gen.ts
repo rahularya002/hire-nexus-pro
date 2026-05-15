@@ -37,6 +37,7 @@ import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
+import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
 import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
 
 const TeamRoute = TeamRouteImport.update({
@@ -180,6 +181,12 @@ const ClientPositionsPositionIdRoute =
     path: '/$positionId',
     getParentRoute: () => ClientPositionsRoute,
   } as any)
+const BillingInvoicesInvoiceIdRoute =
+  BillingInvoicesInvoiceIdRouteImport.update({
+    id: '/invoices/$invoiceId',
+    path: '/invoices/$invoiceId',
+    getParentRoute: () => BillingRoute,
+  } as any)
 const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
   id: '/clients/$clientId',
   path: '/clients/$clientId',
@@ -215,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesByTo {
@@ -246,6 +254,7 @@ export interface FileRoutesByTo {
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesById {
@@ -278,6 +287,7 @@ export interface FileRoutesById {
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRouteTypes {
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/positions/$positionId'
     | '/client/'
     | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/positions/$positionId'
     | '/client'
     | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   id:
     | '__root__'
@@ -373,6 +385,7 @@ export interface FileRouteTypes {
     | '/positions/$positionId'
     | '/client/'
     | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   fileRoutesById: FileRoutesById
 }
@@ -602,6 +615,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPositionsPositionIdRouteImport
       parentRoute: typeof ClientPositionsRoute
     }
+    '/billing/invoices/$invoiceId': {
+      id: '/billing/invoices/$invoiceId'
+      path: '/invoices/$invoiceId'
+      fullPath: '/billing/invoices/$invoiceId'
+      preLoaderRoute: typeof BillingInvoicesInvoiceIdRouteImport
+      parentRoute: typeof BillingRoute
+    }
     '/billing/clients/$clientId': {
       id: '/billing/clients/$clientId'
       path: '/clients/$clientId'
@@ -614,10 +634,12 @@ declare module '@tanstack/react-router' {
 
 interface BillingRouteChildren {
   BillingClientsClientIdRoute: typeof BillingClientsClientIdRoute
+  BillingInvoicesInvoiceIdRoute: typeof BillingInvoicesInvoiceIdRoute
 }
 
 const BillingRouteChildren: BillingRouteChildren = {
   BillingClientsClientIdRoute: BillingClientsClientIdRoute,
+  BillingInvoicesInvoiceIdRoute: BillingInvoicesInvoiceIdRoute,
 }
 
 const BillingRouteWithChildren =
