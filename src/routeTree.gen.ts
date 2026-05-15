@@ -15,6 +15,7 @@ import { Route as ScoutRouteImport } from './routes/scout'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as OngoingRouteImport } from './routes/ongoing'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as DatabaseRouteImport } from './routes/database'
@@ -68,6 +69,11 @@ const PipelineRoute = PipelineRouteImport.update({
 const OngoingRoute = OngoingRouteImport.update({
   id: '/ongoing',
   path: '/ongoing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MeRoute = MeRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -364,6 +375,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -397,6 +409,7 @@ export interface RootRouteChildren {
   DatabaseRoute: typeof DatabaseRoute
   InterviewsRoute: typeof InterviewsRouteWithChildren
   MeRoute: typeof MeRoute
+  MessagesRoute: typeof MessagesRoute
   OngoingRoute: typeof OngoingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/ongoing'
       fullPath: '/ongoing'
       preLoaderRoute: typeof OngoingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/me': {
@@ -689,6 +709,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabaseRoute: DatabaseRoute,
   InterviewsRoute: InterviewsRouteWithChildren,
   MeRoute: MeRoute,
+  MessagesRoute: MessagesRoute,
   OngoingRoute: OngoingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
