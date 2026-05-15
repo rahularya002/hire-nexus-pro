@@ -41,6 +41,8 @@ export function ChatThread({
   const [pending, setPending] = useState<ChatAttachment[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => { markRead(channel.id, viewer); }, [channel.id, viewer, messages.length]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
