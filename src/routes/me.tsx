@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { useCurrentRecruiter, useMyRole, useCan, setMyStatus, useRoster } from "@/lib/ops/access";
 import type { RecruiterStatus } from "@/lib/ops/store";
 import { opsTasks, interviewProcesses } from "@/lib/ops/store";
-import { positions, candidates } from "@/lib/mock-data";
+import { positions } from "@/lib/mock-data";
 import { Activity, Coffee, CircleOff, Users, Briefcase, CalendarClock, ClipboardList, Workflow, Plus, Share2, Sparkles, Target, Bell, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,14 @@ function MyDesk() {
   const myOpenTasks = myTasks.filter((t) => t.state !== "Closed");
   const myInterviews = interviewProcesses.slice(0, Math.max(2, me.assignedPositions % 4));
   const myPositions = positions.slice(0, Math.min(me.assignedPositions, 5));
-  const myCandidates = candidates.slice(0, Math.min(6, me.assignedPositions));
+  const myCandidates: { id: string; name: string; role: string; initials: string; location: string; matchScore: number }[] = [
+    { id: "mc1", name: "Arjun Malhotra", role: "Sr. Product Designer", initials: "AM", location: "Bengaluru", matchScore: 94 },
+    { id: "mc2", name: "Sneha Kulkarni", role: "Engineering Manager", initials: "SK", location: "Mumbai", matchScore: 91 },
+    { id: "mc3", name: "Karan Verma", role: "Full Stack Engineer", initials: "KV", location: "Pune", matchScore: 88 },
+    { id: "mc4", name: "Ishita Banerjee", role: "Data Scientist", initials: "IB", location: "Hyderabad", matchScore: 86 },
+    { id: "mc5", name: "Rahul Pillai", role: "Brand Marketing Lead", initials: "RP", location: "Delhi NCR", matchScore: 83 },
+    { id: "mc6", name: "Devansh Singh", role: "DevOps Engineer", initials: "DS", location: "Bengaluru", matchScore: 77 },
+  ].slice(0, Math.min(6, Math.max(3, me.assignedPositions)));
 
   const target = 8;
   const goalPct = Math.min(100, Math.round((me.closuresMtd / target) * 100));
