@@ -15,6 +15,7 @@ import { Route as ScoutRouteImport } from './routes/scout'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as OngoingRouteImport } from './routes/ongoing'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as DatabaseRouteImport } from './routes/database'
@@ -32,6 +33,7 @@ import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
 import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
+import { Route as ClientMessagesRouteImport } from './routes/client.messages'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
@@ -68,6 +70,11 @@ const PipelineRoute = PipelineRouteImport.update({
 const OngoingRoute = OngoingRouteImport.update({
   id: '/ongoing',
   path: '/ongoing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MeRoute = MeRouteImport.update({
@@ -155,6 +162,11 @@ const ClientPipelineRoute = ClientPipelineRouteImport.update({
   path: '/client/pipeline',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientMessagesRoute = ClientMessagesRouteImport.update({
+  id: '/client/messages',
+  path: '/client/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientInterviewsRoute = ClientInterviewsRouteImport.update({
   id: '/client/interviews',
   path: '/client/interviews',
@@ -201,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -211,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -233,6 +247,7 @@ export interface FileRoutesByTo {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -243,6 +258,7 @@ export interface FileRoutesByTo {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -266,6 +282,7 @@ export interface FileRoutesById {
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/me': typeof MeRoute
+  '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
@@ -276,6 +293,7 @@ export interface FileRoutesById {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
@@ -300,6 +318,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -310,6 +329,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
@@ -332,6 +352,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -342,6 +363,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
@@ -364,6 +386,7 @@ export interface FileRouteTypes {
     | '/database'
     | '/interviews'
     | '/me'
+    | '/messages'
     | '/ongoing'
     | '/pipeline'
     | '/positions'
@@ -374,6 +397,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
@@ -397,6 +421,7 @@ export interface RootRouteChildren {
   DatabaseRoute: typeof DatabaseRoute
   InterviewsRoute: typeof InterviewsRouteWithChildren
   MeRoute: typeof MeRoute
+  MessagesRoute: typeof MessagesRoute
   OngoingRoute: typeof OngoingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
@@ -407,6 +432,7 @@ export interface RootRouteChildren {
   ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
+  ClientMessagesRoute: typeof ClientMessagesRoute
   ClientPipelineRoute: typeof ClientPipelineRoute
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
@@ -459,6 +485,13 @@ declare module '@tanstack/react-router' {
       path: '/ongoing'
       fullPath: '/ongoing'
       preLoaderRoute: typeof OngoingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/me': {
@@ -580,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPipelineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/messages': {
+      id: '/client/messages'
+      path: '/client/messages'
+      fullPath: '/client/messages'
+      preLoaderRoute: typeof ClientMessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/interviews': {
       id: '/client/interviews'
       path: '/client/interviews'
@@ -689,6 +729,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabaseRoute: DatabaseRoute,
   InterviewsRoute: InterviewsRouteWithChildren,
   MeRoute: MeRoute,
+  MessagesRoute: MessagesRoute,
   OngoingRoute: OngoingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
@@ -699,6 +740,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
+  ClientMessagesRoute: ClientMessagesRoute,
   ClientPipelineRoute: ClientPipelineRoute,
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
@@ -711,13 +753,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
