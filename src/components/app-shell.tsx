@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
-import { useCurrentRecruiter, useMyRole, useCan, useRoster, setCurrentRecruiter, setMyStatus } from "@/lib/ops/access";
-import type { RecruiterStatus, PermKey } from "@/lib/ops/access" with { "resolution-mode": "import" };
+import { useCurrentRecruiter, useMyRole, useCan, useRoster, setCurrentRecruiter, setMyStatus, type PermKey } from "@/lib/ops/access";
+import type { RecruiterStatus } from "@/lib/ops/store";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
