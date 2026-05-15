@@ -58,7 +58,9 @@ export function ChatThread({
   };
 
   const otherName = viewer === "client" ? channel.agencyOwnerName : channel.clientName;
-  const otherSubtitle = viewer === "client" ? "TalentFlow · Account Lead" : channel.clientName;
+  const otherSubtitle = viewer === "client"
+    ? "TalentFlow · Account Lead"
+    : `${channel.agencyOwnerName} · Account Lead`;
 
   return (
     <div className={cn("flex flex-col rounded-xl border border-border bg-card overflow-hidden", className)} style={{ minHeight: 560 }}>
