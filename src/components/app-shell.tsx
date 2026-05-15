@@ -39,7 +39,7 @@ import {
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean; perm?: string };
 const nav: NavItem[] = [
   { to: "/me",            label: "My Desk",            icon: Home, exact: true },
-  { to: "/dashboard",     label: "Dashboard",          icon: LayoutDashboard, exact: true },
+  { to: "/dashboard",     label: "Agency Dashboard",   icon: LayoutDashboard, exact: true, perm: "team.invite" },
   { to: "/tasks",         label: "Tasks",              icon: ClipboardList, perm: "candidates.view" },
   { to: "/admin/clients", label: "Clients",            icon: Building2,    perm: "clients.view" },
   { to: "/positions",     label: "Open Requirements",  icon: Briefcase,    perm: "positions.view" },
