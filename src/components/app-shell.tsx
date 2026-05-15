@@ -37,17 +37,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean; perm?: string };
-const nav: NavItem[] = [
+const agencyNav: NavItem[] = [
+  { to: "/dashboard",     label: "Dashboard",          icon: LayoutDashboard, exact: true },
+  { to: "/tasks",         label: "Tasks",              icon: ClipboardList },
+  { to: "/admin/clients", label: "Clients",            icon: Building2 },
+  { to: "/positions",     label: "Open Requirements",  icon: Briefcase },
+  { to: "/ongoing",       label: "Ongoing",            icon: Activity },
+  { to: "/interviews",    label: "Interviews",         icon: CalendarClock },
+  { to: "/pipeline",      label: "Pipeline",           icon: Workflow },
+  { to: "/database",      label: "Candidate DB",       icon: Database },
+  { to: "/closed",        label: "Closed",             icon: CheckCircle2 },
+  { to: "/team",          label: "Recruiter Roster",   icon: UsersRound },
+];
+const recruiterNav: NavItem[] = [
   { to: "/me",            label: "My Desk",            icon: Home, exact: true },
-  { to: "/dashboard",     label: "Agency Dashboard",   icon: LayoutDashboard, exact: true, perm: "team.invite" },
   { to: "/tasks",         label: "Tasks",              icon: ClipboardList, perm: "candidates.view" },
-  { to: "/admin/clients", label: "Clients",            icon: Building2,    perm: "clients.view" },
   { to: "/positions",     label: "Open Requirements",  icon: Briefcase,    perm: "positions.view" },
-  { to: "/ongoing",       label: "Ongoing",            icon: Activity,     perm: "candidates.view" },
   { to: "/interviews",    label: "Interviews",         icon: CalendarClock, perm: "candidates.view" },
   { to: "/pipeline",      label: "Pipeline",           icon: Workflow,     perm: "pipeline.move" },
   { to: "/database",      label: "Candidate DB",       icon: Database,     perm: "candidates.view" },
-  { to: "/closed",        label: "Closed",             icon: CheckCircle2, perm: "candidates.view" },
   { to: "/team",          label: "Recruiter Roster",   icon: UsersRound,   perm: "team.view" },
 ];
 
@@ -67,6 +75,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const can = useCan();
   const roster = useRoster();
   const meStatus = statusOpt(me.status);
+  const isRecruiterPortal = pathname.startsWith("/me");
+  const nav = isRecruiterPortal ? recruiterNav : agencyNav;
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
