@@ -41,7 +41,14 @@ const channels: ChatChannel[] = clients.map((c, i) => ({
   clientName: c.name,
   clientInitials: c.initials,
   clientColor: c.color,
-  agencyOwnerName: ["Aarav Reddy", "Priyanka Nair", "Rohit Bansal", "Sara Khan", "Devika Iyer", "Manish Gupta"][i % 6],
+  agencyOwnerName: [
+    "Aarav Reddy",
+    "Priyanka Nair",
+    "Rohit Bansal",
+    "Sara Khan",
+    "Devika Iyer",
+    "Manish Gupta",
+  ][i % 6],
   agencyOwnerInitials: ["AR", "PN", "RB", "SK", "DI", "MG"][i % 6],
   agencyOnline: i % 3 !== 2,
   pinned: i < 2,
@@ -51,67 +58,156 @@ const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 const now = Date.now();
 
-function seedFor(channelId: string, clientName: string, agencyName: string, agencyInitials: string, clientInitials: string): ChatMessage[] {
+function seedFor(
+  channelId: string,
+  clientName: string,
+  agencyName: string,
+  agencyInitials: string,
+  clientInitials: string,
+): ChatMessage[] {
   const base: Array<Omit<ChatMessage, "id" | "channelId">> = [
     {
-      from: "agency", authorName: agencyName, initials: agencyInitials,
+      from: "agency",
+      authorName: agencyName,
+      initials: agencyInitials,
       body: `Hi team — sharing the updated JD draft for the senior role we discussed. Let me know if the comp band aligns with your internal benchmarks.`,
-      attachments: [{ id: "a1", name: "JD_Senior_Role_v3.pdf", sizeBytes: 184_320, mime: "application/pdf", url: "#" }],
-      sentAt: now - 2 * DAY - 4 * HOUR, readBy: ["agency", "client"],
+      attachments: [
+        {
+          id: "a1",
+          name: "JD_Senior_Role_v3.pdf",
+          sizeBytes: 184_320,
+          mime: "application/pdf",
+          url: "#",
+        },
+      ],
+      sentAt: now - 2 * DAY - 4 * HOUR,
+      readBy: ["agency", "client"],
     },
     {
-      from: "client", authorName: "Vikram Shah", initials: clientInitials,
+      from: "client",
+      authorName: "Vikram Shah",
+      initials: clientInitials,
       body: `Thanks! The JD looks good overall. We'd like to tighten the "must-have" skills section. Also, can we shift the comp band by 8-10%?`,
-      attachments: [], sentAt: now - 2 * DAY - 3 * HOUR, readBy: ["agency", "client"],
+      attachments: [],
+      sentAt: now - 2 * DAY - 3 * HOUR,
+      readBy: ["agency", "client"],
     },
     {
-      from: "agency", authorName: agencyName, initials: agencyInitials,
+      from: "agency",
+      authorName: agencyName,
+      initials: agencyInitials,
       body: `Noted. I'll revise and circulate by EOD. We've also sourced 4 strong profiles already — pushing them into the pipeline now.`,
-      attachments: [], sentAt: now - 2 * DAY - 2 * HOUR, readBy: ["agency", "client"],
+      attachments: [],
+      sentAt: now - 2 * DAY - 2 * HOUR,
+      readBy: ["agency", "client"],
     },
     {
-      from: "client", authorName: "Vikram Shah", initials: clientInitials,
+      from: "client",
+      authorName: "Vikram Shah",
+      initials: clientInitials,
       body: `Perfect. Can you also share the screening notes for last week's batch?`,
-      attachments: [], sentAt: now - 1 * DAY - 6 * HOUR, readBy: ["agency", "client"],
+      attachments: [],
+      sentAt: now - 1 * DAY - 6 * HOUR,
+      readBy: ["agency", "client"],
     },
     {
-      from: "agency", authorName: agencyName, initials: agencyInitials,
+      from: "agency",
+      authorName: agencyName,
+      initials: agencyInitials,
       body: `Attaching the screening summary. Highlighted the top 3 in green.`,
-      attachments: [{ id: "a2", name: "Screening_Notes_W42.xlsx", sizeBytes: 92_410, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", url: "#" }],
-      sentAt: now - 1 * DAY - 5 * HOUR, readBy: ["agency", "client"],
+      attachments: [
+        {
+          id: "a2",
+          name: "Screening_Notes_W42.xlsx",
+          sizeBytes: 92_410,
+          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          url: "#",
+        },
+      ],
+      sentAt: now - 1 * DAY - 5 * HOUR,
+      readBy: ["agency", "client"],
     },
     {
-      from: "client", authorName: "Priya Nair", initials: "PN",
+      from: "client",
+      authorName: "Priya Nair",
+      initials: "PN",
       body: `Can we schedule a 30-min sync tomorrow to align on the panel availability?`,
-      attachments: [], sentAt: now - 6 * HOUR, readBy: ["client"],
+      attachments: [],
+      sentAt: now - 6 * HOUR,
+      readBy: ["client"],
     },
     {
-      from: "agency", authorName: agencyName, initials: agencyInitials,
+      from: "agency",
+      authorName: agencyName,
+      initials: agencyInitials,
       body: `Absolutely — I'll send a calendar invite for 11:30 IST. Also sharing the latest interview feedback grid.`,
-      attachments: [{ id: "a3", name: "Interview_Feedback_Grid.png", sizeBytes: 412_900, mime: "image/png", url: "#" }],
-      sentAt: now - 4 * HOUR, readBy: ["agency"],
+      attachments: [
+        {
+          id: "a3",
+          name: "Interview_Feedback_Grid.png",
+          sizeBytes: 412_900,
+          mime: "image/png",
+          url: "#",
+        },
+      ],
+      sentAt: now - 4 * HOUR,
+      readBy: ["agency"],
     },
     {
-      from: "client", authorName: "Vikram Shah", initials: clientInitials,
+      from: "client",
+      authorName: "Vikram Shah",
+      initials: clientInitials,
       body: `Got it, see you then. One quick note — ${clientName.split(" ")[0]} legal needs the signed offer template before we extend the next offer.`,
-      attachments: [], sentAt: now - 45 * 60 * 1000, readBy: ["client"],
+      attachments: [],
+      sentAt: now - 45 * 60 * 1000,
+      readBy: ["client"],
     },
   ];
   return base.map((m, i) => ({ ...m, id: `m-${channelId}-${i}`, channelId }));
 }
 
 const tailVariants: Array<{ body: string; from: ChatParty; mins: number }> = [
-  { body: "Quick one — can we squeeze in a profile review tomorrow morning?", from: "client", mins: 38 },
-  { body: "Sharing the offer template now. Legal cleared it this morning.", from: "agency", mins: 12 },
-  { body: "Two of the shortlisted candidates are open to relocating. Worth pushing forward.", from: "agency", mins: 92 },
-  { body: "Background check came back clean for Karan. We're good to extend the offer.", from: "client", mins: 5 },
-  { body: "Panel availability confirmed for Thu 4pm IST — sending invites shortly.", from: "agency", mins: 200 },
-  { body: "We need to revisit the comp band on the Director role — internal feedback came in.", from: "client", mins: 22 },
+  {
+    body: "Quick one — can we squeeze in a profile review tomorrow morning?",
+    from: "client",
+    mins: 38,
+  },
+  {
+    body: "Sharing the offer template now. Legal cleared it this morning.",
+    from: "agency",
+    mins: 12,
+  },
+  {
+    body: "Two of the shortlisted candidates are open to relocating. Worth pushing forward.",
+    from: "agency",
+    mins: 92,
+  },
+  {
+    body: "Background check came back clean for Karan. We're good to extend the offer.",
+    from: "client",
+    mins: 5,
+  },
+  {
+    body: "Panel availability confirmed for Thu 4pm IST — sending invites shortly.",
+    from: "agency",
+    mins: 200,
+  },
+  {
+    body: "We need to revisit the comp band on the Director role — internal feedback came in.",
+    from: "client",
+    mins: 22,
+  },
 ];
 
 const messages: Record<string, ChatMessage[]> = {};
 channels.forEach((ch, idx) => {
-  const list = seedFor(ch.id, ch.clientName, ch.agencyOwnerName, ch.agencyOwnerInitials, ch.clientInitials);
+  const list = seedFor(
+    ch.id,
+    ch.clientName,
+    ch.agencyOwnerName,
+    ch.agencyOwnerInitials,
+    ch.clientInitials,
+  );
   const t = tailVariants[idx % tailVariants.length];
   list.push({
     id: `m-${ch.id}-tail`,
@@ -131,8 +227,14 @@ channels.forEach((ch, idx) => {
 type Listener = () => void;
 const listeners = new Set<Listener>();
 let storeVersion = 0;
-function notify() { storeVersion += 1; listeners.forEach((l) => l()); }
-export function subscribe(l: Listener) { listeners.add(l); return () => listeners.delete(l); }
+function notify() {
+  storeVersion += 1;
+  listeners.forEach((l) => l());
+}
+export function subscribe(l: Listener) {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
 
 // ---------- selectors ----------
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -165,11 +267,21 @@ export function getLastMessage(channelId: string): ChatMessage | undefined {
   return arr?.[arr.length - 1];
 }
 export function getUnreadCount(channelId: string, viewer: ChatParty): number {
-  return (messages[channelId] ?? []).filter((m) => m.from !== viewer && !m.readBy.includes(viewer)).length;
+  return (messages[channelId] ?? []).filter((m) => m.from !== viewer && !m.readBy.includes(viewer))
+    .length;
 }
 
 // ---------- mutations ----------
-export function sendMessage(channelId: string, payload: { from: ChatParty; authorName: string; initials: string; body: string; attachments: ChatAttachment[] }) {
+export function sendMessage(
+  channelId: string,
+  payload: {
+    from: ChatParty;
+    authorName: string;
+    initials: string;
+    body: string;
+    attachments: ChatAttachment[];
+  },
+) {
   const msg: ChatMessage = {
     id: `m-${channelId}-${Date.now()}`,
     channelId,
@@ -219,13 +331,20 @@ export function formatTime(ms: number): string {
   if (diff < 60_000) return "Just now";
   if (diff < HOUR) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < DAY) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (diff < 7 * DAY) return d.toLocaleDateString([], { weekday: "short" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diff < 7 * DAY)
+    return (
+      d.toLocaleDateString([], { weekday: "short" }) +
+      " " +
+      d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    );
   return d.toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
 export function dayLabel(ms: number): string {
-  const d = new Date(ms); d.setHours(0, 0, 0, 0);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const diffDays = Math.round((today.getTime() - d.getTime()) / DAY);
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
