@@ -57,6 +57,22 @@ export const recruiters: Recruiter[] = [
   { id: "r5", name: "Vikram Shah", initials: "VS", role: "Recruiter", status: "Offline", loginAt: "—", assignedClients: 2, assignedPositions: 6, sharesToday: 0, closuresMtd: 2, conversionPct: 11, joinedOn: "Nov 2023" },
 ];
 
+// ----- Roster reactivity (mock store with subscribe/notify) -----
+let rosterVersion = 0;
+const rosterListeners = new Set<() => void>();
+export function subscribeRoster(cb: () => void) {
+  rosterListeners.add(cb);
+  return () => { rosterListeners.delete(cb); };
+}
+export function getRosterVersion() { return rosterVersion; }
+export function setRecruiterStatus(id: string, status: RecruiterStatus) {
+  const r = recruiters.find((x) => x.id === id);
+  if (!r || r.status === status) return;
+  r.status = status;
+  rosterVersion++;
+  rosterListeners.forEach((l) => l());
+}
+
 export interface CommItem {
   id: string;
   candidate: string;
