@@ -18,9 +18,15 @@ import {
   Database,
   LogOut,
   User,
+  Home,
+  UserCog,
+  Coffee,
+  CircleOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
+import { useCurrentRecruiter, useMyRole, useCan, useRoster, setCurrentRecruiter, setMyStatus } from "@/lib/ops/access";
+import type { RecruiterStatus, PermKey } from "@/lib/ops/access" with { "resolution-mode": "import" };
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -30,22 +36,37 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/tasks", label: "Tasks", icon: ClipboardList },
-  { to: "/admin/clients", label: "Clients", icon: Building2 },
-  { to: "/positions", label: "Open Requirements", icon: Briefcase },
-  { to: "/ongoing", label: "Ongoing", icon: Activity },
-  { to: "/interviews", label: "Interviews", icon: CalendarClock },
-  { to: "/pipeline", label: "Pipeline", icon: Workflow },
-  { to: "/database", label: "Candidate DB", icon: Database },
-  { to: "/closed", label: "Closed", icon: CheckCircle2 },
-  { to: "/team", label: "Recruiter Roster", icon: UsersRound },
+type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean; perm?: string };
+const nav: NavItem[] = [
+  { to: "/me",            label: "My Desk",            icon: Home, exact: true },
+  { to: "/dashboard",     label: "Dashboard",          icon: LayoutDashboard, exact: true },
+  { to: "/tasks",         label: "Tasks",              icon: ClipboardList, perm: "candidates.view" },
+  { to: "/admin/clients", label: "Clients",            icon: Building2,    perm: "clients.view" },
+  { to: "/positions",     label: "Open Requirements",  icon: Briefcase,    perm: "positions.view" },
+  { to: "/ongoing",       label: "Ongoing",            icon: Activity,     perm: "candidates.view" },
+  { to: "/interviews",    label: "Interviews",         icon: CalendarClock, perm: "candidates.view" },
+  { to: "/pipeline",      label: "Pipeline",           icon: Workflow,     perm: "pipeline.move" },
+  { to: "/database",      label: "Candidate DB",       icon: Database,     perm: "candidates.view" },
+  { to: "/closed",        label: "Closed",             icon: CheckCircle2, perm: "candidates.view" },
+  { to: "/team",          label: "Recruiter Roster",   icon: UsersRound,   perm: "team.view" },
 ];
+
+const STATUS_OPTS: { value: RecruiterStatus; label: string; dot: string; cls: string; Icon: typeof Home }[] = [
+  { value: "Available", label: "Available", dot: "bg-info",             cls: "text-info",             Icon: User },
+  { value: "Active",    label: "Active",    dot: "bg-success",          cls: "text-success",          Icon: Activity },
+  { value: "Break",     label: "On Break",  dot: "bg-warning",          cls: "text-warning",          Icon: Coffee },
+  { value: "Offline",   label: "Offline",   dot: "bg-muted-foreground", cls: "text-muted-foreground", Icon: CircleOff },
+];
+function statusOpt(s: RecruiterStatus) { return STATUS_OPTS.find((x) => x.value === s) ?? STATUS_OPTS[3]; }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useTrackAgencyPath();
+  const me = useCurrentRecruiter();
+  const role = useMyRole();
+  const can = useCan();
+  const roster = useRoster();
+  const meStatus = statusOpt(me.status);
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -63,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
-          {nav.map((item) => {
+          {nav.filter((i) => !i.perm || can(i.perm as PermKey)).map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
             const Icon = item.icon;
             return (
@@ -126,10 +147,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Plus className="size-4" /> New Position
           </Link>
 
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-success/10 text-success text-xs font-medium">
-            <span className="size-1.5 rounded-full bg-success animate-pulse" />
-            Live
-          </div>
+          {/* Status pill */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-border bg-card hover:bg-secondary/60 text-xs font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring transition">
+              <span className={cn("size-1.5 rounded-full", meStatus.dot, me.status === "Active" && "animate-pulse")} />
+              <span className={meStatus.cls}>{meStatus.label}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Set my status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {STATUS_OPTS.map((s) => (
+                <DropdownMenuItem key={s.value} onClick={() => setMyStatus(s.value)} className="cursor-pointer">
+                  <span className={cn("size-2 rounded-full mr-2", s.dot)} />
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <button className="ml-auto relative size-9 grid place-items-center rounded-md hover:bg-secondary">
             <Bell className="size-4" />
@@ -140,23 +174,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <div className="relative size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
-                  AR
-                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                  {me.initials}
+                  <span className={cn("absolute -bottom-0.5 -right-0.5 size-2 rounded-full ring-2 ring-background", meStatus.dot)} />
                 </div>
                 <div className="hidden sm:block text-xs leading-tight text-left">
-                  <div className="font-medium">Aarav Reddy</div>
-                  <div className="text-muted-foreground">Senior Recruiter</div>
+                  <div className="font-medium">{me.name}</div>
+                  <div className="text-muted-foreground">{role.name}</div>
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/me" className="cursor-pointer">
+                    <Home className="size-4" /> My Desk
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem>
                   <User className="size-4" /> Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="size-4" /> Settings
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-normal">Impersonate (demo)</DropdownMenuLabel>
+                {roster.map((r) => (
+                  <DropdownMenuItem key={r.id} onClick={() => setCurrentRecruiter(r.id)} className="cursor-pointer">
+                    <UserCog className="size-3.5" />
+                    <span className="flex-1">{r.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{r.role}</span>
+                  </DropdownMenuItem>
+                ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/" className="cursor-pointer">
