@@ -14,6 +14,7 @@ type SearchParams = { client?: string };
 
 export const Route = createFileRoute("/messages")({
   validateSearch: (s: Record<string, unknown>): SearchParams => ({ client: typeof s.client === "string" ? s.client : undefined }),
+  ssr: false,
   component: () => <AppShell><MessagesPage /></AppShell>,
 });
 
