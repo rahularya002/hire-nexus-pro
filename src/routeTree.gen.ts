@@ -20,6 +20,7 @@ import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClosedRouteImport } from './routes/closed'
+import { Route as BillingRouteImport } from './routes/billing'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
@@ -36,6 +37,8 @@ import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
 import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
+import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
+import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
 
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
@@ -90,6 +93,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const ClosedRoute = ClosedRouteImport.update({
   id: '/closed',
   path: '/closed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillingRoute = BillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -173,9 +181,21 @@ const ClientPositionsPositionIdRoute =
     path: '/$positionId',
     getParentRoute: () => ClientPositionsRoute,
   } as any)
+const BillingInvoicesInvoiceIdRoute =
+  BillingInvoicesInvoiceIdRouteImport.update({
+    id: '/invoices/$invoiceId',
+    path: '/invoices/$invoiceId',
+    getParentRoute: () => BillingRoute,
+  } as any)
+const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
+  id: '/clients/$clientId',
+  path: '/clients/$clientId',
+  getParentRoute: () => BillingRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -201,10 +221,13 @@ export interface FileRoutesByFullPath {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -230,11 +253,14 @@ export interface FileRoutesByTo {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
+  '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -260,12 +286,15 @@ export interface FileRoutesById {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
+  '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/billing'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -291,10 +320,13 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/billing'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -320,10 +352,13 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client'
+    | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   id:
     | '__root__'
     | '/'
+    | '/billing'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -349,11 +384,14 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/billing/clients/$clientId'
+    | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BillingRoute: typeof BillingRouteWithChildren
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
   DatabaseRoute: typeof DatabaseRoute
@@ -456,6 +494,13 @@ declare module '@tanstack/react-router' {
       path: '/closed'
       fullPath: '/closed'
       preLoaderRoute: typeof ClosedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billing': {
+      id: '/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -570,8 +615,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPositionsPositionIdRouteImport
       parentRoute: typeof ClientPositionsRoute
     }
+    '/billing/invoices/$invoiceId': {
+      id: '/billing/invoices/$invoiceId'
+      path: '/invoices/$invoiceId'
+      fullPath: '/billing/invoices/$invoiceId'
+      preLoaderRoute: typeof BillingInvoicesInvoiceIdRouteImport
+      parentRoute: typeof BillingRoute
+    }
+    '/billing/clients/$clientId': {
+      id: '/billing/clients/$clientId'
+      path: '/clients/$clientId'
+      fullPath: '/billing/clients/$clientId'
+      preLoaderRoute: typeof BillingClientsClientIdRouteImport
+      parentRoute: typeof BillingRoute
+    }
   }
 }
+
+interface BillingRouteChildren {
+  BillingClientsClientIdRoute: typeof BillingClientsClientIdRoute
+  BillingInvoicesInvoiceIdRoute: typeof BillingInvoicesInvoiceIdRoute
+}
+
+const BillingRouteChildren: BillingRouteChildren = {
+  BillingClientsClientIdRoute: BillingClientsClientIdRoute,
+  BillingInvoicesInvoiceIdRoute: BillingInvoicesInvoiceIdRoute,
+}
+
+const BillingRouteWithChildren =
+  BillingRoute._addFileChildren(BillingRouteChildren)
 
 interface InterviewsRouteChildren {
   InterviewsProcessIdRoute: typeof InterviewsProcessIdRoute
@@ -611,6 +683,7 @@ const ClientPositionsRouteWithChildren = ClientPositionsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BillingRoute: BillingRouteWithChildren,
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
   DatabaseRoute: DatabaseRoute,

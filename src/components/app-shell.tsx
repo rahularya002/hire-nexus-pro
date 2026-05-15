@@ -16,6 +16,7 @@ import {
   ClipboardList,
   UsersRound,
   Database,
+  Receipt,
   LogOut,
   User,
   Home,
@@ -47,6 +48,7 @@ const agencyNav: NavItem[] = [
   { to: "/pipeline",      label: "Pipeline",           icon: Workflow },
   { to: "/database",      label: "Candidate DB",       icon: Database },
   { to: "/closed",        label: "Closed",             icon: CheckCircle2 },
+  { to: "/billing",       label: "Billing",            icon: Receipt },
   { to: "/team",          label: "Recruiter Roster",   icon: UsersRound },
 ];
 const recruiterNav: NavItem[] = [
