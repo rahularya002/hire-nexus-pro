@@ -1,96 +1,83 @@
 
-# Client portal — gap-coverage plan
+## Goal
 
-Today the client portal has only 4 pages (Overview, Positions, Upload JD, Documents). The admin portal exposes a much richer operational view. This plan brings the client portal to parity on visibility — without giving them recruiter-only surfaces (Tasks, Candidate DB, Recruiter Roster admin).
+Give every recruiter on the roster a personal "My Desk" dashboard where they can flip their own status (Available / Active / On Break / Offline), see only what their role permits, and act on their own work — mirroring the agency portal but scoped to them.
 
-## What changes in the sidebar
+## Where roles & permissions live today
 
-Current client nav: Overview · Positions · Upload JD · Documents
+`src/routes/team.tsx` already defines:
+- Permission keys: `candidates.view/edit/delete`, `positions.view/create/assign`, `clients.view/manage`, `pipeline.share/move`, `team.view/invite`, `roles.manage`, `billing.manage`
+- 4 system roles: Admin · Lead Recruiter · Senior Recruiter · Recruiter
+- Recruiter statuses (`src/lib/ops/store.ts`): `Available | Active | Break | Offline`
 
-New client nav (in order):
+These are mock/local state. We'll lift them into a shared store so the dashboard, sidebar, and team page all read from the same source.
 
-```text
-Overview
-My Requirements        ← upgraded "Positions" with end-to-end progress per JD
-Pipeline               ← NEW
-Interviews             ← NEW
-Placements             ← NEW
-Reports                ← NEW
-Activity               ← NEW
-Account Team           ← NEW
-Upload JD
-Documents
-```
+## Plan
 
-A bell icon in the topbar opens a Notifications panel (NEW), reading the same activity stream.
+### 1. Lift roles, permissions & current user into a shared store
+New `src/lib/ops/access.ts`:
+- Move `ALL_PERMISSIONS`, `PermKey`, `Role`, `DEFAULT_ROLES` out of `team.tsx`.
+- Add `currentRecruiterId` (defaults to first recruiter; switchable from a dev-only "Impersonate" picker in the topbar so you can demo each role).
+- Helpers: `useCurrentRecruiter()`, `useMyPermissions()`, `can(perm)`.
+- `setMyStatus(status)` mutates the recruiter in `ops/store` and notifies subscribers (simple `useSyncExternalStore` pattern, no backend yet — same approach as the rest of the app).
 
-## Section-by-section
+### 2. New route: `/me` (My Desk)
+File: `src/routes/me.tsx`, rendered inside the existing `AppShell`.
 
-### 1. My Requirements (upgrade of `/client/positions`)
-Each JD the client uploads is "sent to admin" and becomes an Open Requirement on the agency side. The client needs to see end-to-end progress, not just a status pill.
+Top bar of the page:
+- Avatar + name + role badge
+- **Status pill with dropdown** → Available · Active · On Break · Offline (writes via `setMyStatus`, updates the green/amber dot everywhere instantly)
+- "Logged in since…" timer
 
-Per row:
-- Title, location, openings, posted date, current status
-- Sent-to-agency timestamp + assigned recruiter (from Account Team)
-- 6-step progress bar: **Received → Sourcing → Profiles shared → Client review → Interviews → Offer/Joined**, with the active step highlighted and counts under each (e.g. "12 sourced · 5 shared · 2 in interview")
-- TAT (days since sent) and SLA chip (green/amber/red)
-- Inline actions: View detail · Pause · Close
+KPI strip (scoped to the current recruiter):
+- Open positions assigned to me
+- Candidates in my pipeline
+- Shares today / Closures MTD / Conversion %
+- SLA chip (avg response time vs target)
 
-Filters: All / Active / On hold / Closed.
+### 3. Permission-gated widgets on the dashboard
+Each card only renders if `can(perm)` is true:
 
-### 2. Pipeline (NEW) — `/client/pipeline`
-Kanban across all the client's open requirements, mirroring admin `/pipeline`. Columns: **Shared → Shortlisted → Interview → Offered → Joined → Rejected**. Each card = candidate with role, position, recruiter, last activity. Read-only drag (status changes require admin), but click-through to candidate.
+| Widget | Required permission |
+|---|---|
+| My Positions (table, click → `/positions/$id`) | `positions.view` |
+| My Pipeline (mini kanban of my candidates) | `candidates.view` |
+| Today's Interviews (from `interviews` data, filtered to me) | `candidates.view` |
+| Tasks / follow-ups due today | `candidates.view` |
+| Quick "Share to client" action | `pipeline.share` |
+| "Create position" CTA | `positions.create` |
+| "Assign recruiters" shortcut | `positions.assign` |
+| Team presence strip (who's Available/Break right now) | `team.view` |
+| Roles & billing shortcuts | `roles.manage` / `billing.manage` |
 
-### 3. Interviews (NEW) — `/client/interviews`
-Mirror of admin `/interviews`. Tabs: **Today · Upcoming · Past**. Each row: candidate, position, panel, mode (Meet/Zoom/On-site), join link, reschedule / propose new slot. Past tab shows feedback the client owes.
+Sidebar (`app-shell.tsx`) is also filtered by the same `can()` so a Recruiter doesn't see Team / Roles entries at all. "My Desk" becomes the new default landing route after sign-in.
 
-### 4. Placements (NEW) — `/client/placements`
-Mirror of admin `/closed`. Joined candidates with: offer date, joining date, CTC, replacement-window countdown (e.g. "Guarantee period — 47/90 days"), invoice status placeholder. Useful for the client to see hiring history with the agency.
+### 4. Additional sections worth adding (mirroring the main portal)
+Suggested, in priority order:
+1. **My Activity feed** — reverse-chronological events on my own work (profile shared, interview scheduled, client feedback received). Reuses the `activityEvents` pattern from the client portal.
+2. **My Notifications bell** — unread mentions, slot proposals, client replies.
+3. **Goals & targets** — monthly closures target with a progress bar; conversion vs team average.
+4. **Leaderboard / team presence** — small card showing who else is online and top performers this week (read-only for non-leads).
+5. **Quick actions row** — Add candidate · Upload JD (if `positions.create`) · Log a call · Schedule interview.
+6. **My calendar** — today + next 7 days of interviews and follow-ups.
+7. **Saved searches & AI Scout shortcuts** — only if `candidates.view`.
+8. **Recent clients I'm working with** — quick switcher (only if `clients.view`).
+9. **Documents shared with me** — JDs, offer letters relevant to my positions.
+10. **Status history & timesheet** — auto-log of Available/Break transitions for the day; useful for ops review.
 
-### 5. Reports (NEW) — `/client/reports`
-Charts the admin dashboard already has, scoped to this client:
-- Funnel conversion (Sourced → Shared → Shortlist → Interview → Offer → Joined)
-- TAT per requirement
-- Source-of-hire mix
-- Monthly hires (last 6 months)
-- Recruiter response time
+I'd build 1–6 in the first pass and leave 7–10 as a follow-up.
 
-### 6. Activity & Notifications (NEW) — `/client/activity` + bell panel
-Reverse-chronological stream of events on this account: new profiles shared, slot proposed, slot confirmed, offer rolled out, document received, requirement closed. Bell icon shows unread count and a 6-item dropdown panel.
+### 5. Status visible everywhere
+Wherever a recruiter avatar shows up today (`/team`, position detail "assigned to", client portal Account Team), read the live status from `ops/store` so the dot updates the moment the user changes it on their own dashboard.
 
-### 7. Account Team (NEW) — `/client/team`
-Cards for each recruiter staffed on the account: name, role, response-time average, requirements they own, contact (email / WhatsApp / call). Replaces the static "Aarav Reddy" footer card.
+## Files touched
 
-### 8. Per-position Messages thread (NEW)
-The "Message recruiter" button on `/client/positions/$positionId` currently does nothing. Wire it to a Messages tab on the position detail with a simple thread (sender, timestamp, body, attachments). Same component reused for read on the Activity page.
+- New: `src/lib/ops/access.ts`, `src/routes/me.tsx`, `src/components/me/*` (StatusPicker, KpiStrip, MyPositions, MyPipeline, TodayInterviews, ActivityFeed, TeamPresence)
+- Edit: `src/routes/team.tsx` (import perms from access.ts), `src/components/app-shell.tsx` (permission-gated nav + impersonation picker + default route to `/me`), `src/lib/ops/store.ts` (subscribe/notify for status changes)
 
-## Explicitly NOT building
-- **Tasks** — recruiter-side only, per your direction.
-- **Candidate DB / AI Scout** — internal recruiter tools, stay admin-only.
-- **Admin Recruiter Roster** — the client sees only their own Account Team subset.
+## Out of scope (for this pass)
+- Real auth — we'll keep the impersonation picker until Lovable Cloud auth is wired.
+- Persistence across reloads (mock data resets, same as today).
+- Per-recruiter analytics beyond what's already in `dashboard.tsx`.
 
-## Implementation phases
-
-Phase 1 — visibility upgrades (high signal, low risk)
-- My Requirements progress bar
-- Activity page + bell panel
-- Account Team page
-
-Phase 2 — operational mirrors
-- Interviews page
-- Pipeline kanban
-- Placements page
-
-Phase 3 — analytics & messaging
-- Reports page
-- Per-position Messages thread
-
-## Technical notes
-- All new pages live under `src/routes/client.*.tsx` and use `ClientShell`.
-- Sidebar updated in `src/components/client-shell.tsx` (new icons from `lucide-react`).
-- Mock data extended in `src/lib/client-data.ts` with: requirement progress steps, recruiter assignments, activity events, placements, message threads. No backend yet — same approach as the rest of the app.
-- Charts use the existing `recharts` setup from the admin dashboard for consistency.
-- Notifications panel reuses the existing `DropdownMenu` primitive.
-- All data is scoped to `clientCompany` so the client sees only their own slice.
-
-After approval I'll start with Phase 1 and pause for review before Phase 2.
+After approval I'll implement steps 1–3 + widgets 1–6 in one pass and pause for review before the rest.
