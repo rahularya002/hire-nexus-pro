@@ -7,6 +7,7 @@ import { clientCompany } from "@/lib/client-data";
 import { clients } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/client/messages")({
+  ssr: false,
   component: () => <ClientShell><ClientMessagesPage /></ClientShell>,
 });
 
