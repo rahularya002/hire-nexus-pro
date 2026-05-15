@@ -130,17 +130,26 @@ channels.forEach((ch, idx) => {
 // ---------- subscribe / notify ----------
 type Listener = () => void;
 const listeners = new Set<Listener>();
-function notify() { listeners.forEach((l) => l()); }
+let storeVersion = 0;
+function notify() { storeVersion += 1; listeners.forEach((l) => l()); }
 export function subscribe(l: Listener) { listeners.add(l); return () => listeners.delete(l); }
 
 // ---------- selectors ----------
+const EMPTY_MESSAGES: ChatMessage[] = [];
+let channelsSnapshotVersion = -1;
+let channelsSnapshot: ChatChannel[] = [];
+
 export function getChannels(): ChatChannel[] {
-  return [...channels].sort((a, b) => {
+  if (channelsSnapshotVersion === storeVersion) return channelsSnapshot;
+
+  channelsSnapshot = [...channels].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     const aLast = messages[a.id]?.at(-1)?.sentAt ?? 0;
     const bLast = messages[b.id]?.at(-1)?.sentAt ?? 0;
     return bLast - aLast;
   });
+  channelsSnapshotVersion = storeVersion;
+  return channelsSnapshot;
 }
 export function getChannelByClientId(clientId: string): ChatChannel | undefined {
   return channels.find((c) => c.clientId === clientId);
@@ -149,7 +158,7 @@ export function getChannelById(id: string): ChatChannel | undefined {
   return channels.find((c) => c.id === id);
 }
 export function getMessages(channelId: string): ChatMessage[] {
-  return messages[channelId] ?? [];
+  return messages[channelId] ?? EMPTY_MESSAGES;
 }
 export function getLastMessage(channelId: string): ChatMessage | undefined {
   const arr = messages[channelId];
@@ -172,18 +181,19 @@ export function sendMessage(channelId: string, payload: { from: ChatParty; autho
     sentAt: Date.now(),
     readBy: [payload.from],
   };
-  (messages[channelId] ||= []).push(msg);
+  messages[channelId] = [...(messages[channelId] ?? EMPTY_MESSAGES), msg];
   notify();
 }
 
 export function markRead(channelId: string, viewer: ChatParty) {
   const arr = messages[channelId];
   if (!arr) return;
-  let changed = false;
-  for (const m of arr) {
-    if (!m.readBy.includes(viewer)) { m.readBy.push(viewer); changed = true; }
-  }
-  if (changed) notify();
+  if (!arr.some((m) => !m.readBy.includes(viewer))) return;
+
+  messages[channelId] = arr.map((m) =>
+    m.readBy.includes(viewer) ? m : { ...m, readBy: [...m.readBy, viewer] },
+  );
+  notify();
 }
 
 export function attachFiles(files: FileList | File[]): ChatAttachment[] {
