@@ -37,6 +37,29 @@ export interface Client {
   spoc: { name: string; email: string; phone: string };
   positionsClosedYTD: number;
   revenueYTDInr: number;         // INR
+  agencies: ClientAgencyEngagement[];
+}
+
+export interface ClientAgencyPosition {
+  id: string;                    // matches positions[].id when handled by us
+  title: string;
+  status: PositionStatus;
+  openings: number;
+  location: string;
+  postedDays: number;
+  candidatesShared: number;
+  closures: number;
+  external?: boolean;            // true => handled by another agency, no internal detail page
+}
+
+export interface ClientAgencyEngagement {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  spoc: string;
+  sinceYear: number;
+  positions: ClientAgencyPosition[];
 }
 
 export interface Position {
