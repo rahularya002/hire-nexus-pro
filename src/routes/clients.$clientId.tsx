@@ -101,3 +101,99 @@ function ClientDetail() {
     </div>
   );
 }
+
+function AgencyCard({ agency }: { agency: ClientAgencyEngagement }) {
+  const [open, setOpen] = useState(false);
+  const openPositions = agency.positions.filter((p) => p.status !== "closed").length;
+  const totalShared = agency.positions.reduce((a, p) => a + p.candidatesShared, 0);
+  const totalClosures = agency.positions.reduce((a, p) => a + p.closures, 0);
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((s) => !s)}
+        onDoubleClick={() => setOpen(true)}
+        className="w-full text-left p-5 hover:bg-secondary/30 transition flex items-center gap-4"
+      >
+        <div className="size-11 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground shrink-0" style={{ background: agency.color }}>
+          {agency.initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold truncate">{agency.name}</div>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Since {agency.sinceYear}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1.5">
+            <Building2 className="size-3" /> SPOC: <span className="text-foreground">{agency.spoc}</span>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-6 text-xs">
+          <Counter label="Open" value={openPositions} />
+          <Counter label="Shared" value={totalShared} />
+          <Counter label="Closures" value={totalClosures} />
+        </div>
+        <div className="size-7 rounded-md grid place-items-center text-muted-foreground shrink-0">
+          {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-border bg-secondary/20">
+          {agency.positions.length === 0 ? (
+            <div className="p-5 text-sm text-muted-foreground">No positions on record.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {agency.positions.map((p) => (
+                <PositionRow key={p.id} p={p} agencyName={agency.name} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Counter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="text-center">
+      <div className="text-sm font-semibold tabular-nums">{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function PositionRow({ p, agencyName }: { p: import("@/lib/mock-data").ClientAgencyPosition; agencyName: string }) {
+  const inner = (
+    <div className="p-4 flex items-center gap-4 hover:bg-secondary/40 transition">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="font-medium truncate">{p.title}</div>
+          <StatusBadge status={p.status} />
+          {p.external && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+              <ExternalLink className="size-2.5" /> handled by {agencyName}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
+          <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location}</span>
+          <span>{p.openings} opening{p.openings > 1 ? "s" : ""}</span>
+          <span>Posted {p.postedDays}d ago</span>
+        </div>
+      </div>
+      <div className="hidden sm:flex items-center gap-5 text-xs shrink-0">
+        <Counter label="Shared" value={p.candidatesShared} />
+        <Counter label="Closures" value={p.closures} />
+      </div>
+    </div>
+  );
+
+  if (p.external) return inner;
+  return (
+    <Link to="/positions/$positionId" params={{ positionId: p.id }} className="block">
+      {inner}
+    </Link>
+  );
+}
