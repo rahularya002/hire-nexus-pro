@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   recruiters,
   subscribeRoster,
@@ -73,8 +74,8 @@ export function useMyRole(): Role {
 }
 
 export function useCan(): (p: PermKey) => boolean {
-  const role = useMyRole();
-  return (p: PermKey) => role.permissions.includes(p);
+  const { can } = useAuth();
+  return (p: PermKey) => can(p);
 }
 
 export function setMyStatus(s: RecruiterStatus) {
