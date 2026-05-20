@@ -113,6 +113,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   };
   const primaryRole = roles[0];
   const displayRole = primaryRole ? (ROLE_LABEL[primaryRole] ?? primaryRole) : role.name;
+  const isAdmin = roles.includes("admin");
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -231,11 +232,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/me" className="cursor-pointer">
-                    <Home className="size-4" /> My Desk
-                  </Link>
-                </DropdownMenuItem>
+                {!isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/me" className="cursor-pointer">
+                      <Home className="size-4" /> My Desk
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem>
                   <User className="size-4" /> Profile
                 </DropdownMenuItem>
