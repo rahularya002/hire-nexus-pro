@@ -1,8 +1,9 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, Calendar, Users } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, MapPin, Calendar, Users, ChevronDown, ChevronRight, Building2, ExternalLink } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
-import { getClient, positionsByClient } from "@/lib/mock-data";
+import { getClient, positionsByClient, type ClientAgencyEngagement } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/clients/$clientId")({
   component: () => (
@@ -36,9 +37,26 @@ function ClientDetail() {
             <div><span className="font-semibold tabular-nums">{client.openPositions}</span> <span className="text-muted-foreground">open positions</span></div>
             <div><span className="font-semibold tabular-nums">{client.activeCandidates}</span> <span className="text-muted-foreground">active candidates</span></div>
             <div><span className="font-semibold tabular-nums">3</span> <span className="text-muted-foreground">placements MTD</span></div>
+            <div><span className="font-semibold tabular-nums">{client.agencies.length}</span> <span className="text-muted-foreground">agencies engaged</span></div>
           </div>
         </div>
       </div>
+
+      {client.agencies.length > 0 && (
+        <div>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Agencies engaged</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Click any agency to see the positions {client.name} has given them.</p>
+            </div>
+          </div>
+          <div className="grid gap-3">
+            {client.agencies.map((a) => (
+              <AgencyCard key={a.id} agency={a} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold tracking-tight mb-4">Open positions</h2>
