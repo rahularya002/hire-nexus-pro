@@ -108,7 +108,9 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
           {nav.map((item) => {
-            const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+            const active = item.exact
+              ? pathname === item.to
+              : pathname === item.to || pathname.startsWith(item.to + "/");
             const Icon = item.icon;
             return (
               <Link key={item.to} to={item.to}
