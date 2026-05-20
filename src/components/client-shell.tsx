@@ -192,10 +192,12 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 pl-2 ml-1 border-l border-border outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
-              <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">VS</div>
+              <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
+                {(profile?.full_name?.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase()) || "C"}
+              </div>
               <div className="hidden sm:block text-xs leading-tight text-left">
-                <div className="font-medium">Vikram Shah</div>
-                <div className="text-muted-foreground">Head of Talent</div>
+                <div className="font-medium">{profile?.full_name || profile?.email || "Client"}</div>
+                <div className="text-muted-foreground">{profile?.company_name || "Client"}</div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
