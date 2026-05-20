@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
 import { useCurrentRecruiter, useMyRole, useCan, useRoster, setCurrentRecruiter, setMyStatus, type PermKey } from "@/lib/ops/access";
 import type { RecruiterStatus } from "@/lib/ops/store";
+import { AuthGate } from "@/components/auth-gate";
+import { useAuth } from "@/lib/auth/auth-context";
+import { useNavigate } from "@tanstack/react-router";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -72,12 +75,22 @@ const STATUS_OPTS: { value: RecruiterStatus; label: string; dot: string; cls: st
 function statusOpt(s: RecruiterStatus) { return STATUS_OPTS.find((x) => x.value === s) ?? STATUS_OPTS[3]; }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate variant="agency">
+      <AppShellInner>{children}</AppShellInner>
+    </AuthGate>
+  );
+}
+
+function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useTrackAgencyPath();
   const me = useCurrentRecruiter();
   const role = useMyRole();
   const can = useCan();
   const roster = useRoster();
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const meStatus = statusOpt(me.status);
   const isRecruiterPortal = pathname.startsWith("/me");
   const nav = isRecruiterPortal ? recruiterNav : agencyNav;
