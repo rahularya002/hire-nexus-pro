@@ -1,39 +1,81 @@
-# Real client creation with admin-set password
+# Agencies per client + remove "sourced" from client-facing views
 
-## Problem
+Two independent changes against the mock data and the relevant routes.
 
-The "Onboard new client" modal in `src/routes/admin.clients.tsx` is a mock — two cosmetic steps with non-functional inputs. There's no real account creation, no real password field, and nothing is written to the backend.
+## 1. Agencies a company works with
 
-## Fix
+### Data (`src/lib/mock-data.ts`)
 
-Mirror the recruiter flow: admin types email + password directly, a single server call creates the auth user, profile, and role.
+Extend the `Client` shape with an array of agency engagements:
 
-### 1. New server function — `createClientAccount`
+```ts
+export interface ClientAgencyEngagement {
+  id: string;              // "ta-talentflow"
+  name: string;            // "TalentFlow"
+  initials: string;
+  color: string;
+  spoc: string;            // agency-side relationship lead
+  positions: {
+    id: string;
+    title: string;
+    status: PositionStatus;
+    openings: number;
+    location: string;
+    postedDays: number;
+    candidatesShared: number;
+    closures: number;
+  }[];
+}
+```
 
-Add to `src/lib/team.functions.ts` (next to `createTeamMember`):
+Add `agencies: ClientAgencyEngagement[]` to `Client` and seed each existing client with 1–3 agencies (TalentFlow + a couple of competitors like Antal, Michael Page, Randstad). Most positions can mirror what's in the existing `positions` array for that client; add 1–2 extra for the other agencies so the page feels real.
 
-- Inputs (zod): `email`, `password` (min 8), `fullName`, `companyName`
-- Admin-gated via `assertAdmin`
-- Uses `supabaseAdmin.auth.admin.createUser` with `email_confirm: true`
-- Updates `profiles` with `full_name`, `company_name`, `status: 'active'`
-- Inserts `user_roles` row with `role: 'client'`
-- Returns `{ ok, userId, email }`
+### List card (`src/routes/admin.clients.tsx`)
 
-### 2. Rewrite `OnboardModal` in `src/routes/admin.clients.tsx`
+Add a small "N agencies" stat between "Closures YTD" and "Revenue YTD". No row-level interaction change — single click already opens the detail page.
 
-Single-step form with these real fields:
-- Company name
-- Contact person (full name)
-- Login email
-- Password (with show/hide toggle, min 8 chars validation)
+### Detail page (`src/routes/clients.$clientId.tsx`)
 
-Submit → `useServerFn(createClientAccount)` → toast success/error → close modal. Show inline validation errors. The legacy two-step UI and the "auto-generated / welcome email" placeholder text go away.
+Add an **Agencies** section above the existing "Open positions" block:
 
-Note: the admin-side mock `clients` list in `mock-data.ts` is unrelated to the real client-portal account being created here. It stays as-is for the dashboard tables.
+- One card per agency: avatar + name + agency SPOC + counters (open positions, candidates shared this quarter, closures YTD).
+- Click an agency card → expands inline to reveal its positions table (title, status, openings, candidates shared, closures, posted X days ago). Click a position → opens existing `/positions/$positionId` page when it matches an entry in `positions[]`; otherwise a small "Agency-side requirement — details with TalentFlow's portal" subline.
+
+No new route needed — expand-in-place keeps it light and avoids a new file. (The user's "double click → page" was directional; an expandable list on the same page is the same mental model and avoids dead-end navigation.)
+
+## 2. Client dashboard: hide "sourced", show real funnel
+
+The client should never see internal sourcing counts. Replace with the agency-visible funnel: Shared / Shortlisted / Interviewed / Offered / Rejected.
+
+### `src/routes/client.index.tsx`
+
+Replace the 4 KPIs with 5 funnel tiles:
+
+- Profiles shared (sum of `funnel.shared`)
+- Shortlisted (`funnel.shortlisted`)
+- Interviewed (`funnel.interview`)
+- Offered (`funnel.offered`)
+- Rejected (count of candidates with `status === "rejected"` across all positions)
+
+Keep "Open positions" badge in the hero, drop the "Placed YTD" tile (it's now duplicative with Offered).
+
+Per-position row inline stats: replace `{ Shared, Shortlisted, Pending review }` with `{ Shared, Shortlisted, Interviewed, Offered, Rejected }` rendered as a tighter strip.
+
+### `src/routes/client.positions.tsx`
+
+In the per-position stage counter, drop the `sourcing` step from the visible breakdown (keep it in the data but don't render it). Steps shown to the client: Shared → Shortlisted → Interviewed → Offered → Joined.
+
+### `src/routes/client.reports.tsx`
+
+Remove the **Sourced** bar and the **Sourced (all time)** stat. Recompute "conversion" as `joined / shared` (with safe divide). Funnel chart starts at "Profiles shared".
 
 ## Files
 
-- `src/lib/team.functions.ts` — add `createClientAccount`
-- `src/routes/admin.clients.tsx` — replace `OnboardModal` with real form + wire submit
+- `src/lib/mock-data.ts` — `ClientAgencyEngagement` type + `agencies` on every client.
+- `src/routes/admin.clients.tsx` — add "N agencies" stat to the row.
+- `src/routes/clients.$clientId.tsx` — new Agencies section with expand-on-click positions list.
+- `src/routes/client.index.tsx` — new 5-tile funnel KPIs + updated per-row stats.
+- `src/routes/client.positions.tsx` — hide the "sourcing" step.
+- `src/routes/client.reports.tsx` — drop sourced bar + stat, fix conversion formula.
 
-No DB migration needed — `profiles`, `user_roles`, and the `client` role already exist.
+No DB migration. All changes are mock-data + presentation.
