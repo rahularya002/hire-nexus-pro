@@ -234,9 +234,15 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/" className="cursor-pointer">
+                  <button
+                    className="cursor-pointer w-full text-left flex items-center gap-2"
+                    onClick={async () => {
+                      await signOut();
+                      navigate({ to: "/login", replace: true });
+                    }}
+                  >
                     <LogOut className="size-4" /> Sign Out
-                  </Link>
+                  </button>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
