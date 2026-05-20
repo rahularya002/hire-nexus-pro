@@ -17,6 +17,7 @@ import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as OngoingRouteImport } from './routes/ongoing'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MeRouteImport } from './routes/me'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as InterviewsRouteImport } from './routes/interviews'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -80,6 +81,11 @@ const MessagesRoute = MessagesRouteImport.update({
 const MeRoute = MeRouteImport.update({
   id: '/me',
   path: '/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InterviewsRoute = InterviewsRouteImport.update({
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
+  '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
+  '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
   '/interviews': typeof InterviewsRouteWithChildren
+  '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
   '/ongoing': typeof OngoingRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/database'
     | '/interviews'
+    | '/login'
     | '/me'
     | '/messages'
     | '/ongoing'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/database'
     | '/interviews'
+    | '/login'
     | '/me'
     | '/messages'
     | '/ongoing'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/database'
     | '/interviews'
+    | '/login'
     | '/me'
     | '/messages'
     | '/ongoing'
@@ -420,6 +432,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DatabaseRoute: typeof DatabaseRoute
   InterviewsRoute: typeof InterviewsRouteWithChildren
+  LoginRoute: typeof LoginRoute
   MeRoute: typeof MeRoute
   MessagesRoute: typeof MessagesRoute
   OngoingRoute: typeof OngoingRoute
@@ -499,6 +512,13 @@ declare module '@tanstack/react-router' {
       path: '/me'
       fullPath: '/me'
       preLoaderRoute: typeof MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/interviews': {
@@ -728,6 +748,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DatabaseRoute: DatabaseRoute,
   InterviewsRoute: InterviewsRouteWithChildren,
+  LoginRoute: LoginRoute,
   MeRoute: MeRoute,
   MessagesRoute: MessagesRoute,
   OngoingRoute: OngoingRoute,
