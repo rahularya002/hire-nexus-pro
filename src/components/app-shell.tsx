@@ -102,11 +102,15 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const displayRole = roles.includes("admin")
-    ? "Admin"
-    : roles.includes("recruiter")
-    ? role.name
-    : roles[0] ?? role.name;
+  const ROLE_LABEL: Record<string, string> = {
+    admin: "Admin",
+    lead_recruiter: "Lead Recruiter",
+    senior_recruiter: "Senior Recruiter",
+    recruiter: "Recruiter",
+    client: "Client",
+  };
+  const primaryRole = roles[0];
+  const displayRole = primaryRole ? (ROLE_LABEL[primaryRole] ?? primaryRole) : role.name;
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">

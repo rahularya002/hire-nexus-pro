@@ -44,6 +44,24 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          permissions: string[]
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          permissions?: string[]
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          permissions?: string[]
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -79,7 +97,12 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "recruiter" | "client"
+      app_role:
+        | "admin"
+        | "recruiter"
+        | "client"
+        | "lead_recruiter"
+        | "senior_recruiter"
       profile_status: "pending" | "active" | "rejected"
     }
     CompositeTypes: {
@@ -208,7 +231,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "recruiter", "client"],
+      app_role: [
+        "admin",
+        "recruiter",
+        "client",
+        "lead_recruiter",
+        "senior_recruiter",
+      ],
       profile_status: ["pending", "active", "rejected"],
     },
   },

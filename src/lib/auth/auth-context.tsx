@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
-export type AppRole = "admin" | "recruiter" | "client";
+export type AppRole =
+  | "admin"
+  | "lead_recruiter"
+  | "senior_recruiter"
+  | "recruiter"
+  | "client";
 export type ProfileStatus = "pending" | "active" | "rejected";
 
 export type Profile = {
@@ -22,20 +27,38 @@ type AuthState = {
   user: User | null;
   profile: Profile | null;
   roles: AppRole[];
+  permissions: string[];
+  can: (perm: string) => boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
 
-async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile | null; roles: AppRole[] }> {
+async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile | null; roles: AppRole[]; permissions: string[] }> {
   const [pRes, rRes] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email, company_name, status").eq("id", userId).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
   ]);
+  const roles = ((rRes.data ?? []) as { role: AppRole }[]).map((r) => r.role);
+
+  let permissions: string[] = [];
+  if (roles.length) {
+    const { data: rpRows } = await supabase
+      .from("role_permissions")
+      .select("role, permissions")
+      .in("role", roles);
+    const set = new Set<string>();
+    ((rpRows ?? []) as { role: AppRole; permissions: string[] }[]).forEach((r) =>
+      r.permissions.forEach((p) => set.add(p))
+    );
+    permissions = [...set];
+  }
+
   return {
     profile: (pRes.data as Profile | null) ?? null,
-    roles: ((rRes.data ?? []) as { role: AppRole }[]).map((r) => r.role),
+    roles,
+    permissions,
   };
 }
 
@@ -43,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const router = useRouter();
@@ -56,15 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoaded(false);
         // Defer the supabase calls so we don't deadlock the callback.
         setTimeout(() => {
-          loadProfileAndRoles(sess.user.id).then(({ profile, roles }) => {
+          loadProfileAndRoles(sess.user.id).then(({ profile, roles, permissions }) => {
             setProfile(profile);
             setRoles(roles);
+            setPermissions(permissions);
             setProfileLoaded(true);
           });
         }, 0);
       } else {
         setProfile(null);
         setRoles([]);
+        setPermissions([]);
         setProfileLoaded(true);
       }
       router.invalidate();
@@ -75,9 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session?.user) {
-        const { profile, roles } = await loadProfileAndRoles(data.session.user.id);
+        const { profile, roles, permissions } = await loadProfileAndRoles(data.session.user.id);
         setProfile(profile);
         setRoles(roles);
+        setPermissions(permissions);
         setProfileLoaded(true);
       } else {
         setProfileLoaded(true);
@@ -95,14 +122,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     profile,
     roles,
+    permissions,
+    can: (perm: string) => roles.includes("admin") || permissions.includes(perm),
     signOut: async () => {
       await supabase.auth.signOut();
     },
     refresh: async () => {
       if (!session?.user) return;
-      const { profile, roles } = await loadProfileAndRoles(session.user.id);
+      const { profile, roles, permissions } = await loadProfileAndRoles(session.user.id);
       setProfile(profile);
       setRoles(roles);
+      setPermissions(permissions);
       setProfileLoaded(true);
     },
   };
@@ -123,5 +153,10 @@ export function useHasRole(role: AppRole): boolean {
 
 export function useIsAgencyUser(): boolean {
   const { roles } = useAuth();
-  return roles.includes("admin") || roles.includes("recruiter");
+  return (
+    roles.includes("admin") ||
+    roles.includes("lead_recruiter") ||
+    roles.includes("senior_recruiter") ||
+    roles.includes("recruiter")
+  );
 }
