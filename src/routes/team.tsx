@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { recruiters, type RecruiterStatus } from "@/lib/ops/store";
-import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Plus, Trash2 } from "lucide-react";
+import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { inviteTeamMember } from "@/lib/team.functions";
+import { createTeamMember, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
 
@@ -43,19 +44,29 @@ const ALL_PERMISSIONS = [
 ] as const;
 
 type PermKey = (typeof ALL_PERMISSIONS)[number]["key"];
-type Role = { id: string; name: string; description: string; system: boolean; permissions: PermKey[] };
+type DbRole = "admin" | "lead_recruiter" | "senior_recruiter" | "recruiter" | "client";
+type Role = { id: DbRole; name: string; description: string; permissions: string[] };
 
-const DEFAULT_ROLES: Role[] = [
-  { id: "admin", name: "Admin", description: "Full access to everything.", system: true, permissions: ALL_PERMISSIONS.map((p) => p.key) },
-  { id: "lead", name: "Lead Recruiter", description: "Leads a desk; manages positions, pipeline and team.", system: true, permissions: ["candidates.view","candidates.edit","positions.view","positions.create","positions.assign","clients.view","clients.manage","pipeline.share","pipeline.move","team.view","team.invite"] },
-  { id: "senior", name: "Senior Recruiter", description: "Owns positions and shares to clients.", system: true, permissions: ["candidates.view","candidates.edit","positions.view","positions.create","clients.view","pipeline.share","pipeline.move","team.view"] },
-  { id: "recruiter", name: "Recruiter", description: "Standard recruiter access.", system: true, permissions: ["candidates.view","candidates.edit","positions.view","clients.view","pipeline.move","team.view"] },
+const ROLE_META: Record<DbRole, { name: string; description: string }> = {
+  admin: { name: "Admin", description: "Full access to everything." },
+  lead_recruiter: { name: "Lead Recruiter", description: "Leads a desk; manages positions, pipeline and team." },
+  senior_recruiter: { name: "Senior Recruiter", description: "Owns positions and shares to clients." },
+  recruiter: { name: "Recruiter", description: "Standard recruiter access." },
+  client: { name: "Client", description: "External client portal access." },
+};
+const ROLE_ORDER: DbRole[] = ["admin", "lead_recruiter", "senior_recruiter", "recruiter", "client"];
+const TEAM_ROLE_OPTIONS: { value: Exclude<DbRole, "client">; label: string }[] = [
+  { value: "admin", label: "Admin" },
+  { value: "lead_recruiter", label: "Lead Recruiter" },
+  { value: "senior_recruiter", label: "Senior Recruiter" },
+  { value: "recruiter", label: "Recruiter" },
 ];
 
 function TeamPage() {
   const [team, setTeam] = useState(() => [...recruiters]);
-  const [roles, setRoles] = useState<Role[]>(DEFAULT_ROLES);
   const [addOpen, setAddOpen] = useState(false);
+  const { can, roles: myRoles } = useAuth();
+  const isAdmin = myRoles.includes("admin");
 
   const summary = useMemo(() => ({
     online: team.filter((r) => r.status !== "Offline").length,
@@ -72,7 +83,6 @@ function TeamPage() {
       ...t,
       { id, name: data.name, initials, role: data.role, status: data.status, loginAt: "—", assignedClients: 0, assignedPositions: 0, sharesToday: 0, closuresMtd: 0, conversionPct: 0, joinedOn: new Date().toLocaleString("en-US",{month:"short",year:"numeric"}) },
     ]);
-    toast.success(`${data.name} added to the team`);
   }
 
   return (
@@ -86,13 +96,15 @@ function TeamPage() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1">Live activity, attendance and productivity across the desk.</p>
           </div>
-          <AddRecruiterDialog open={addOpen} onOpenChange={setAddOpen} roles={roles} onAdd={addRecruiter} />
+          {isAdmin && <AddRecruiterDialog open={addOpen} onOpenChange={setAddOpen} onAdd={addRecruiter} />}
         </div>
 
         <Tabs defaultValue="roster" className="space-y-6">
           <TabsList>
             <TabsTrigger value="roster"><Users className="size-3.5 mr-1.5" />Roster</TabsTrigger>
-            <TabsTrigger value="roles"><Shield className="size-3.5 mr-1.5" />Roles & Permissions</TabsTrigger>
+            {can("roles.manage") && (
+              <TabsTrigger value="roles"><Shield className="size-3.5 mr-1.5" />Roles & Permissions</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="roster" className="space-y-6 mt-0">
@@ -168,84 +180,179 @@ function TeamPage() {
         </div>
           </TabsContent>
 
-          <TabsContent value="roles" className="mt-0">
-            <RolesPanel roles={roles} setRoles={setRoles} />
-          </TabsContent>
+          {can("roles.manage") && (
+            <TabsContent value="roles" className="mt-0">
+              <RolesPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </AppShell>
   );
 }
 
-function AddRecruiterDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChange: (b: boolean) => void; roles: Role[]; onAdd: (d: { name: string; role: string; status: RecruiterStatus }) => void }) {
+function generatePassword(length = 14): string {
+  const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  let out = "";
+  const arr = new Uint32Array(length);
+  (typeof crypto !== "undefined" ? crypto : ({ getRandomValues: (a: Uint32Array) => { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 0xffffffff); return a; } } as Crypto)).getRandomValues(arr);
+  for (let i = 0; i < length; i++) out += charset[arr[i] % charset.length];
+  return out;
+}
+
+type CreatedCreds = { email: string; password: string };
+
+function AddRecruiterDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChange: (b: boolean) => void; onAdd: (d: { name: string; role: string; status: RecruiterStatus }) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"recruiter" | "admin">("recruiter");
+  const [password, setPassword] = useState(() => generatePassword());
+  const [showPw, setShowPw] = useState(false);
+  const [role, setRole] = useState<Exclude<DbRole, "client">>("recruiter");
   const [submitting, setSubmitting] = useState(false);
-  const invite = useServerFn(inviteTeamMember);
+  const [created, setCreated] = useState<CreatedCreds | null>(null);
+  const create = useServerFn(createTeamMember);
+
+  function reset() {
+    setName(""); setEmail(""); setPassword(generatePassword()); setRole("recruiter"); setShowPw(false); setCreated(null);
+  }
 
   async function submit() {
     if (!name.trim()) { toast.error("Name is required"); return; }
     if (!email.trim()) { toast.error("Email is required"); return; }
+    if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     setSubmitting(true);
     try {
-      await invite({ data: { email: email.trim(), fullName: name.trim(), role } });
-      toast.success(`Invite sent to ${email}`);
-      // Reflect locally so the roster shows the new teammate immediately.
-      onAdd({ name: name.trim(), role: role === "admin" ? "Admin" : "Recruiter", status: "Offline" });
-      setName(""); setEmail(""); setRole("recruiter");
-      onOpenChange(false);
+      await create({ data: { email: email.trim(), password, fullName: name.trim(), role } });
+      onAdd({ name: name.trim(), role: ROLE_META[role].name, status: "Offline" });
+      setCreated({ email: email.trim(), password });
+      toast.success("Account created");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to send invite");
+      toast.error(e instanceof Error ? e.message : "Failed to create account");
     } finally {
       setSubmitting(false);
     }
   }
 
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`));
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(b) => { if (!b) reset(); onOpenChange(b); }}>
       <DialogTrigger asChild>
-        <Button><UserPlus className="size-4 mr-1.5" />Invite teammate</Button>
+        <Button><UserPlus className="size-4 mr-1.5" />Add teammate</Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Invite teammate</DialogTitle>
-          <DialogDescription>
-            We'll email them an invite link. They'll set their own password on first sign-in — no password needed here.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="rn">Full name</Label>
-            <Input id="rn" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Anika Verma" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="re">Work email</Label>
-            <Input id="re" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anika@company.com" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as "recruiter" | "admin")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recruiter">Recruiter</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={submit} disabled={submitting}>{submitting ? "Sending…" : "Send invite"}</Button>
-        </DialogFooter>
+        {created ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Account ready</DialogTitle>
+              <DialogDescription>Share these credentials with your teammate. They can sign in right away.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="rounded-md border border-border bg-secondary/40 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs text-muted-foreground">Email</div>
+                  <Button size="sm" variant="ghost" onClick={() => copy(created.email, "Email")}><Copy className="size-3.5" /></Button>
+                </div>
+                <div className="font-mono text-sm break-all">{created.email}</div>
+              </div>
+              <div className="rounded-md border border-border bg-secondary/40 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs text-muted-foreground">Password</div>
+                  <Button size="sm" variant="ghost" onClick={() => copy(created.password, "Password")}><Copy className="size-3.5" /></Button>
+                </div>
+                <div className="font-mono text-sm break-all">{created.password}</div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => copy(`Email: ${created.email}\nPassword: ${created.password}`, "Credentials")}
+              >
+                <Copy className="size-4 mr-1.5" /> Copy both
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => { reset(); onOpenChange(false); }}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Add teammate</DialogTitle>
+              <DialogDescription>Create an account directly. You'll get the credentials to share — no email required.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="rn">Full name</Label>
+                <Input id="rn" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Anika Verma" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="re">Work email</Label>
+                <Input id="re" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anika@company.com" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rp">Password</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input id="rp" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pr-9 font-mono" />
+                    <button type="button" onClick={() => setShowPw((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                  <Button type="button" variant="outline" size="icon" onClick={() => { setPassword(generatePassword()); setShowPw(true); }} title="Generate new password">
+                    <RefreshCw className="size-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">At least 8 characters. You'll be shown the password after creating.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <Select value={role} onValueChange={(v) => setRole(v as Exclude<DbRole, "client">)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TEAM_ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+              <Button onClick={submit} disabled={submitting}>{submitting ? "Creating…" : "Create account"}</Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispatch<React.SetStateAction<Role[]>> }) {
-  const [selectedId, setSelectedId] = useState(roles[0]?.id);
-  const [createOpen, setCreateOpen] = useState(false);
+function RolesPanel() {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [selectedId, setSelectedId] = useState<DbRole>("admin");
+  const loadRoles = useServerFn(getRolePermissions);
+  const saveRole = useServerFn(updateRolePermissions);
+
+  useEffect(() => {
+    loadRoles({})
+      .then((res) => {
+        const map = new Map(res.rows.map((r) => [r.role as DbRole, r.permissions]));
+        const built = ROLE_ORDER.map<Role>((r) => ({
+          id: r,
+          name: ROLE_META[r].name,
+          description: ROLE_META[r].description,
+          permissions: map.get(r) ?? [],
+        }));
+        setRoles(built);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load roles"))
+      .finally(() => setLoading(false));
+  }, [loadRoles]);
+
   const selected = roles.find((r) => r.id === selectedId) ?? roles[0];
 
   const grouped = useMemo(() => {
@@ -258,20 +365,26 @@ function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispat
     return [...m.entries()];
   }, []);
 
-  function toggle(perm: PermKey, on: boolean) {
-    if (!selected) return;
-    setRoles((rs) => rs.map((r) => r.id !== selected.id ? r : {
-      ...r,
-      permissions: on ? [...new Set([...r.permissions, perm])] : r.permissions.filter((p) => p !== perm),
-    }));
+  async function toggle(perm: PermKey, on: boolean) {
+    if (!selected || selected.id === "admin") return;
+    const next = on
+      ? [...new Set([...selected.permissions, perm])]
+      : selected.permissions.filter((p) => p !== perm);
+    const prev = selected.permissions;
+    setRoles((rs) => rs.map((r) => (r.id === selected.id ? { ...r, permissions: next } : r)));
+    setSaving(true);
+    try {
+      await saveRole({ data: { role: selected.id, permissions: next } });
+    } catch (e) {
+      setRoles((rs) => rs.map((r) => (r.id === selected.id ? { ...r, permissions: prev } : r)));
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function deleteRole(id: string) {
-    const r = roles.find((x) => x.id === id);
-    if (!r || r.system) return;
-    setRoles((rs) => rs.filter((x) => x.id !== id));
-    if (selectedId === id) setSelectedId(roles[0]?.id);
-    toast.success(`Removed role "${r.name}"`);
+  if (loading) {
+    return <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading roles…</div>;
   }
 
   return (
@@ -279,12 +392,7 @@ function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispat
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="text-sm font-medium">Roles</div>
-          <CreateRoleDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={(name, desc) => {
-            const id = `role-${Date.now()}`;
-            setRoles((rs) => [...rs, { id, name, description: desc, system: false, permissions: [] }]);
-            setSelectedId(id);
-            toast.success(`Role "${name}" created`);
-          }} />
+          {saving && <span className="text-[11px] text-muted-foreground">Saving…</span>}
         </div>
         <ul className="divide-y divide-border">
           {roles.map((r) => (
@@ -293,16 +401,11 @@ function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispat
                 <div className="min-w-0">
                   <div className="text-sm font-medium flex items-center gap-2">
                     {r.name}
-                    {r.system ? <Badge variant="secondary" className="text-[10px]">System</Badge> : <Badge className="text-[10px]">Custom</Badge>}
+                    {r.id === "admin" && <Badge variant="secondary" className="text-[10px]"><Lock className="size-2.5 mr-0.5" />Locked</Badge>}
                   </div>
                   <div className="text-[11px] text-muted-foreground line-clamp-1">{r.description}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">{r.permissions.length} permissions</div>
                 </div>
-                {!r.system && (
-                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); deleteRole(r.id); }} className="text-muted-foreground hover:text-destructive p-1">
-                    <Trash2 className="size-3.5" />
-                  </span>
-                )}
               </button>
             </li>
           ))}
@@ -328,7 +431,7 @@ function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispat
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {perms.map((p) => {
                       const on = selected.permissions.includes(p.key);
-                      const disabled = selected.system && selected.id === "admin";
+                      const disabled = selected.id === "admin";
                       return (
                         <label key={p.key} className={cn("flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer hover:bg-secondary/40 transition", on && "bg-secondary/40", disabled && "opacity-60 cursor-not-allowed")}>
                           <Checkbox checked={on} disabled={disabled} onCheckedChange={(v) => toggle(p.key, !!v)} />
@@ -347,41 +450,5 @@ function RolesPanel({ roles, setRoles }: { roles: Role[]; setRoles: React.Dispat
         )}
       </div>
     </div>
-  );
-}
-
-function CreateRoleDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (b: boolean) => void; onCreate: (name: string, desc: string) => void }) {
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline"><Plus className="size-3.5 mr-1" />New role</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create custom role</DialogTitle>
-          <DialogDescription>Define a new role and assign permissions next.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="rname">Role name</Label>
-            <Input id="rname" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sourcing Specialist" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="rdesc">Description</Label>
-            <Input id="rdesc" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What this role can do" />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => {
-            if (!name.trim()) { toast.error("Name is required"); return; }
-            onCreate(name.trim(), desc.trim() || "Custom role");
-            setName(""); setDesc(""); onOpenChange(false);
-          }}>Create role</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
