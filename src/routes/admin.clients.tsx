@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, KeyRound, Check, AlertCircle, Mail, Phone, IndianRupee, TrendingUp } from "lucide-react";
+import { Plus, Building2, AlertCircle, Mail, Phone, TrendingUp, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { createClientAccount } from "@/lib/team.functions";
 import { AppShell } from "@/components/app-shell";
 import { clients, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS, type Client } from "@/lib/mock-data";
 import { formatInrShort } from "@/lib/utils";
