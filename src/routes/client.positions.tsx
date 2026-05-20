@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { clientPositions, PROGRESS_STEPS, currentStep, recruiterFor, type ClientPosition } from "@/lib/client-data";
 
+// Client-facing: hide internal "sourcing" stage. They should only see what
+// the agency has actually shared with them onwards.
+const VISIBLE_STEPS = PROGRESS_STEPS.filter((s) => s.id !== "sourcing");
+
 export const Route = createFileRoute("/client/positions")({
   component: () => <ClientShell><Page /></ClientShell>,
 });
@@ -55,13 +59,14 @@ function slaTone(days: number): { label: string; cls: string } {
 }
 
 function RequirementCard({ p }: { p: ClientPosition }) {
-  const step = currentStep(p);
-  const stepIndex = PROGRESS_STEPS.findIndex((s) => s.id === step);
+  const rawStep = currentStep(p);
+  // Collapse "sourcing" → "received" for client view.
+  const step = rawStep === "sourcing" ? "received" : rawStep;
+  const stepIndex = VISIBLE_STEPS.findIndex((s) => s.id === step);
   const recruiter = recruiterFor(p.recruiterId);
   const sla = slaTone(p.sentDaysAgo ?? p.postedDays);
   const f = p.funnel ?? { sourced: 0, shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
   const stepCount = (id: typeof PROGRESS_STEPS[number]["id"]) => {
-    if (id === "sourcing")  return f.sourced;
     if (id === "shared")    return f.shared;
     if (id === "review")    return f.shortlisted;
     if (id === "interview") return f.interview;
@@ -102,8 +107,8 @@ function RequirementCard({ p }: { p: ClientPosition }) {
           <div className="absolute left-0 right-0 top-3 h-0.5 bg-border" />
           <div className="absolute left-0 top-3 h-0.5 bg-primary transition-all"
             style={{ width: `${(stepIndex / (PROGRESS_STEPS.length - 1)) * 100}%` }} />
-          <div className="relative grid" style={{ gridTemplateColumns: `repeat(${PROGRESS_STEPS.length}, minmax(0, 1fr))` }}>
-            {PROGRESS_STEPS.map((s, i) => {
+          <div className="relative grid" style={{ gridTemplateColumns: `repeat(${VISIBLE_STEPS.length}, minmax(0, 1fr))` }}>
+            {VISIBLE_STEPS.map((s, i) => {
               const done = i < stepIndex;
               const active = i === stepIndex;
               const count = stepCount(s.id);
