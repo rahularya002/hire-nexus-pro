@@ -87,11 +87,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const me = useCurrentRecruiter();
   const role = useMyRole();
   const can = useCan();
-  const { profile, signOut } = useAuth();
+  const { profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
   const meStatus = statusOpt(me.status);
   const isRecruiterPortal = pathname.startsWith("/me");
   const nav = isRecruiterPortal ? recruiterNav : agencyNav;
+
+  // Real authenticated identity (overrides mock recruiter for display)
+  const displayName = profile?.full_name || profile?.email || "Account";
+  const displayInitials = (profile?.full_name || profile?.email || "?")
+    .split(/[\s@]+/)
+    .filter(Boolean)
+    .map((p) => p[0]!)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const displayRole = roles.includes("admin")
+    ? "Admin"
+    : roles.includes("recruiter")
+    ? role.name
+    : roles[0] ?? role.name;
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -199,12 +214,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <div className="relative size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
-                  {me.initials}
+                  {displayInitials}
                   <span className={cn("absolute -bottom-0.5 -right-0.5 size-2 rounded-full ring-2 ring-background", meStatus.dot)} />
                 </div>
                 <div className="hidden sm:block text-xs leading-tight text-left">
-                  <div className="font-medium">{me.name}</div>
-                  <div className="text-muted-foreground">{role.name}</div>
+                  <div className="font-medium">{displayName}</div>
+                  <div className="text-muted-foreground capitalize">{displayRole}</div>
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

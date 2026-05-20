@@ -17,6 +17,7 @@ export type Profile = {
 
 type AuthState = {
   loading: boolean;
+  profileLoaded: boolean;
   session: Session | null;
   user: User | null;
   profile: Profile | null;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -51,16 +53,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess);
       if (sess?.user) {
+        setProfileLoaded(false);
         // Defer the supabase calls so we don't deadlock the callback.
         setTimeout(() => {
           loadProfileAndRoles(sess.user.id).then(({ profile, roles }) => {
             setProfile(profile);
             setRoles(roles);
+            setProfileLoaded(true);
           });
         }, 0);
       } else {
         setProfile(null);
         setRoles([]);
+        setProfileLoaded(true);
       }
       router.invalidate();
       qc.invalidateQueries();
@@ -73,6 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { profile, roles } = await loadProfileAndRoles(data.session.user.id);
         setProfile(profile);
         setRoles(roles);
+        setProfileLoaded(true);
+      } else {
+        setProfileLoaded(true);
       }
       setLoading(false);
     });
@@ -82,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthState = {
     loading,
+    profileLoaded,
     session,
     user: session?.user ?? null,
     profile,
@@ -94,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { profile, roles } = await loadProfileAndRoles(session.user.id);
       setProfile(profile);
       setRoles(roles);
+      setProfileLoaded(true);
     },
   };
 

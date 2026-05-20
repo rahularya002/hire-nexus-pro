@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { inviteTeamMember } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
 
@@ -175,27 +177,42 @@ function TeamPage() {
   );
 }
 
-function AddRecruiterDialog({ open, onOpenChange, roles, onAdd }: { open: boolean; onOpenChange: (b: boolean) => void; roles: Role[]; onAdd: (d: { name: string; role: string; status: RecruiterStatus }) => void }) {
+function AddRecruiterDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChange: (b: boolean) => void; roles: Role[]; onAdd: (d: { name: string; role: string; status: RecruiterStatus }) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState(roles[0]?.name ?? "Recruiter");
-  const [status, setStatus] = useState<RecruiterStatus>("Available");
+  const [role, setRole] = useState<"recruiter" | "admin">("recruiter");
+  const [submitting, setSubmitting] = useState(false);
+  const invite = useServerFn(inviteTeamMember);
 
-  function submit() {
+  async function submit() {
     if (!name.trim()) { toast.error("Name is required"); return; }
-    onAdd({ name: name.trim(), role, status });
-    setName(""); setEmail(""); onOpenChange(false);
+    if (!email.trim()) { toast.error("Email is required"); return; }
+    setSubmitting(true);
+    try {
+      await invite({ data: { email: email.trim(), fullName: name.trim(), role } });
+      toast.success(`Invite sent to ${email}`);
+      // Reflect locally so the roster shows the new teammate immediately.
+      onAdd({ name: name.trim(), role: role === "admin" ? "Admin" : "Recruiter", status: "Offline" });
+      setName(""); setEmail(""); setRole("recruiter");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send invite");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button><UserPlus className="size-4 mr-1.5" />Add recruiter</Button>
+        <Button><UserPlus className="size-4 mr-1.5" />Invite teammate</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add recruiter</DialogTitle>
-          <DialogDescription>Invite a new teammate to the desk.</DialogDescription>
+          <DialogTitle>Invite teammate</DialogTitle>
+          <DialogDescription>
+            We'll email them an invite link. They'll set their own password on first sign-in — no password needed here.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -206,33 +223,20 @@ function AddRecruiterDialog({ open, onOpenChange, roles, onAdd }: { open: boolea
             <Label htmlFor="re">Work email</Label>
             <Input id="re" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anika@company.com" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {roles.map((r) => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Initial status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as RecruiterStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Available">Available</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Break">Break</SelectItem>
-                  <SelectItem value="Offline">Offline</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as "recruiter" | "admin")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recruiter">Recruiter</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit}>Add to team</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+          <Button onClick={submit} disabled={submitting}>{submitting ? "Sending…" : "Send invite"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
