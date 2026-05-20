@@ -88,6 +88,10 @@ function ClientRow({ c, isAdmin }: { c: Client; isAdmin: boolean }) {
             <div className="text-sm font-semibold tabular-nums">{c.positionsClosedYTD}</div>
           </div>
           <div className="text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Agencies</div>
+            <div className="text-sm font-semibold tabular-nums">{c.agencies.length}</div>
+          </div>
+          <div className="text-center">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Revenue YTD</div>
             <div className="text-sm font-semibold tabular-nums inline-flex items-center gap-0.5"><IndianRupee className="size-3" />{formatInrShort(c.revenueYTDInr).replace("₹", "")}</div>
           </div>

@@ -11,17 +11,15 @@ export const Route = createFileRoute("/client/reports")({
 function Page() {
   const f = aggregateFunnel();
   const funnelData = [
-    { stage: "Sourced",     count: f.sourced },
     { stage: "Shared",      count: f.shared },
     { stage: "Shortlisted", count: f.shortlisted },
-    { stage: "Interview",   count: f.interview },
+    { stage: "Interviewed", count: f.interview },
     { stage: "Offered",     count: f.offered },
     { stage: "Joined",      count: f.joined },
   ];
-  const conv = f.sourced > 0 ? Math.round((f.joined / f.sourced) * 100) : 0;
+  const conv = f.shared > 0 ? Math.round((f.joined / f.shared) * 100) : 0;
   const avgResponse = (accountTeam.reduce((a, r) => a + r.responseHrs, 0) / accountTeam.length).toFixed(1);
   const funnelColors = [
-    "var(--info)",
     "var(--purple)",
     "var(--primary)",
     "var(--warning)",
@@ -40,9 +38,9 @@ function Page() {
       </div>
 
       <div className="grid sm:grid-cols-4 gap-3">
-        <Stat label="Sourced (all time)" value={f.sourced.toString()} />
+        <Stat label="Profiles shared (all time)" value={f.shared.toString()} />
         <Stat label="Joined" value={f.joined.toString()} />
-        <Stat label="Source → join conversion" value={`${conv}%`} />
+        <Stat label="Share → join conversion" value={`${conv}%`} />
         <Stat label="Avg recruiter response" value={`${avgResponse} hr`} />
       </div>
 

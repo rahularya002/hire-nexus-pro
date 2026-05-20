@@ -37,6 +37,29 @@ export interface Client {
   spoc: { name: string; email: string; phone: string };
   positionsClosedYTD: number;
   revenueYTDInr: number;         // INR
+  agencies: ClientAgencyEngagement[];
+}
+
+export interface ClientAgencyPosition {
+  id: string;                    // matches positions[].id when handled by us
+  title: string;
+  status: PositionStatus;
+  openings: number;
+  location: string;
+  postedDays: number;
+  candidatesShared: number;
+  closures: number;
+  external?: boolean;            // true => handled by another agency, no internal detail page
+}
+
+export interface ClientAgencyEngagement {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  spoc: string;
+  sinceYear: number;
+  positions: ClientAgencyPosition[];
 }
 
 export interface Position {
@@ -69,17 +92,17 @@ export interface Candidate {
 
 export const clients: Client[] = [
   { id: "rolex-india", name: "Rolex India", industry: "Luxury Retail", contact: "Aanya Mehta", openPositions: 6, activeCandidates: 28, initials: "RX", color: "oklch(0.55 0.20 255)", lastActivityDays: 1,
-    lastMandateDays: 8, lastClosureDays: 22, spoc: { name: "Aanya Mehta", email: "aanya.mehta@rolex.in",   phone: "+91 98201 11122" }, positionsClosedYTD: 9,  revenueYTDInr: 86_00_000 },
+    lastMandateDays: 8, lastClosureDays: 22, spoc: { name: "Aanya Mehta", email: "aanya.mehta@rolex.in",   phone: "+91 98201 11122" }, positionsClosedYTD: 9,  revenueYTDInr: 86_00_000, agencies: [] },
   { id: "reliance-brands", name: "Reliance Brands", industry: "Retail Conglomerate", contact: "Vikram Shah", openPositions: 11, activeCandidates: 47, initials: "RB", color: "oklch(0.62 0.20 295)", lastActivityDays: 0,
-    lastMandateDays: 2, lastClosureDays: 14, spoc: { name: "Vikram Shah", email: "vikram.shah@rb.in",      phone: "+91 99300 45577" }, positionsClosedYTD: 18, revenueYTDInr: 2_15_00_000 },
+    lastMandateDays: 2, lastClosureDays: 14, spoc: { name: "Vikram Shah", email: "vikram.shah@rb.in",      phone: "+91 99300 45577" }, positionsClosedYTD: 18, revenueYTDInr: 2_15_00_000, agencies: [] },
   { id: "urban-works", name: "Urban Works", industry: "Co-working & Real Estate", contact: "Priya Iyer", openPositions: 0, activeCandidates: 4, initials: "UW", color: "oklch(0.65 0.18 230)", lastActivityDays: 75,
-    lastMandateDays: 75, lastClosureDays: 110, spoc: { name: "Priya Iyer", email: "priya@urbanworks.in",    phone: "+91 98765 21234" }, positionsClosedYTD: 3,  revenueYTDInr: 12_50_000 },
+    lastMandateDays: 75, lastClosureDays: 110, spoc: { name: "Priya Iyer", email: "priya@urbanworks.in",    phone: "+91 98765 21234" }, positionsClosedYTD: 3,  revenueYTDInr: 12_50_000, agencies: [] },
   { id: "tata-digital", name: "Tata Digital", industry: "Technology", contact: "Rohan Kapoor", openPositions: 8, activeCandidates: 35, initials: "TD", color: "oklch(0.65 0.18 150)", lastActivityDays: 2,
-    lastMandateDays: 5, lastClosureDays: 30, spoc: { name: "Rohan Kapoor", email: "rohan.k@tatadigital.com", phone: "+91 90040 33345" }, positionsClosedYTD: 14, revenueYTDInr: 1_42_00_000 },
+    lastMandateDays: 5, lastClosureDays: 30, spoc: { name: "Rohan Kapoor", email: "rohan.k@tatadigital.com", phone: "+91 90040 33345" }, positionsClosedYTD: 14, revenueYTDInr: 1_42_00_000, agencies: [] },
   { id: "zomato", name: "Zomato", industry: "Food Tech", contact: "Neha Sharma", openPositions: 0, activeCandidates: 0, initials: "Z", color: "oklch(0.60 0.22 27)", lastActivityDays: 95,
-    lastMandateDays: 95, lastClosureDays: 140, spoc: { name: "Neha Sharma", email: "neha.sharma@zomato.com", phone: "+91 97119 88865" }, positionsClosedYTD: 1,  revenueYTDInr: 6_00_000 },
+    lastMandateDays: 95, lastClosureDays: 140, spoc: { name: "Neha Sharma", email: "neha.sharma@zomato.com", phone: "+91 97119 88865" }, positionsClosedYTD: 1,  revenueYTDInr: 6_00_000, agencies: [] },
   { id: "razorpay", name: "Razorpay", industry: "Fintech", contact: "Aditya Rao", openPositions: 7, activeCandidates: 31, initials: "RP", color: "oklch(0.55 0.20 255)", lastActivityDays: 0,
-    lastMandateDays: 1, lastClosureDays: 9, spoc: { name: "Aditya Rao", email: "aditya.rao@razorpay.com",   phone: "+91 88791 02234" }, positionsClosedYTD: 11, revenueYTDInr: 1_05_00_000 },
+    lastMandateDays: 1, lastClosureDays: 9, spoc: { name: "Aditya Rao", email: "aditya.rao@razorpay.com",   phone: "+91 88791 02234" }, positionsClosedYTD: 11, revenueYTDInr: 1_05_00_000, agencies: [] },
 ];
 
 export const INACTIVITY_MANDATE_DAYS = 60;
@@ -193,6 +216,85 @@ export function getPosition(id: string) {
 }
 export function positionsByClient(id: string) {
   return positions.filter((p) => p.clientId === id);
+}
+
+// ----- Agency engagements -----
+// Each client works with one or more recruitment agencies. "TalentFlow" is us
+// (the agency operating this product); the rest are competitors shown for
+// transparency so the admin can see the full vendor landscape per client.
+
+const TALENTFLOW = { id: "talentflow", name: "TalentFlow", initials: "TF", color: "oklch(0.62 0.20 295)" };
+const ANTAL      = { id: "antal",      name: "Antal International", initials: "AN", color: "oklch(0.55 0.20 25)" };
+const MICHAEL    = { id: "michael",    name: "Michael Page",        initials: "MP", color: "oklch(0.58 0.18 145)" };
+const RANDSTAD   = { id: "randstad",   name: "Randstad India",      initials: "RS", color: "oklch(0.60 0.22 50)" };
+const ABC        = { id: "abc",        name: "ABC Consultants",     initials: "AB", color: "oklch(0.55 0.18 220)" };
+
+function ours(clientId: string): ClientAgencyPosition[] {
+  return positionsByClient(clientId).map((p) => ({
+    id: p.id,
+    title: p.title,
+    status: p.status,
+    openings: p.openings,
+    location: p.location,
+    postedDays: p.postedDays,
+    candidatesShared: p.candidates.filter((c) => c.stage !== "Sourcing").length,
+    closures: p.status === "closed" ? p.openings : 0,
+  }));
+}
+
+function ext(seed: number, items: Omit<ClientAgencyPosition, "external">[]): ClientAgencyPosition[] {
+  return items.map((p) => ({ ...p, external: true, id: `${p.id}-x${seed}` }));
+}
+
+const agencyMap: Record<string, ClientAgencyEngagement[]> = {
+  "rolex-india": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",  sinceYear: 2021, positions: ours("rolex-india") },
+    { ...ANTAL,      spoc: "Nisha Patel",  sinceYear: 2019, positions: ext(1, [
+      { id: "rx-ext-1", title: "Regional Sales Head — West", status: "in_progress", openings: 1, location: "Mumbai",    postedDays: 9,  candidatesShared: 4, closures: 0 },
+      { id: "rx-ext-2", title: "Brand Marketing Manager",    status: "closed",      openings: 1, location: "Delhi NCR", postedDays: 45, candidatesShared: 7, closures: 1 },
+    ])},
+  ],
+  "reliance-brands": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",   sinceYear: 2020, positions: ours("reliance-brands") },
+    { ...MICHAEL,    spoc: "Karthik Menon", sinceYear: 2018, positions: ext(2, [
+      { id: "rb-ext-1", title: "Chief Merchandising Officer", status: "interviews", openings: 1, location: "Mumbai",    postedDays: 21, candidatesShared: 6,  closures: 0 },
+      { id: "rb-ext-2", title: "Category Head — Beauty",      status: "closed",     openings: 1, location: "Mumbai",    postedDays: 60, candidatesShared: 9,  closures: 1 },
+      { id: "rb-ext-3", title: "Store Manager — Jio World",   status: "in_progress",openings: 2, location: "Mumbai",    postedDays: 12, candidatesShared: 5,  closures: 0 },
+    ])},
+    { ...RANDSTAD,   spoc: "Sara D'Souza",  sinceYear: 2022, positions: ext(3, [
+      { id: "rb-ext-4", title: "Senior Buyer — Menswear", status: "open", openings: 2, location: "Bengaluru", postedDays: 4, candidatesShared: 3, closures: 0 },
+    ])},
+  ],
+  "urban-works": [
+    { ...TALENTFLOW, spoc: "Priya Iyer",  sinceYear: 2023, positions: ours("urban-works") },
+  ],
+  "tata-digital": [
+    { ...TALENTFLOW, spoc: "Devansh Singh", sinceYear: 2022, positions: ours("tata-digital") },
+    { ...ABC,        spoc: "Vivek Sharma",  sinceYear: 2020, positions: ext(4, [
+      { id: "td-ext-1", title: "Director — Engineering Platform", status: "in_progress", openings: 1, location: "Bengaluru", postedDays: 18, candidatesShared: 5, closures: 0 },
+      { id: "td-ext-2", title: "VP — Product Design",             status: "closed",      openings: 1, location: "Bengaluru", postedDays: 88, candidatesShared: 8, closures: 1 },
+    ])},
+    { ...MICHAEL,    spoc: "Karthik Menon", sinceYear: 2021, positions: ext(5, [
+      { id: "td-ext-3", title: "Head of Data Science", status: "interviews", openings: 1, location: "Bengaluru", postedDays: 25, candidatesShared: 4, closures: 0 },
+    ])},
+  ],
+  "zomato": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy", sinceYear: 2024, positions: ours("zomato") },
+  ],
+  "razorpay": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",  sinceYear: 2022, positions: ours("razorpay") },
+    { ...ANTAL,      spoc: "Nisha Patel",  sinceYear: 2021, positions: ext(6, [
+      { id: "rp-ext-1", title: "Head of Compliance", status: "in_progress", openings: 1, location: "Bengaluru", postedDays: 14, candidatesShared: 6, closures: 0 },
+    ])},
+  ],
+};
+
+for (const c of clients) {
+  c.agencies = agencyMap[c.id] ?? [];
+}
+
+export function agenciesForClient(clientId: string): ClientAgencyEngagement[] {
+  return clients.find((c) => c.id === clientId)?.agencies ?? [];
 }
 
 export const todaysInterviews = [
