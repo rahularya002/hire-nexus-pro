@@ -92,7 +92,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
   const meStatus = statusOpt(me.status);
-  const isRecruiterPortal = pathname.startsWith("/me");
+  const isRecruiterPortal = pathname === "/me" || pathname.startsWith("/me/");
   const nav = isRecruiterPortal ? recruiterNav : agencyNav;
 
   // Real authenticated identity (overrides mock recruiter for display)
@@ -132,7 +132,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
           {nav.filter((i) => !i.perm || can(i.perm as PermKey)).map((item) => {
-            const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+            const active = item.exact
+              ? pathname === item.to
+              : pathname === item.to || pathname.startsWith(item.to + "/");
             const Icon = item.icon;
             return (
               <Link
