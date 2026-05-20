@@ -6,6 +6,8 @@ import { clientCompany } from "@/lib/client-data";
 import { activityEvents } from "@/lib/client-data";
 import { getAgencyLastPath, getSelectedClientId, setSelectedClientId } from "@/lib/portal-state";
 import { clients } from "@/lib/mock-data";
+import { AuthGate } from "@/components/auth-gate";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -57,8 +59,17 @@ function describeAgencyPath(path: string): string {
 }
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate variant="client">
+      <ClientShellInner>{children}</ClientShellInner>
+    </AuthGate>
+  );
+}
+
+function ClientShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
   const unread = activityEvents.filter((e) => e.unread).length;
 
   // Persist the "selected client" the user was viewing on the agency side.
@@ -181,10 +192,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 pl-2 ml-1 border-l border-border outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
-              <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">VS</div>
+              <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
+                {(profile?.full_name?.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase()) || "C"}
+              </div>
               <div className="hidden sm:block text-xs leading-tight text-left">
-                <div className="font-medium">Vikram Shah</div>
-                <div className="text-muted-foreground">Head of Talent</div>
+                <div className="font-medium">{profile?.full_name || profile?.email || "Client"}</div>
+                <div className="text-muted-foreground">{profile?.company_name || "Client"}</div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -197,9 +210,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 <Settings className="size-4 mr-2" /> Settings
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/" className="flex items-center gap-2 cursor-pointer">
+                <button
+                  className="flex items-center gap-2 cursor-pointer w-full text-left"
+                  onClick={async () => {
+                    await signOut();
+                    navigate({ to: "/login", replace: true });
+                  }}
+                >
                   <LogOut className="size-4" /> Sign Out
-                </Link>
+                </button>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

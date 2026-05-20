@@ -35,7 +35,7 @@ function LandingPage() {
           </div>
         </div>
         <Link
-          to="/dashboard"
+          to="/login"
           className="hidden items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 backdrop-blur hover:bg-white/10 sm:inline-flex"
         >
           Sign in <ArrowRight className="size-3.5" />
@@ -63,21 +63,21 @@ function LandingPage() {
         {/* CTAs */}
         <div className="mt-10 flex w-full flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
           <Link
-            to="/dashboard"
+            to="/login"
             className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 px-7 py-3.5 text-sm font-semibold text-black shadow-[0_12px_30px_-10px_rgba(255,120,40,0.8)] transition hover:brightness-110 sm:w-auto"
           >
             Enter Workspace
             <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
           </Link>
           <Link
-            to="/me"
+            to="/login"
             className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10 sm:w-auto"
           >
             <UserRound className="size-4" />
             I'm a recruiter
           </Link>
           <Link
-            to="/client"
+            to="/login"
             className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10 sm:w-auto"
           >
             <Building2 className="size-4" />

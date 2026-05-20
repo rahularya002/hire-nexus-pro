@@ -1,66 +1,73 @@
-## Direct Chat: Client ↔ Agency
+## Goal
 
-Add a dedicated messaging surface in both portals where a client and the agency account team can chat in real-time threads and share files. Currently messaging only exists nested inside a single position detail page (`client.positions.$positionId.tsx`); this elevates it to a top-level channel per client.
+Replace the mock impersonation system with real authentication. Three roles — **Admin**, **Recruiter**, **Client** — decide which portal and which actions a signed-in user can reach. Existing mock recruiters/clients/positions/messages stay as seed data; only the access layer becomes real.
 
-### Navigation
+## 1. Enable Lovable Cloud + email auth
 
-- **Agency sidebar** (`src/components/app-shell.tsx` → `agencyNav`): add `Messages` (icon: `MessageSquare`) between `Clients` and `Open Requirements`.
-- **Client sidebar** (`src/components/client-shell.tsx`): add `Messages` between `Account Team` and `Upload JD`.
+- Turn on Lovable Cloud.
+- Configure email/password sign-in (no email confirmation in dev so testing is instant).
+- No social providers.
 
-### Routes
+## 2. Database schema
 
-1. `src/routes/messages.tsx` (agency)
-   - Two-pane layout: left = client list with last-message preview, unread badge, online dot; right = active thread.
-   - Search clients, filter (Unread / All / Pinned).
-2. `src/routes/client.messages.tsx` (client)
-   - Single-thread view with the agency account team (no list pane needed — one channel).
+Two new tables (RLS on, policies via `has_role` security-definer function — never store role on profiles):
 
-Both reuse a shared `<ChatThread />` component.
+- `profiles` — `id` (FK `auth.users`), `full_name`, `email`, `client_company_id` (nullable, for client users), `status` ('pending' | 'active' | 'rejected'), timestamps. Auto-created via `handle_new_user` trigger on `auth.users` insert.
+- `user_roles` — `id`, `user_id`, `role` (enum `app_role`: 'admin' | 'recruiter' | 'client'), unique(user_id, role).
+- Enum `app_role` + SQL function `has_role(_user_id uuid, _role app_role)` (SECURITY DEFINER, stable).
+- Seed: first signup is auto-promoted to `admin` (trigger checks if `user_roles` is empty). All subsequent signups start as `client` with `profiles.status = 'pending'` awaiting admin approval.
 
-### Shared component
+## 3. Auth surface (routes)
 
-`src/components/chat-thread.tsx`
-- Header: counterpart name + avatars, online status, "View account team" link.
-- Scrollable message list, day separators, grouped consecutive messages, read receipts.
-- Composer: textarea (Enter to send, Shift+Enter newline), emoji shortcut, file attach button, paste-to-attach.
-- Attachment chips above composer (name, size, remove); rendered inline in messages as file cards (icon by mime, size, "Download" button — mock link).
-- Typing indicator (mocked) + "Recruiter typically replies within 2 hours" hint.
+New public routes:
+- `/login` — email + password, redirects by role (admin/recruiter → `/dashboard`, client → `/client`).
+- `/signup` — email + password + full name + (optional) company name; creates a pending client account.
+- `/pending` — shown when a client logs in but `profiles.status != 'active'`.
 
-### Data layer
+Guards:
+- `_authenticated.tsx` pathless layout — redirects to `/login` if not signed in.
+- `_authenticated/_agency.tsx` — requires `admin` OR `recruiter` role, redirects clients to `/client`.
+- `_authenticated/_client.tsx` — requires `client` role with `status = 'active'`, redirects others.
+- Move existing agency routes (`dashboard`, `tasks`, `admin.clients`, `messages`, `positions`, `ongoing`, `interviews`, `pipeline`, `database`, `closed`, `billing`, `team`, `me`, `scout`) under `_authenticated/_agency/`.
+- Move client portal routes (`client.*`) under `_authenticated/_client/`.
+- Landing `/` stays public; its CTAs route to `/login` instead of straight into portals.
 
-`src/lib/chat-data.ts` (new, in-memory mock with subscribe/notify, same pattern as `billing-data.ts`):
+## 4. Role wiring in the app
 
-```ts
-ChatChannel { id, clientId, agencyTeamIds[], lastMessageAt, unreadForClient, unreadForAgency, pinned }
-ChatMessage { id, channelId, from: "client" | "agency", authorId, authorName, initials, body, attachments: ChatAttachment[], sentAt, readBy[] }
-ChatAttachment { id, name, sizeBytes, mime, url } // mock blob URLs via URL.createObjectURL on upload
-```
+- New `useAuth()` hook backed by `supabase.auth` + `onAuthStateChange` (listener set up BEFORE `getSession`, set up once in `__root.tsx`, invalidates router + query cache on change).
+- New `useMyRole()` / `useCan(permission)` that read from a `getMyRoles` server fn (uses `requireSupabaseAuth`, returns roles + profile).
+- Refactor `src/lib/ops/access.ts`:
+  - Drop `setCurrentRecruiter` impersonation.
+  - Keep `DEFAULT_ROLES` but collapse to 3 entries (Admin = all perms; Recruiter = candidates/positions/clients view+edit, pipeline move/share, team view; Client = no agency perms).
+  - `useCurrentRecruiter` now derives from the signed-in user's profile, falling back to a mock recruiter only for display name/initials if no roster match exists.
+- `AppShell` sidebar items already filter by `can(perm)` — verify recruiter sees the right subset; remove the "Impersonate (demo)" dropdown block; add a real "Sign out" that calls `supabase.auth.signOut()`.
+- `ClientShell` similarly gets a real sign-out and shows the signed-in client's name.
 
-Helpers: `getChannels()`, `getChannel(clientId)`, `sendMessage(channelId, payload)`, `markRead(channelId, viewer)`, `attachFiles(files)` (returns `ChatAttachment[]`).
+## 5. Admin approval UI
 
-Seed: 6 channels (one per existing client in `client-data.ts` / `mock-data.ts`), each with 8–15 messages mixing text, a PDF JD, an offer letter, and a screenshot, varied timestamps.
+- Extend `/admin/clients` with a "Pending access requests" panel listing `profiles` where `status = 'pending'`. Admin can **Approve** (sets status active + links `client_company_id` to an existing client record) or **Reject**.
+- Approval/rejection is a `createServerFn` protected by `requireSupabaseAuth` that also re-checks `has_role(auth.uid(), 'admin')` server-side.
+- An admin can also promote a user to recruiter from the Roster page (`/team`) via a new "Invite recruiter" action that creates a pending invite (out of scope for v1 — for now admins manually insert a `user_roles` row through a small "Manage roles" dialog gated by `roles.manage`).
 
-### Cross-links
+## 6. Sign-out + session UX
 
-- Existing position-level message thread (`client.positions.$positionId.tsx` → MessageThreadPanel) gets a small "Open full conversation →" link to `/client/messages`.
-- Client detail page `clients.$clientId.tsx` (agency side) gets a "Message client" button linking to `/messages?client={id}`.
+- Top-right avatar dropdown: real account info from `profiles`, "Sign out" calls `supabase.auth.signOut()` then navigates to `/login`.
+- `onAuthStateChange` SIGNED_OUT → router.invalidate + queryClient.clear.
 
-### Out of scope (mock prototype)
+## 7. Technical notes
 
-- No real backend, websocket, or persistent file storage. Files are held in-memory via blob URLs; reload clears them. A note in the empty state explains this.
-- No push notifications.
+- Use `requireSupabaseAuth` middleware on every server fn that reads/writes user-scoped data.
+- All role checks inside server fns use the SQL `has_role` function (never trust client-sent role).
+- RLS policies:
+  - `profiles`: user can select/update own row; admins can select/update all (via `has_role`).
+  - `user_roles`: user can select own rows; only admins can insert/delete (via `has_role`).
+- `attachSupabaseAuth` registered in `src/start.ts` global `functionMiddleware`.
+- Add `beforeLoad` session-hydration gate (`supabase.auth.getUser()`) on `_authenticated` so protected loaders don't 401 on first paint.
+- Mock seed data (`mock-data.ts`, `chat-data.ts`, `client-data.ts`, ops store) stays untouched — auth gates the UI but the in-memory data layer is unchanged.
 
-### Files
+## Out of scope (for this pass)
 
-**New**
-- `src/routes/messages.tsx`
-- `src/routes/client.messages.tsx`
-- `src/components/chat-thread.tsx`
-- `src/lib/chat-data.ts`
-
-**Edited**
-- `src/components/app-shell.tsx` (nav)
-- `src/components/client-shell.tsx` (nav)
-- `src/routes/client.positions.$positionId.tsx` (cross-link)
-- `src/routes/clients.$clientId.tsx` (cross-link)
-- `src/routeTree.gen.ts` (auto-regenerated)
+- Password reset / magic links (can add later).
+- Email invites for recruiters (admins promote manually for now).
+- Migrating mock data into Postgres.
+- Per-client data isolation on the mock data (client users see the same demo dataset; real per-tenant scoping comes when data is migrated to DB).
