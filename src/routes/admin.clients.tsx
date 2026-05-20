@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, AlertCircle, Mail, Phone, TrendingUp, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Plus, Building2, AlertCircle, Mail, Phone, TrendingUp, Eye, EyeOff, Loader2, Check, IndianRupee } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { createClientAccount } from "@/lib/team.functions";
