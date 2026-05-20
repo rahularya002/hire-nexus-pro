@@ -13,7 +13,7 @@ function FullScreenLoader() {
 }
 
 export function AuthGate({ variant, children }: { variant: Variant; children: React.ReactNode }) {
-  const { loading, session, profile, roles } = useAuth();
+  const { loading, profileLoaded, session, profile, roles } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,6 +22,9 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
       navigate({ to: "/login", replace: true });
       return;
     }
+    // Wait until profile + roles have actually loaded before deciding
+    // where to send the user — otherwise we flash /pending on first paint.
+    if (!profileLoaded) return;
     const isAgency = roles.includes("admin") || roles.includes("recruiter");
     const isClient = roles.includes("client");
 
@@ -45,9 +48,9 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
         navigate({ to: "/pending", replace: true });
       }
     }
-  }, [loading, session, profile, roles, variant, navigate]);
+  }, [loading, profileLoaded, session, profile, roles, variant, navigate]);
 
-  if (loading || !session) return <FullScreenLoader />;
+  if (loading || !session || !profileLoaded) return <FullScreenLoader />;
   const isAgency = roles.includes("admin") || roles.includes("recruiter");
   const isClient = roles.includes("client");
   if (variant === "agency" && !isAgency) return <FullScreenLoader />;
