@@ -54,6 +54,7 @@ const agencyNav: NavItem[] = [
   { to: "/closed",        label: "Closed",             icon: CheckCircle2 },
   { to: "/billing",       label: "Billing",            icon: Receipt },
   { to: "/team",          label: "Recruiter Roster",   icon: UsersRound },
+  { to: "/activity",      label: "Recruiter Activity", icon: Activity },
 ];
 const recruiterNav: NavItem[] = [
   { to: "/me",            label: "My Desk",            icon: Home, exact: true },
@@ -63,6 +64,7 @@ const recruiterNav: NavItem[] = [
   { to: "/pipeline",      label: "Pipeline",           icon: Workflow,     perm: "pipeline.move" },
   { to: "/database",      label: "Candidate DB",       icon: Database,     perm: "candidates.view" },
   { to: "/team",          label: "Recruiter Roster",   icon: UsersRound,   perm: "team.view" },
+  { to: "/activity",      label: "My Activity",        icon: Activity },
 ];
 
 const STATUS_OPTS: { value: RecruiterStatus; label: string; dot: string; cls: string; Icon: typeof Home }[] = [

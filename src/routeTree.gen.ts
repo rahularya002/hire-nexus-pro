@@ -25,6 +25,7 @@ import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClosedRouteImport } from './routes/closed'
 import { Route as BillingRouteImport } from './routes/billing'
+import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
@@ -123,6 +124,11 @@ const ClosedRoute = ClosedRouteImport.update({
 const BillingRoute = BillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -225,6 +231,7 @@ const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
   '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
   '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
@@ -300,6 +308,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
   '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activity'
     | '/billing'
     | '/closed'
     | '/dashboard'
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/activity'
     | '/billing'
     | '/closed'
     | '/dashboard'
@@ -413,6 +424,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activity'
     | '/billing'
     | '/closed'
     | '/dashboard'
@@ -451,6 +463,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityRoute: typeof ActivityRoute
   BillingRoute: typeof BillingRouteWithChildren
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
@@ -594,6 +607,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof BillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -783,6 +803,7 @@ const ClientPositionsRouteWithChildren = ClientPositionsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityRoute: ActivityRoute,
   BillingRoute: BillingRouteWithChildren,
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
