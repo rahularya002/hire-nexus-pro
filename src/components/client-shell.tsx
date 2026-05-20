@@ -6,6 +6,8 @@ import { clientCompany } from "@/lib/client-data";
 import { activityEvents } from "@/lib/client-data";
 import { getAgencyLastPath, getSelectedClientId, setSelectedClientId } from "@/lib/portal-state";
 import { clients } from "@/lib/mock-data";
+import { AuthGate } from "@/components/auth-gate";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -57,8 +59,17 @@ function describeAgencyPath(path: string): string {
 }
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate variant="client">
+      <ClientShellInner>{children}</ClientShellInner>
+    </AuthGate>
+  );
+}
+
+function ClientShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
   const unread = activityEvents.filter((e) => e.unread).length;
 
   // Persist the "selected client" the user was viewing on the agency side.
@@ -197,9 +208,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 <Settings className="size-4 mr-2" /> Settings
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/" className="flex items-center gap-2 cursor-pointer">
+                <button
+                  className="flex items-center gap-2 cursor-pointer w-full text-left"
+                  onClick={async () => {
+                    await signOut();
+                    navigate({ to: "/login", replace: true });
+                  }}
+                >
                   <LogOut className="size-4" /> Sign Out
-                </Link>
+                </button>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
