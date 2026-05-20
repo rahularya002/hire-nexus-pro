@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, KeyRound, Check, AlertCircle } from "lucide-react";
+import { Plus, Building2, KeyRound, Check, AlertCircle, Mail, Phone, IndianRupee, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { clients, isClientInactive, INACTIVITY_THRESHOLD_DAYS } from "@/lib/mock-data";
+import { clients, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS, type Client } from "@/lib/mock-data";
+import { formatInrShort } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/admin/clients")({
   component: () => <AppShell><Page /></AppShell>,
@@ -10,9 +12,13 @@ export const Route = createFileRoute("/admin/clients")({
 
 function Page() {
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
-  const inactiveCount = clients.filter(isClientInactive).length;
-  const visible = clients.filter((c) => {
+  const { roles } = useAuth();
+  const isAdmin = roles.includes("admin");
+  // Recruiters never see inactive accounts.
+  const scoped = isAdmin ? clients : clients.filter((c) => !isClientInactive(c));
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">(isAdmin ? "all" : "active");
+  const inactiveCount = scoped.filter(isClientInactive).length;
+  const visible = scoped.filter((c) => {
     if (filter === "all") return true;
     const inactive = isClientInactive(c);
     return filter === "inactive" ? inactive : !inactive;
@@ -23,16 +29,20 @@ function Page() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Client administration</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {clients.length} total · {clients.length - inactiveCount} active · {inactiveCount} inactive
-            <span className="ml-2 text-[11px]">(auto-inactive after {INACTIVITY_THRESHOLD_DAYS}d of no activity unless they have open requirements)</span>
+            {scoped.length} total · {scoped.length - inactiveCount} active{isAdmin && ` · ${inactiveCount} inactive`}
+            {isAdmin && (
+              <span className="ml-2 text-[11px]">(auto-inactive after {INACTIVITY_MANDATE_DAYS}d without a new mandate or {INACTIVITY_CLOSURE_DAYS}d without a closure)</span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
-          <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
-            {(["all", "active", "inactive"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
-            ))}
-          </div>
+          {isAdmin && (
+            <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
+              {(["all", "active", "inactive"] as const).map((f) => (
+                <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
+              ))}
+            </div>
+          )}
           <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
             <Plus className="size-4" /> Onboard new client
           </button>
@@ -40,42 +50,91 @@ function Page() {
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-border bg-secondary/30 grid grid-cols-12 gap-4 text-[11px] uppercase tracking-wider text-muted-foreground">
-          <div className="col-span-4">Client</div>
-          <div className="col-span-3">Contact</div>
-          <div className="col-span-2">Agreement</div>
-          <div className="col-span-2">Login</div>
-          <div className="col-span-1 text-right">Status</div>
-        </div>
         <div className="divide-y divide-border">
-          {visible.map(c => {
-            const inactive = isClientInactive(c);
-            return (
-            <Link to="/clients/$clientId" params={{ clientId: c.id }} key={c.id} className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-secondary/30 transition">
-              <div className="col-span-4 flex items-center gap-3 min-w-0">
-                <div className="size-9 rounded-md grid place-items-center text-xs font-bold text-primary-foreground" style={{background: c.color}}>{c.initials}</div>
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{c.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.industry} · {c.lastActivityDays === 0 ? "Active today" : `Last activity ${c.lastActivityDays}d ago`}</div>
-                </div>
-              </div>
-              <div className="col-span-3 text-sm">{c.contact}</div>
-              <div className="col-span-2 text-xs text-muted-foreground">Signed · 12mo retainer</div>
-              <div className="col-span-2 text-xs font-mono text-muted-foreground">{c.id}@talentflow</div>
-              <div className="col-span-1 text-right">
-                {inactive ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-warning font-medium"><AlertCircle className="size-3" /> Inactive</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-xs text-success font-medium"><Check className="size-3" /> Active</span>
-                )}
-              </div>
-            </Link>
-            );
-          })}
+          {visible.map((c) => (
+            <ClientRow key={c.id} c={c} isAdmin={isAdmin} />
+          ))}
+          {visible.length === 0 && (
+            <div className="p-10 text-center text-sm text-muted-foreground">No clients match this filter.</div>
+          )}
         </div>
       </div>
 
       {open && <OnboardModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function ClientRow({ c, isAdmin }: { c: Client; isAdmin: boolean }) {
+  const inactive = isClientInactive(c);
+  const mandateFlag = c.lastMandateDays > INACTIVITY_MANDATE_DAYS;
+  const closureFlag = c.lastClosureDays > INACTIVITY_CLOSURE_DAYS;
+  return (
+    <Link to="/clients/$clientId" params={{ clientId: c.id }} className="block px-5 py-4 hover:bg-secondary/30 transition">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="size-10 rounded-md grid place-items-center text-xs font-bold text-primary-foreground" style={{ background: c.color }}>{c.initials}</div>
+          <div className="min-w-0">
+            <div className="font-medium truncate">{c.name}</div>
+            <div className="text-xs text-muted-foreground truncate">{c.industry} · SPOC {c.spoc.name}</div>
+          </div>
+        </div>
+        <div className="hidden md:flex items-center gap-6 text-xs">
+          <div className="text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Closures YTD</div>
+            <div className="text-sm font-semibold tabular-nums">{c.positionsClosedYTD}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Revenue YTD</div>
+            <div className="text-sm font-semibold tabular-nums inline-flex items-center gap-0.5"><IndianRupee className="size-3" />{formatInrShort(c.revenueYTDInr).replace("₹", "")}</div>
+          </div>
+        </div>
+        <div className="shrink-0">
+          {inactive ? (
+            <span className="inline-flex items-center gap-1 text-xs text-warning font-medium px-2 py-1 rounded bg-warning/10 border border-warning/20"><AlertCircle className="size-3" /> Inactive</span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-success font-medium px-2 py-1 rounded bg-success/10 border border-success/20"><Check className="size-3" /> Active</span>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && inactive && (
+        <div className="mt-3 ml-13 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border border-warning/20 bg-warning/5 p-3 text-xs">
+          <Metric
+            label="Last mandate"
+            value={`${c.lastMandateDays}d ago`}
+            flag={mandateFlag}
+            sublabel={mandateFlag ? `> ${INACTIVITY_MANDATE_DAYS}d` : undefined}
+          />
+          <Metric
+            label="Last closure"
+            value={`${c.lastClosureDays}d ago`}
+            flag={closureFlag}
+            sublabel={closureFlag ? `> ${INACTIVITY_CLOSURE_DAYS}d` : undefined}
+          />
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">SPOC</div>
+            <div className="font-medium truncate">{c.spoc.name}</div>
+            <div className="text-muted-foreground inline-flex items-center gap-1 truncate"><Mail className="size-3" />{c.spoc.email}</div>
+            <div className="text-muted-foreground inline-flex items-center gap-1"><Phone className="size-3" />{c.spoc.phone}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><TrendingUp className="size-3" />YTD</div>
+            <div className="font-medium">{c.positionsClosedYTD} closures</div>
+            <div className="text-muted-foreground">{formatInrShort(c.revenueYTDInr)} revenue</div>
+          </div>
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function Metric({ label, value, flag, sublabel }: { label: string; value: string; flag?: boolean; sublabel?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={`font-medium ${flag ? "text-warning" : ""}`}>{value}</div>
+      {sublabel && <div className="text-[10px] text-warning/80">{sublabel}</div>}
     </div>
   );
 }

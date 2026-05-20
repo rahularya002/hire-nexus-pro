@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Video, ArrowUpRight } from "lucide-react";
+import { CalendarClock, Video, ArrowUpRight, Building2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { todaysInterviews } from "@/lib/mock-data";
 import { interviewProcesses, type RoundStatus } from "@/lib/ops/store";
@@ -36,21 +36,7 @@ function Page() {
           <h2 className="font-semibold tracking-tight text-sm">Today's interviews</h2>
           <span className="text-xs text-muted-foreground">{todaysInterviews.length} scheduled</span>
         </div>
-        <div className="divide-y divide-border">
-          {todaysInterviews.map((i) => (
-            <div key={i.id} className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/40 transition">
-              <div className="text-sm font-semibold text-primary tabular-nums w-16">{i.time}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{i.candidate} · <span className="text-muted-foreground font-normal">{i.position}</span></div>
-                <div className="text-[11px] text-muted-foreground truncate">{i.round} · {i.client}</div>
-              </div>
-              <span className="text-[11px] px-2 py-0.5 rounded-md bg-info/10 text-info inline-flex items-center gap-1">
-                <Video className="size-3" />{i.mode}
-              </span>
-              <button className="text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90">Join</button>
-            </div>
-          ))}
-        </div>
+        <TodayByCompany />
       </div>
 
       {/* Multi-round processes */}
@@ -110,6 +96,47 @@ function Page() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function TodayByCompany() {
+  const groups = todaysInterviews.reduce<Record<string, typeof todaysInterviews>>((acc, i) => {
+    (acc[i.client] ||= []).push(i);
+    return acc;
+  }, {});
+  const entries = Object.entries(groups).sort(([, a], [, b]) => b.length - a.length);
+
+  if (entries.length === 0) {
+    return <div className="p-6 text-sm text-muted-foreground text-center">No interviews today.</div>;
+  }
+
+  return (
+    <div className="divide-y divide-border">
+      {entries.map(([client, list]) => (
+        <div key={client}>
+          <div className="px-4 py-2.5 bg-secondary/40 flex items-center gap-2">
+            <Building2 className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold tracking-tight">{client}</span>
+            <span className="text-[11px] text-muted-foreground">· {list.length} {list.length === 1 ? "interview" : "interviews"}</span>
+          </div>
+          <div className="divide-y divide-border/60">
+            {list.map((i) => (
+              <div key={i.id} className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition">
+                <div className="text-sm font-semibold text-primary tabular-nums w-16">{i.time}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{i.candidate} · <span className="text-muted-foreground font-normal">{i.position}</span></div>
+                  <div className="text-[11px] text-muted-foreground truncate">{i.round}</div>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded-md bg-info/10 text-info inline-flex items-center gap-1">
+                  <Video className="size-3" />{i.mode}
+                </span>
+                <button className="text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90">Join</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

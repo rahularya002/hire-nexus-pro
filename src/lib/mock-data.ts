@@ -31,6 +31,12 @@ export interface Client {
   initials: string;
   color: string;
   lastActivityDays: number;
+  // Extended account health metrics (admin-only views)
+  lastMandateDays: number;       // days since last mandate received
+  lastClosureDays: number;       // days since last position closure
+  spoc: { name: string; email: string; phone: string };
+  positionsClosedYTD: number;
+  revenueYTDInr: number;         // INR
 }
 
 export interface Position {
@@ -62,17 +68,27 @@ export interface Candidate {
 }
 
 export const clients: Client[] = [
-  { id: "rolex-india", name: "Rolex India", industry: "Luxury Retail", contact: "Aanya Mehta", openPositions: 6, activeCandidates: 28, initials: "RX", color: "oklch(0.55 0.20 255)", lastActivityDays: 1 },
-  { id: "reliance-brands", name: "Reliance Brands", industry: "Retail Conglomerate", contact: "Vikram Shah", openPositions: 11, activeCandidates: 47, initials: "RB", color: "oklch(0.62 0.20 295)", lastActivityDays: 0 },
-  { id: "urban-works", name: "Urban Works", industry: "Co-working & Real Estate", contact: "Priya Iyer", openPositions: 0, activeCandidates: 4, initials: "UW", color: "oklch(0.65 0.18 230)", lastActivityDays: 12 },
-  { id: "tata-digital", name: "Tata Digital", industry: "Technology", contact: "Rohan Kapoor", openPositions: 8, activeCandidates: 35, initials: "TD", color: "oklch(0.65 0.18 150)", lastActivityDays: 2 },
-  { id: "zomato", name: "Zomato", industry: "Food Tech", contact: "Neha Sharma", openPositions: 0, activeCandidates: 0, initials: "Z", color: "oklch(0.60 0.22 27)", lastActivityDays: 22 },
-  { id: "razorpay", name: "Razorpay", industry: "Fintech", contact: "Aditya Rao", openPositions: 7, activeCandidates: 31, initials: "RP", color: "oklch(0.55 0.20 255)", lastActivityDays: 0 },
+  { id: "rolex-india", name: "Rolex India", industry: "Luxury Retail", contact: "Aanya Mehta", openPositions: 6, activeCandidates: 28, initials: "RX", color: "oklch(0.55 0.20 255)", lastActivityDays: 1,
+    lastMandateDays: 8, lastClosureDays: 22, spoc: { name: "Aanya Mehta", email: "aanya.mehta@rolex.in",   phone: "+91 98201 11122" }, positionsClosedYTD: 9,  revenueYTDInr: 86_00_000 },
+  { id: "reliance-brands", name: "Reliance Brands", industry: "Retail Conglomerate", contact: "Vikram Shah", openPositions: 11, activeCandidates: 47, initials: "RB", color: "oklch(0.62 0.20 295)", lastActivityDays: 0,
+    lastMandateDays: 2, lastClosureDays: 14, spoc: { name: "Vikram Shah", email: "vikram.shah@rb.in",      phone: "+91 99300 45577" }, positionsClosedYTD: 18, revenueYTDInr: 2_15_00_000 },
+  { id: "urban-works", name: "Urban Works", industry: "Co-working & Real Estate", contact: "Priya Iyer", openPositions: 0, activeCandidates: 4, initials: "UW", color: "oklch(0.65 0.18 230)", lastActivityDays: 75,
+    lastMandateDays: 75, lastClosureDays: 110, spoc: { name: "Priya Iyer", email: "priya@urbanworks.in",    phone: "+91 98765 21234" }, positionsClosedYTD: 3,  revenueYTDInr: 12_50_000 },
+  { id: "tata-digital", name: "Tata Digital", industry: "Technology", contact: "Rohan Kapoor", openPositions: 8, activeCandidates: 35, initials: "TD", color: "oklch(0.65 0.18 150)", lastActivityDays: 2,
+    lastMandateDays: 5, lastClosureDays: 30, spoc: { name: "Rohan Kapoor", email: "rohan.k@tatadigital.com", phone: "+91 90040 33345" }, positionsClosedYTD: 14, revenueYTDInr: 1_42_00_000 },
+  { id: "zomato", name: "Zomato", industry: "Food Tech", contact: "Neha Sharma", openPositions: 0, activeCandidates: 0, initials: "Z", color: "oklch(0.60 0.22 27)", lastActivityDays: 95,
+    lastMandateDays: 95, lastClosureDays: 140, spoc: { name: "Neha Sharma", email: "neha.sharma@zomato.com", phone: "+91 97119 88865" }, positionsClosedYTD: 1,  revenueYTDInr: 6_00_000 },
+  { id: "razorpay", name: "Razorpay", industry: "Fintech", contact: "Aditya Rao", openPositions: 7, activeCandidates: 31, initials: "RP", color: "oklch(0.55 0.20 255)", lastActivityDays: 0,
+    lastMandateDays: 1, lastClosureDays: 9, spoc: { name: "Aditya Rao", email: "aditya.rao@razorpay.com",   phone: "+91 88791 02234" }, positionsClosedYTD: 11, revenueYTDInr: 1_05_00_000 },
 ];
 
-export const INACTIVITY_THRESHOLD_DAYS = 7;
+export const INACTIVITY_MANDATE_DAYS = 60;
+export const INACTIVITY_CLOSURE_DAYS = 90;
+/** Legacy export kept for any UI still referencing it. */
+export const INACTIVITY_THRESHOLD_DAYS = INACTIVITY_MANDATE_DAYS;
+
 export function isClientInactive(c: Client) {
-  return c.openPositions === 0 && c.lastActivityDays >= INACTIVITY_THRESHOLD_DAYS;
+  return c.lastMandateDays > INACTIVITY_MANDATE_DAYS || c.lastClosureDays > INACTIVITY_CLOSURE_DAYS;
 }
 
 const candidatePool: Omit<Candidate, "stage">[] = [

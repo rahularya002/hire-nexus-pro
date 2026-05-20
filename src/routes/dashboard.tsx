@@ -6,7 +6,8 @@ import {
   PhoneCall, Mail, CheckCircle2, RotateCcw, UserX, Activity, Coffee, Circle,
   Send, Phone, Clock,
 } from "lucide-react";
-import { clients, todaysInterviews, positions, isClientInactive, INACTIVITY_THRESHOLD_DAYS } from "@/lib/mock-data";
+import { clients, todaysInterviews, positions, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   opsTasks, tasksByState, pendingConfirmations, slaWarnings, dailyDigest,
   recruiters, type TaskState, type RecruiterStatus,
@@ -28,7 +29,7 @@ function IndexPage() {
 }
 
 const myOpenPositions = positions.filter((p) => p.status !== "closed").slice(0, 6);
-const inactiveClients = clients.filter(isClientInactive);
+const inactiveClientsAll = clients.filter(isClientInactive);
 
 function statusDot(s: RecruiterStatus) {
   return s === "Active" ? "bg-success" : s === "Available" ? "bg-info" : s === "Break" ? "bg-warning" : "bg-muted-foreground";
@@ -40,6 +41,9 @@ function Cockpit() {
   const [myStatus, setMyStatus] = useState<RecruiterStatus>("Active");
   const [taskTab, setTaskTab] = useState<TaskState>("Pending");
   const myTasks = tasksByState(taskTab);
+  const { roles } = useAuth();
+  const isAdmin = roles.includes("admin");
+  const inactiveClients = isAdmin ? inactiveClientsAll : [];
 
   const digest = [
     { label: "Profiles shared", ...dailyDigest.shares },
@@ -102,26 +106,42 @@ function Cockpit() {
 
       {/* Top row: My Active Clients, My Open Positions, Today's Interviews */}
       <div className="grid lg:grid-cols-3 gap-4">
+        {isAdmin ? (
         <CockpitCard title="Inactive clients" count={inactiveClients.length} icon={UserX} link="/admin/clients" tone="warning">
           <div className="space-y-2">
             {inactiveClients.length === 0 && (
-              <div className="text-xs text-muted-foreground p-2">No inactive clients — all accounts active in the last {INACTIVITY_THRESHOLD_DAYS} days.</div>
+              <div className="text-xs text-muted-foreground p-2">No inactive clients — all accounts within {INACTIVITY_MANDATE_DAYS}d mandate / {INACTIVITY_CLOSURE_DAYS}d closure window.</div>
             )}
             {inactiveClients.map((c) => (
               <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/60 transition">
                 <Avatar initials={c.initials} color={c.color} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{c.name}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">No activity for {c.lastActivityDays}d · 0 open roles</div>
+                  <div className="text-[11px] text-muted-foreground truncate">Last mandate {c.lastMandateDays}d · last closure {c.lastClosureDays}d</div>
                 </div>
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Inactive</span>
               </Link>
             ))}
             <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60 mt-1">
-              Auto-marked inactive after {INACTIVITY_THRESHOLD_DAYS}d of no activity (unless they have active requirements).
+              Auto-marked inactive after {INACTIVITY_MANDATE_DAYS}d without a mandate or {INACTIVITY_CLOSURE_DAYS}d without a closure.
             </div>
           </div>
         </CockpitCard>
+        ) : (
+        <CockpitCard title="My active clients" count={clients.filter((c) => !isClientInactive(c)).length} icon={Building2} link="/admin/clients">
+          <div className="space-y-2">
+            {clients.filter((c) => !isClientInactive(c)).slice(0, 4).map((c) => (
+              <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/60 transition">
+                <Avatar initials={c.initials} color={c.color} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{c.name}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{c.openPositions} open · {c.activeCandidates} candidates</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </CockpitCard>
+        )}
 
         <CockpitCard title="My open positions" count={myOpenPositions.length} icon={Briefcase} link="/positions">
           <div className="space-y-2">

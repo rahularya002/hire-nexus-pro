@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X } from "lucide-react";
+import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { scoutChat } from "@/lib/scout.functions";
 import { cn } from "@/lib/utils";
@@ -49,7 +49,7 @@ function Scout() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SourceId[]>(["internal", "linkedin", "naukri"]);
+  const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.map((s) => s.id));
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
   const [parsingCv, setParsingCv] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -90,6 +90,11 @@ function Scout() {
 
   function toggle(id: SourceId) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  const allSelected = selected.length === SOURCES.length;
+  function toggleAll() {
+    setSelected(allSelected ? [] : SOURCES.map((s) => s.id));
   }
 
   async function handleFile(file: File) {
@@ -157,6 +162,20 @@ function Scout() {
           <div className="text-[11px] text-muted-foreground">{selected.length} selected</div>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={toggleAll}
+            title="Toggle every sourcing channel"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition",
+              allSelected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+            )}
+          >
+            {allSelected ? <Check className="size-3" /> : <Layers className="size-3" />}
+            All channels
+          </button>
           {SOURCES.map((s) => {
             const active = selected.includes(s.id);
             const Icon = s.icon;
