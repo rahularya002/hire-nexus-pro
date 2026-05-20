@@ -262,3 +262,81 @@ export const interviewProcesses: InterviewProcess[] = [
 export function getInterviewProcess(id: string) {
   return interviewProcesses.find((p) => p.id === id);
 }
+
+/* ----- Recruiter activity feed ----- */
+
+export type ActivityKind =
+  | "call"
+  | "shortlist"
+  | "share"
+  | "interview_scheduled"
+  | "interview_completed"
+  | "offer"
+  | "closure"
+  | "note";
+
+export interface ActivityEvent {
+  id: string;
+  recruiterId: string;
+  kind: ActivityKind;
+  title: string;
+  detail: string;
+  client?: string;
+  position?: string;
+  candidate?: string;
+  when: string;          // human display
+  occurredAt: number;    // ms since epoch (for sorting)
+}
+
+const now = Date.now();
+const min = 60_000;
+const hr = 60 * min;
+const day = 24 * hr;
+
+export const activityFeed: ActivityEvent[] = [
+  // Aarav (r1) — high activity
+  { id: "ae1", recruiterId: "r1", kind: "share",               title: "Shared 4 profiles with Rolex India",       detail: "Boutique Manager — flagship Mumbai", client: "Rolex India",     position: "Boutique Manager",     when: "12m ago", occurredAt: now - 12 * min },
+  { id: "ae2", recruiterId: "r1", kind: "call",                title: "Call · Arjun Malhotra",                    detail: "Confirmed Friday R3 slot", client: "Razorpay",        position: "Sr. Product Designer", candidate: "Arjun Malhotra", when: "1h ago",  occurredAt: now - 1 * hr },
+  { id: "ae3", recruiterId: "r1", kind: "interview_scheduled", title: "Interview scheduled · Sneha Kulkarni",     detail: "R3 — Hiring Manager · Tata Digital",  client: "Tata Digital",    position: "Engineering Manager",  candidate: "Sneha Kulkarni", when: "3h ago",  occurredAt: now - 3 * hr },
+  { id: "ae4", recruiterId: "r1", kind: "shortlist",           title: "Shortlisted 6 candidates internally",      detail: "Rolex India · Boutique Manager",  client: "Rolex India",     position: "Boutique Manager",     when: "Yesterday", occurredAt: now - 1 * day },
+  { id: "ae5", recruiterId: "r1", kind: "closure",             title: "Closed · Meera Krishnan",                  detail: "City Head — Zomato · ₹14L revenue", client: "Zomato",         position: "City Head",             candidate: "Meera Krishnan", when: "2d ago", occurredAt: now - 2 * day },
+
+  // Priya (r2)
+  { id: "ae6", recruiterId: "r2", kind: "share",   title: "Shared 3 profiles with Reliance Brands",   detail: "Head of E-commerce",                  client: "Reliance Brands", position: "Head of E-commerce",   when: "40m ago", occurredAt: now - 40 * min },
+  { id: "ae7", recruiterId: "r2", kind: "interview_completed", title: "Interview complete · Karan Verma", detail: "R2 — System Design (Razorpay)",   client: "Razorpay",        position: "Full Stack Engineer",  candidate: "Karan Verma",    when: "5h ago", occurredAt: now - 5 * hr },
+  { id: "ae8", recruiterId: "r2", kind: "note",    title: "Note added on Tanya Agarwal",              detail: "Awaiting client feedback · day 2",     client: "Reliance Brands", position: "Finance Controller",   candidate: "Tanya Agarwal",  when: "Yesterday", occurredAt: now - 1 * day },
+  { id: "ae9", recruiterId: "r2", kind: "offer",   title: "Offer rolled out · Devansh Singh",         detail: "DevOps · Tata Digital",                client: "Tata Digital",    position: "DevOps Engineer",      candidate: "Devansh Singh",  when: "2d ago", occurredAt: now - 2 * day },
+
+  // Rohan (r3) — lighter
+  { id: "ae10", recruiterId: "r3", kind: "call",      title: "Call · Devansh Singh",       detail: "Follow-up after no-show",                client: "Tata Digital",    position: "DevOps Engineer",      candidate: "Devansh Singh", when: "2h ago",  occurredAt: now - 2 * hr },
+  { id: "ae11", recruiterId: "r3", kind: "shortlist", title: "Added 2 candidates to longlist", detail: "Razorpay · Sr. Product Designer",     client: "Razorpay",        position: "Sr. Product Designer",                              when: "Yesterday", occurredAt: now - 1 * day },
+
+  // Neha (r4) — lead recruiter, highest volume
+  { id: "ae12", recruiterId: "r4", kind: "closure",  title: "Closed · Boutique Manager — Delhi", detail: "Rolex India · ₹26L revenue",       client: "Rolex India",     position: "Boutique Manager",                                  when: "4h ago", occurredAt: now - 4 * hr },
+  { id: "ae13", recruiterId: "r4", kind: "share",    title: "Shared 7 profiles · Reliance Brands", detail: "Visual Merchandiser",            client: "Reliance Brands", position: "Visual Merchandiser",                              when: "6h ago", occurredAt: now - 6 * hr },
+  { id: "ae14", recruiterId: "r4", kind: "interview_scheduled", title: "Interview scheduled · Ishita Banerjee", detail: "R2 — Case Study · Reliance Brands", client: "Reliance Brands", position: "Data Scientist", candidate: "Ishita Banerjee", when: "Yesterday", occurredAt: now - 1 * day },
+
+  // Vikram (r5) — offline / minimal
+  { id: "ae15", recruiterId: "r5", kind: "note",  title: "Handover notes added", detail: "Razorpay design pipeline · Q3 plan", client: "Razorpay", position: "Sr. Product Designer", when: "2d ago", occurredAt: now - 2 * day },
+];
+
+export function activityForRecruiter(id: string) {
+  return activityFeed.filter((a) => a.recruiterId === id).sort((a, b) => b.occurredAt - a.occurredAt);
+}
+export function allActivity() {
+  return [...activityFeed].sort((a, b) => b.occurredAt - a.occurredAt);
+}
+export function activitySummary(id?: string) {
+  const list = id ? activityForRecruiter(id) : activityFeed;
+  const todayCut = Date.now() - 1 * day;
+  const todayList = list.filter((a) => a.occurredAt >= todayCut);
+  const count = (kinds: ActivityKind[], src = todayList) =>
+    src.filter((a) => kinds.includes(a.kind)).length;
+  return {
+    shares: count(["share"]),
+    interviews: count(["interview_scheduled", "interview_completed"]),
+    offers: count(["offer"]),
+    closures: count(["closure"]),
+    calls: count(["call"]),
+  };
+}
