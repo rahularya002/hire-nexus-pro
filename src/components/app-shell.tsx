@@ -21,13 +21,12 @@ import {
   LogOut,
   User,
   Home,
-  UserCog,
   Coffee,
   CircleOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
-import { useCurrentRecruiter, useMyRole, useCan, useRoster, setCurrentRecruiter, setMyStatus, type PermKey } from "@/lib/ops/access";
+import { useCurrentRecruiter, useMyRole, useCan, setMyStatus, type PermKey } from "@/lib/ops/access";
 import type { RecruiterStatus } from "@/lib/ops/store";
 import { AuthGate } from "@/components/auth-gate";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -88,7 +87,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const me = useCurrentRecruiter();
   const role = useMyRole();
   const can = useCan();
-  const roster = useRoster();
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const meStatus = statusOpt(me.status);
@@ -223,15 +221,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 <DropdownMenuItem>
                   <Settings className="size-4" /> Settings
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-normal">Impersonate (demo)</DropdownMenuLabel>
-                {roster.map((r) => (
-                  <DropdownMenuItem key={r.id} onClick={() => setCurrentRecruiter(r.id)} className="cursor-pointer">
-                    <UserCog className="size-3.5" />
-                    <span className="flex-1">{r.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{r.role}</span>
-                  </DropdownMenuItem>
-                ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <button
