@@ -218,6 +218,85 @@ export function positionsByClient(id: string) {
   return positions.filter((p) => p.clientId === id);
 }
 
+// ----- Agency engagements -----
+// Each client works with one or more recruitment agencies. "TalentFlow" is us
+// (the agency operating this product); the rest are competitors shown for
+// transparency so the admin can see the full vendor landscape per client.
+
+const TALENTFLOW = { id: "talentflow", name: "TalentFlow", initials: "TF", color: "oklch(0.62 0.20 295)" };
+const ANTAL      = { id: "antal",      name: "Antal International", initials: "AN", color: "oklch(0.55 0.20 25)" };
+const MICHAEL    = { id: "michael",    name: "Michael Page",        initials: "MP", color: "oklch(0.58 0.18 145)" };
+const RANDSTAD   = { id: "randstad",   name: "Randstad India",      initials: "RS", color: "oklch(0.60 0.22 50)" };
+const ABC        = { id: "abc",        name: "ABC Consultants",     initials: "AB", color: "oklch(0.55 0.18 220)" };
+
+function ours(clientId: string): ClientAgencyPosition[] {
+  return positionsByClient(clientId).map((p) => ({
+    id: p.id,
+    title: p.title,
+    status: p.status,
+    openings: p.openings,
+    location: p.location,
+    postedDays: p.postedDays,
+    candidatesShared: p.candidates.filter((c) => c.stage !== "Sourcing").length,
+    closures: p.status === "closed" ? p.openings : 0,
+  }));
+}
+
+function ext(seed: number, items: Omit<ClientAgencyPosition, "external">[]): ClientAgencyPosition[] {
+  return items.map((p) => ({ ...p, external: true, id: `${p.id}-x${seed}` }));
+}
+
+const agencyMap: Record<string, ClientAgencyEngagement[]> = {
+  "rolex-india": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",  sinceYear: 2021, positions: ours("rolex-india") },
+    { ...ANTAL,      spoc: "Nisha Patel",  sinceYear: 2019, positions: ext(1, [
+      { id: "rx-ext-1", title: "Regional Sales Head — West", status: "in_progress", openings: 1, location: "Mumbai",    postedDays: 9,  candidatesShared: 4, closures: 0 },
+      { id: "rx-ext-2", title: "Brand Marketing Manager",    status: "closed",      openings: 1, location: "Delhi NCR", postedDays: 45, candidatesShared: 7, closures: 1 },
+    ])},
+  ],
+  "reliance-brands": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",   sinceYear: 2020, positions: ours("reliance-brands") },
+    { ...MICHAEL,    spoc: "Karthik Menon", sinceYear: 2018, positions: ext(2, [
+      { id: "rb-ext-1", title: "Chief Merchandising Officer", status: "interviews", openings: 1, location: "Mumbai",    postedDays: 21, candidatesShared: 6,  closures: 0 },
+      { id: "rb-ext-2", title: "Category Head — Beauty",      status: "closed",     openings: 1, location: "Mumbai",    postedDays: 60, candidatesShared: 9,  closures: 1 },
+      { id: "rb-ext-3", title: "Store Manager — Jio World",   status: "in_progress",openings: 2, location: "Mumbai",    postedDays: 12, candidatesShared: 5,  closures: 0 },
+    ])},
+    { ...RANDSTAD,   spoc: "Sara D'Souza",  sinceYear: 2022, positions: ext(3, [
+      { id: "rb-ext-4", title: "Senior Buyer — Menswear", status: "open", openings: 2, location: "Bengaluru", postedDays: 4, candidatesShared: 3, closures: 0 },
+    ])},
+  ],
+  "urban-works": [
+    { ...TALENTFLOW, spoc: "Priya Iyer",  sinceYear: 2023, positions: ours("urban-works") },
+  ],
+  "tata-digital": [
+    { ...TALENTFLOW, spoc: "Devansh Singh", sinceYear: 2022, positions: ours("tata-digital") },
+    { ...ABC,        spoc: "Vivek Sharma",  sinceYear: 2020, positions: ext(4, [
+      { id: "td-ext-1", title: "Director — Engineering Platform", status: "in_progress", openings: 1, location: "Bengaluru", postedDays: 18, candidatesShared: 5, closures: 0 },
+      { id: "td-ext-2", title: "VP — Product Design",             status: "closed",      openings: 1, location: "Bengaluru", postedDays: 88, candidatesShared: 8, closures: 1 },
+    ])},
+    { ...MICHAEL,    spoc: "Karthik Menon", sinceYear: 2021, positions: ext(5, [
+      { id: "td-ext-3", title: "Head of Data Science", status: "interviews", openings: 1, location: "Bengaluru", postedDays: 25, candidatesShared: 4, closures: 0 },
+    ])},
+  ],
+  "zomato": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy", sinceYear: 2024, positions: ours("zomato") },
+  ],
+  "razorpay": [
+    { ...TALENTFLOW, spoc: "Aarav Reddy",  sinceYear: 2022, positions: ours("razorpay") },
+    { ...ANTAL,      spoc: "Nisha Patel",  sinceYear: 2021, positions: ext(6, [
+      { id: "rp-ext-1", title: "Head of Compliance", status: "in_progress", openings: 1, location: "Bengaluru", postedDays: 14, candidatesShared: 6, closures: 0 },
+    ])},
+  ],
+};
+
+for (const c of clients) {
+  c.agencies = agencyMap[c.id] ?? [];
+}
+
+export function agenciesForClient(clientId: string): ClientAgencyEngagement[] {
+  return clients.find((c) => c.id === clientId)?.agencies ?? [];
+}
+
 export const todaysInterviews = [
   { id: "i1", time: "10:30 AM", candidate: "Arjun Malhotra", position: "Sr. Product Designer", client: "Razorpay", round: "R2 — Design Critique", mode: "Google Meet" },
   { id: "i2", time: "12:00 PM", candidate: "Sneha Kulkarni", position: "Engineering Manager", client: "Tata Digital", round: "R3 — Hiring Manager", mode: "On-site" },
