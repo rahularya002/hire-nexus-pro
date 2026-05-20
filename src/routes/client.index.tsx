@@ -119,3 +119,17 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "pu
     </div>
   );
 }
+
+function PositionFunnel({ p }: { p: typeof clientPositions[number] }) {
+  const f = p.funnel ?? { sourced: 0, shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
+  const rejected = p.candidates.filter((c) => c.status === "rejected").length;
+  return (
+    <div className="flex items-center gap-5 shrink-0">
+      <Stat label="Shared"      value={f.shared} />
+      <Stat label="Shortlisted" value={f.shortlisted} tone="purple" />
+      <Stat label="Interviewed" value={f.interview} />
+      <Stat label="Offered"     value={f.offered + f.joined} />
+      <Stat label="Rejected"    value={rejected} tone="warning" />
+    </div>
+  );
+}
