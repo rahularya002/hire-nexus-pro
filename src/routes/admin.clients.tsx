@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, KeyRound, Check, AlertCircle, Mail, Phone, IndianRupee, TrendingUp } from "lucide-react";
+import { Plus, Building2, AlertCircle, Mail, Phone, TrendingUp, Eye, EyeOff, Loader2, Check, IndianRupee } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { createClientAccount } from "@/lib/team.functions";
 import { AppShell } from "@/components/app-shell";
 import { clients, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS, type Client } from "@/lib/mock-data";
 import { formatInrShort } from "@/lib/utils";
@@ -140,57 +143,133 @@ function Metric({ label, value, flag, sublabel }: { label: string; value: string
 }
 
 function OnboardModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState(1);
+  const createFn = useServerFn(createClientAccount);
+  const [companyName, setCompanyName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!companyName.trim() || !fullName.trim() || !email.trim()) {
+      setError("All fields are required.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createFn({
+        data: {
+          companyName: companyName.trim(),
+          fullName: fullName.trim(),
+          email: email.trim(),
+          password,
+        },
+      });
+      toast.success(`Client account created for ${email.trim()}`);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to create client.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl" onClick={e => e.stopPropagation()}>
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-5 border-b border-border flex items-center gap-3">
           <div className="size-10 rounded-lg bg-primary/10 grid place-items-center text-primary">
-            {step === 1 ? <Building2 className="size-5" /> : <KeyRound className="size-5" />}
+            <Building2 className="size-5" />
           </div>
           <div>
-            <div className="font-semibold">{step === 1 ? "Client profile" : "Generate login"}</div>
-            <div className="text-xs text-muted-foreground">Step {step} of 2</div>
+            <div className="font-semibold">Onboard new client</div>
+            <div className="text-xs text-muted-foreground">Admin sets the login credentials directly</div>
           </div>
         </div>
         <div className="p-5 space-y-3">
-          {step === 1 ? (
-            <>
-              <Field label="Company name" placeholder="e.g. Tata Digital" />
-              <Field label="Contact person" placeholder="Full name" />
-              <Field label="Email" placeholder="contact@company.com" />
-              <Field label="Billing terms" placeholder="8.33% of fixed CTC" />
-              <Field label="Agreement validity" placeholder="12 months" />
-            </>
-          ) : (
-            <div className="space-y-3">
-              <Field label="Client login email" placeholder="hr@company.com" />
-              <Field label="Temporary password" placeholder="Auto-generated" />
-              <div className="rounded-lg bg-success/10 border border-success/20 p-3 text-sm text-success flex items-center gap-2">
-                <Check className="size-4" /> Welcome email will be sent automatically.
-              </div>
+          <Field label="Company name" placeholder="e.g. Tata Digital" value={companyName} onChange={setCompanyName} />
+          <Field label="Contact person" placeholder="Full name" value={fullName} onChange={setFullName} />
+          <Field label="Login email" placeholder="hr@company.com" value={email} onChange={setEmail} type="email" />
+          <div>
+            <label className="text-xs font-medium text-foreground/80">Password</label>
+            <div className="mt-1 relative">
+              <input
+                type={showPwd ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="w-full h-9 rounded-md border border-input bg-background px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((s) => !s)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showPwd ? "Hide password" : "Show password"}
+              >
+                {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">Share these credentials with the client manually.</p>
+          </div>
+          {error && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
+              <AlertCircle className="size-4" /> {error}
             </div>
           )}
         </div>
         <div className="p-5 border-t border-border flex justify-between">
-          <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground px-3 py-2">Cancel</button>
+          <button type="button" onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground px-3 py-2">
+            Cancel
+          </button>
           <button
-            onClick={() => step === 1 ? setStep(2) : onClose()}
-            className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium"
+            type="submit"
+            disabled={submitting}
+            className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2 disabled:opacity-60"
           >
-            {step === 1 ? "Continue" : "Create client"}
+            {submitting && <Loader2 className="size-4 animate-spin" />}
+            Create client
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
 
-function Field({ label, placeholder }: { label: string; placeholder: string }) {
+function Field({
+  label,
+  placeholder,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-foreground/80">{label}</label>
-      <input placeholder={placeholder} className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+      />
     </div>
   );
 }

@@ -83,3 +83,49 @@ export const updateRolePermissions = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+const CreateClientSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+  fullName: z.string().min(1).max(255),
+  companyName: z.string().min(1).max(255),
+});
+
+export const createClientAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => CreateClientSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+
+    const { data: created, error: createErr } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: data.fullName,
+          company_name: data.companyName,
+        },
+      });
+    if (createErr || !created?.user) {
+      throw new Error(createErr?.message ?? "Failed to create client account.");
+    }
+    const newUserId = created.user.id;
+
+    await supabaseAdmin
+      .from("profiles")
+      .update({
+        full_name: data.fullName,
+        company_name: data.companyName,
+        status: "active",
+      })
+      .eq("id", newUserId);
+
+    await supabaseAdmin.from("user_roles").delete().eq("user_id", newUserId);
+    const { error: roleInsertErr } = await supabaseAdmin
+      .from("user_roles")
+      .insert({ user_id: newUserId, role: "client" });
+    if (roleInsertErr) throw new Error(roleInsertErr.message);
+
+    return { ok: true, userId: newUserId, email: data.email };
+  });
