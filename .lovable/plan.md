@@ -1,33 +1,39 @@
-# Fix sidebar flipping on /messages (and related route-prefix bugs)
+# Real client creation with admin-set password
 
-## Root cause
+## Problem
 
-In `src/components/app-shell.tsx`:
-
-```ts
-const isRecruiterPortal = pathname.startsWith("/me");
-```
-
-`"/messages".startsWith("/me")` is `true`, so navigating to **Messages** flips the sidebar from the agency nav to the recruiter portal nav ("My Desk", "My Activity", etc.). Same trap would hit any future route starting with `/me…`.
-
-The active-link highlight uses the same loose prefix check (`pathname.startsWith(item.to)`), which can also mis-highlight siblings (e.g. `/positions` vs `/positions/123` is fine, but `/me` would light up on `/messages` if it weren't already marked `exact`).
+The "Onboard new client" modal in `src/routes/admin.clients.tsx` is a mock — two cosmetic steps with non-functional inputs. There's no real account creation, no real password field, and nothing is written to the backend.
 
 ## Fix
 
-1. **`src/components/app-shell.tsx`** — replace the portal check with a true segment match:
-   ```ts
-   const isRecruiterPortal = pathname === "/me" || pathname.startsWith("/me/");
-   ```
-2. **Harden the nav active check** in both `app-shell.tsx` and `client-shell.tsx` so prefix matching only counts whole path segments:
-   ```ts
-   const active = item.exact
-     ? pathname === item.to
-     : pathname === item.to || pathname.startsWith(item.to + "/");
-   ```
+Mirror the recruiter flow: admin types email + password directly, a single server call creates the auth user, profile, and role.
 
-That's it — purely presentation, no business logic touched. No other routes in the codebase currently collide, but the segment-aware matcher prevents the same class of bug from reappearing.
+### 1. New server function — `createClientAccount`
+
+Add to `src/lib/team.functions.ts` (next to `createTeamMember`):
+
+- Inputs (zod): `email`, `password` (min 8), `fullName`, `companyName`
+- Admin-gated via `assertAdmin`
+- Uses `supabaseAdmin.auth.admin.createUser` with `email_confirm: true`
+- Updates `profiles` with `full_name`, `company_name`, `status: 'active'`
+- Inserts `user_roles` row with `role: 'client'`
+- Returns `{ ok, userId, email }`
+
+### 2. Rewrite `OnboardModal` in `src/routes/admin.clients.tsx`
+
+Single-step form with these real fields:
+- Company name
+- Contact person (full name)
+- Login email
+- Password (with show/hide toggle, min 8 chars validation)
+
+Submit → `useServerFn(createClientAccount)` → toast success/error → close modal. Show inline validation errors. The legacy two-step UI and the "auto-generated / welcome email" placeholder text go away.
+
+Note: the admin-side mock `clients` list in `mock-data.ts` is unrelated to the real client-portal account being created here. It stays as-is for the dashboard tables.
 
 ## Files
 
-- `src/components/app-shell.tsx`
-- `src/components/client-shell.tsx`
+- `src/lib/team.functions.ts` — add `createClientAccount`
+- `src/routes/admin.clients.tsx` — replace `OnboardModal` with real form + wire submit
+
+No DB migration needed — `profiles`, `user_roles`, and the `client` role already exist.
