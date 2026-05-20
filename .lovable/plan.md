@@ -1,73 +1,83 @@
-## Goal
+## Goals
 
-Replace the mock impersonation system with real authentication. Three roles — **Admin**, **Recruiter**, **Client** — decide which portal and which actions a signed-in user can reach. Existing mock recruiters/clients/positions/messages stay as seed data; only the access layer becomes real.
+1. Support the four recruiter roles already shown in the Roles & Permissions UI (Admin, Lead Recruiter, Senior Recruiter, Recruiter) — plus Client — end-to-end (DB + auth + UI).
+2. Make the permission checkboxes actually gate features across the app (navigation, buttons, routes).
+3. Replace email invites with an admin-creates-account flow: admin types name + email + password + role, the teammate signs in with those credentials immediately.
 
-## 1. Enable Lovable Cloud + email auth
+---
 
-- Turn on Lovable Cloud.
-- Configure email/password sign-in (no email confirmation in dev so testing is instant).
-- No social providers.
+## 1. Role model — 4 recruiter roles + client
 
-## 2. Database schema
+Today the DB enum `app_role` only has `admin`, `recruiter`, `client`. We need:
 
-Two new tables (RLS on, policies via `has_role` security-definer function — never store role on profiles):
+- `admin`
+- `lead_recruiter`
+- `senior_recruiter`
+- `recruiter`
+- `client`
 
-- `profiles` — `id` (FK `auth.users`), `full_name`, `email`, `client_company_id` (nullable, for client users), `status` ('pending' | 'active' | 'rejected'), timestamps. Auto-created via `handle_new_user` trigger on `auth.users` insert.
-- `user_roles` — `id`, `user_id`, `role` (enum `app_role`: 'admin' | 'recruiter' | 'client'), unique(user_id, role).
-- Enum `app_role` + SQL function `has_role(_user_id uuid, _role app_role)` (SECURITY DEFINER, stable).
-- Seed: first signup is auto-promoted to `admin` (trigger checks if `user_roles` is empty). All subsequent signups start as `client` with `profiles.status = 'pending'` awaiting admin approval.
+Migration:
+- `ALTER TYPE public.app_role ADD VALUE 'lead_recruiter';` and `'senior_recruiter'` (Postgres requires separate statements, can't be in a transaction with usage).
+- Update `handle_new_user` trigger: first user → `admin`; everyone else → `client` pending (unchanged).
+- Add a `role_permissions` table so permission edits in the UI actually persist and are enforceable server-side:
+  ```
+  role_permissions (role app_role PK, permissions text[] not null)
+  ```
+  Seed it with the four default permission sets currently hardcoded in `src/routes/team.tsx`. Admin always implicitly has all permissions (don't store, just short-circuit).
+- RLS: everyone authenticated can `SELECT` permissions for their role; only admins can `UPDATE`.
 
-## 3. Auth surface (routes)
+Update `AppRole` type in `src/lib/auth/auth-context.tsx` to include the two new values, and extend the context to expose `permissions: string[]` (union of the user's roles' permission sets, computed from `role_permissions` on login).
 
-New public routes:
-- `/login` — email + password, redirects by role (admin/recruiter → `/dashboard`, client → `/client`).
-- `/signup` — email + password + full name + (optional) company name; creates a pending client account.
-- `/pending` — shown when a client logs in but `profiles.status != 'active'`.
+## 2. Permission enforcement
 
-Guards:
-- `_authenticated.tsx` pathless layout — redirects to `/login` if not signed in.
-- `_authenticated/_agency.tsx` — requires `admin` OR `recruiter` role, redirects clients to `/client`.
-- `_authenticated/_client.tsx` — requires `client` role with `status = 'active'`, redirects others.
-- Move existing agency routes (`dashboard`, `tasks`, `admin.clients`, `messages`, `positions`, `ongoing`, `interviews`, `pipeline`, `database`, `closed`, `billing`, `team`, `me`, `scout`) under `_authenticated/_agency/`.
-- Move client portal routes (`client.*`) under `_authenticated/_client/`.
-- Landing `/` stays public; its CTAs route to `/login` instead of straight into portals.
+Add a single source of truth:
 
-## 4. Role wiring in the app
+- `useCan(perm)` hook in `src/lib/auth/auth-context.tsx` that returns `true` if user is admin OR if the perm is in `auth.permissions`.
+- A `<RequirePerm perm="...">` wrapper for routes that should be entirely hidden.
 
-- New `useAuth()` hook backed by `supabase.auth` + `onAuthStateChange` (listener set up BEFORE `getSession`, set up once in `__root.tsx`, invalidates router + query cache on change).
-- New `useMyRole()` / `useCan(permission)` that read from a `getMyRoles` server fn (uses `requireSupabaseAuth`, returns roles + profile).
-- Refactor `src/lib/ops/access.ts`:
-  - Drop `setCurrentRecruiter` impersonation.
-  - Keep `DEFAULT_ROLES` but collapse to 3 entries (Admin = all perms; Recruiter = candidates/positions/clients view+edit, pipeline move/share, team view; Client = no agency perms).
-  - `useCurrentRecruiter` now derives from the signed-in user's profile, falling back to a mock recruiter only for display name/initials if no roster match exists.
-- `AppShell` sidebar items already filter by `can(perm)` — verify recruiter sees the right subset; remove the "Impersonate (demo)" dropdown block; add a real "Sign out" that calls `supabase.auth.signOut()`.
-- `ClientShell` similarly gets a real sign-out and shows the signed-in client's name.
+Apply across the app:
 
-## 5. Admin approval UI
+| Route / UI | Required perm |
+|---|---|
+| `/team` (roster tab) | `team.view` |
+| `/team` Invite button + Roles tab | `roles.manage` (admin only in practice) |
+| `/positions`, `/positions/$id` create button | `positions.view` / `positions.create` |
+| `/positions/$id` "Assign recruiter" | `positions.assign` |
+| `/pipeline` move stage actions | `pipeline.move` |
+| `/pipeline` "Share to client" | `pipeline.share` |
+| `/clients/$id` and admin client mgmt | `clients.view` / `clients.manage` |
+| `/database` candidate edit/delete | `candidates.edit` / `candidates.delete` |
+| `/billing*` | `billing.manage` |
+| Sidebar items in `app-shell.tsx` | hide if user lacks the view perm |
 
-- Extend `/admin/clients` with a "Pending access requests" panel listing `profiles` where `status = 'pending'`. Admin can **Approve** (sets status active + links `client_company_id` to an existing client record) or **Reject**.
-- Approval/rejection is a `createServerFn` protected by `requireSupabaseAuth` that also re-checks `has_role(auth.uid(), 'admin')` server-side.
-- An admin can also promote a user to recruiter from the Roster page (`/team`) via a new "Invite recruiter" action that creates a pending invite (out of scope for v1 — for now admins manually insert a `user_roles` row through a small "Manage roles" dialog gated by `roles.manage`).
+Server-side: add a `requirePerm(perm)` helper alongside `requireSupabaseAuth` that checks role + `role_permissions`; apply it inside any future write server functions (set up the helper now even if only one or two functions use it today).
 
-## 6. Sign-out + session UX
+Wire the Roles & Permissions UI to persist changes: replace the `useState<Role[]>` with a `getRolePermissions` / `updateRolePermissions` server function pair calling `role_permissions`.
 
-- Top-right avatar dropdown: real account info from `profiles`, "Sign out" calls `supabase.auth.signOut()` then navigates to `/login`.
-- `onAuthStateChange` SIGNED_OUT → router.invalidate + queryClient.clear.
+## 3. Admin creates account with credentials (replace invite)
 
-## 7. Technical notes
+Rewrite `src/lib/team.functions.ts`:
 
-- Use `requireSupabaseAuth` middleware on every server fn that reads/writes user-scoped data.
-- All role checks inside server fns use the SQL `has_role` function (never trust client-sent role).
-- RLS policies:
-  - `profiles`: user can select/update own row; admins can select/update all (via `has_role`).
-  - `user_roles`: user can select own rows; only admins can insert/delete (via `has_role`).
-- `attachSupabaseAuth` registered in `src/start.ts` global `functionMiddleware`.
-- Add `beforeLoad` session-hydration gate (`supabase.auth.getUser()`) on `_authenticated` so protected loaders don't 401 on first paint.
-- Mock seed data (`mock-data.ts`, `chat-data.ts`, `client-data.ts`, ops store) stays untouched — auth gates the UI but the in-memory data layer is unchanged.
+- Rename `inviteTeamMember` → `createTeamMember`.
+- Input: `{ email, password (min 8), fullName, role: 'admin' | 'lead_recruiter' | 'senior_recruiter' | 'recruiter' }`.
+- Use `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name } })` so the account is active immediately, no email step.
+- Activate the profile row and replace the default `client` role with the chosen role (same as today).
+- Return the new userId; on the client, toast with "Account created — share these credentials with <name>".
 
-## Out of scope (for this pass)
+Update `src/routes/team.tsx`:
 
-- Password reset / magic links (can add later).
-- Email invites for recruiters (admins promote manually for now).
-- Migrating mock data into Postgres.
-- Per-client data isolation on the mock data (client users see the same demo dataset; real per-tenant scoping comes when data is migrated to DB).
+- Dialog title → "Add teammate".
+- Add a password field (with show/hide toggle + "Generate" button that fills a random strong password the admin can copy).
+- Role select → 4 options (Admin, Lead Recruiter, Senior Recruiter, Recruiter), mapped to the new enum values.
+- After success, show the email + password in a "Copy credentials" confirmation panel so the admin can hand them over.
+
+## Technical notes
+
+- Enum values can't be added inside the same transaction that uses them, so the migration has two parts: (a) `ALTER TYPE ... ADD VALUE` for both new values, (b) a follow-up migration that creates `role_permissions`, seeds it, and adds RLS. Two separate migration files.
+- `auth-context.tsx` needs a second query (`role_permissions` for the user's roles) and to expose `permissions` + `can()` so we don't read them in every component.
+- `src/lib/ops/access.ts` still references the mock recruiter store — leave the impersonation helpers alone but stop using them; gate everything on the real `useAuth()` / `useCan()` instead. The mock data stays as seed only.
+
+## Out of scope
+
+- Migrating the existing seed/mock recruiters in `src/lib/ops/store.ts` to real auth users (still demo data).
+- Password reset flow for teammates whose admin-set password leaks — they can use the existing login + forgot-password if/when we add it.
