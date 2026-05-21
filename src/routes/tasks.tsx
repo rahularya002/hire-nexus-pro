@@ -229,17 +229,6 @@ function TasksPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Client</Label>
-              <Select value={form.client} onValueChange={(v) => setForm({ ...form, client: v })}>
-                <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                <SelectContent>
-                  {clientList.map((c) => (
-                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
               <Label>Assign to</Label>
               <Select value={form.recruiterId} onValueChange={(v) => setForm({ ...form, recruiterId: v })}>
                 <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
@@ -263,6 +252,46 @@ function TasksPage() {
               <Button type="submit">Create task</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageKindsOpen} onOpenChange={setManageKindsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage task kinds</DialogTitle>
+            <DialogDescription>Add or remove the kinds available when creating a task.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newKind}
+                onChange={(e) => setNewKind(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKind(); } }}
+                placeholder="e.g. Negotiate offer"
+              />
+              <Button type="button" onClick={addKind}><Plus className="size-4" /> Add</Button>
+            </div>
+            <div className="rounded-md border border-border divide-y divide-border max-h-72 overflow-y-auto">
+              {kinds.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-6">No kinds yet — add one above.</div>
+              )}
+              {kinds.map((k) => (
+                <div key={k} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span>{k}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeKind(k)}
+                    className="text-[11px] text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => setManageKindsOpen(false)}>Done</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppShell>
