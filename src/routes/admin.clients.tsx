@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, AlertCircle, Mail, Phone, Loader2, Check, Trash2 } from "lucide-react";
+import { Plus, Building2, AlertCircle, Mail, Phone, Loader2, Check, Trash2, Copy, KeyRound, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth/auth-context";
-import { listClients, createClient, deleteClient, type ClientRow } from "@/lib/clients.functions";
+import { listClients, onboardClientWithLogin, deleteClient, type ClientRow } from "@/lib/clients.functions";
 import { colorFor, initialsOf, daysSince } from "@/lib/display";
 
 export const Route = createFileRoute("/admin/clients")({
@@ -146,35 +146,43 @@ function ClientItem({ c, isAdmin }: { c: ClientRow; isAdmin: boolean }) {
 
 function OnboardModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
-  const createFn = useServerFn(createClient);
+  const onboardFn = useServerFn(onboardClientWithLogin);
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
   const [contactName, setContactName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState(() => generatePassword());
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [created, setCreated] = useState<{ email: string; password: string; name: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!name.trim()) { setError("Company name is required."); return; }
+    if (!loginEmail.trim()) { setError("Login email is required."); return; }
+    if (loginPassword.length < 8) { setError("Password must be at least 8 characters."); return; }
     setSubmitting(true);
     try {
-      await createFn({
+      await onboardFn({
         data: {
           name: name.trim(),
           industry: industry.trim() || undefined,
           contact_name: contactName.trim() || undefined,
-          contact_email: contactEmail.trim() || undefined,
+          contact_email: loginEmail.trim(),
           contact_phone: contactPhone.trim() || undefined,
           notes: notes.trim() || undefined,
+          login_email: loginEmail.trim(),
+          login_password: loginPassword,
+          full_name: contactName.trim() || undefined,
         },
       });
-      toast.success(`Client "${name.trim()}" added`);
+      toast.success(`Client "${name.trim()}" onboarded`);
       qc.invalidateQueries({ queryKey: ["clients"] });
-      onClose();
+      setCreated({ email: loginEmail.trim(), password: loginPassword, name: name.trim() });
     } catch (err: any) {
       setError(err?.message ?? "Failed to create client.");
     } finally {
@@ -182,11 +190,40 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  if (created) {
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="p-5 border-b border-border flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-success/10 grid place-items-center text-success">
+              <Check className="size-5" />
+            </div>
+            <div>
+              <div className="font-semibold">{created.name} onboarded</div>
+              <div className="text-xs text-muted-foreground">Share these login credentials with the client — they won't be shown again.</div>
+            </div>
+          </div>
+          <div className="p-5 space-y-3">
+            <CopyRow label="Login email" value={created.email} />
+            <CopyRow label="Temporary password" value={created.password} mono />
+            <div className="rounded-lg bg-warning/10 border border-warning/20 p-3 text-xs text-warning-foreground/90 flex gap-2">
+              <AlertCircle className="size-4 mt-0.5 shrink-0 text-warning" />
+              <span>Ask the client to change this password after first sign-in.</span>
+            </div>
+          </div>
+          <div className="p-5 border-t border-border flex justify-end">
+            <button onClick={onClose} className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium">Done</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 backdrop-blur-sm p-4" onClick={onClose}>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl"
+        className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-border flex items-center gap-3">
@@ -202,10 +239,7 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
           <Field label="Company name" placeholder="e.g. Tata Digital" value={name} onChange={setName} />
           <Field label="Industry" placeholder="e.g. Technology" value={industry} onChange={setIndustry} />
           <Field label="Contact person (SPOC)" placeholder="Full name" value={contactName} onChange={setContactName} />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Contact email" placeholder="hr@company.com" value={contactEmail} onChange={setContactEmail} type="email" />
-            <Field label="Contact phone" placeholder="+91 …" value={contactPhone} onChange={setContactPhone} />
-          </div>
+          <Field label="Contact phone" placeholder="+91 …" value={contactPhone} onChange={setContactPhone} />
           <div>
             <label className="text-xs font-medium text-foreground/80">Notes</label>
             <textarea
@@ -216,6 +250,35 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
             />
           </div>
+
+          <div className="mt-2 pt-4 border-t border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="size-4 text-primary" />
+              <div className="text-sm font-semibold">Client portal login</div>
+            </div>
+            <Field label="Login email" placeholder="contact@company.com" value={loginEmail} onChange={setLoginEmail} type="email" />
+            <div className="mt-3">
+              <label className="text-xs font-medium text-foreground/80">Temporary password</label>
+              <div className="mt-1 flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 pr-9 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
+                  />
+                  <button type="button" onClick={() => setShowPw((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Toggle visibility">
+                    {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+                <button type="button" onClick={() => setLoginPassword(generatePassword())} className="h-9 px-3 rounded-md border border-input bg-background text-xs inline-flex items-center gap-1.5 hover:bg-secondary/60" aria-label="Regenerate password">
+                  <RefreshCw className="size-3.5" /> Generate
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Minimum 8 characters. You'll see this once after creating the account.</p>
+            </div>
+          </div>
+
           {error && (
             <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
               <AlertCircle className="size-4" /> {error}
@@ -232,12 +295,48 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
             className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-2 disabled:opacity-60"
           >
             {submitting && <Loader2 className="size-4 animate-spin" />}
-            Create client
+            Create client & login
           </button>
         </div>
       </form>
     </div>
   );
+}
+
+function CopyRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
+  return (
+    <div>
+      <label className="text-xs font-medium text-foreground/80">{label}</label>
+      <div className="mt-1 flex gap-2">
+        <input
+          readOnly
+          value={value}
+          className={`flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm ${mono ? "font-mono" : ""}`}
+        />
+        <button type="button" onClick={copy} className="h-9 px-3 rounded-md border border-input bg-background text-xs inline-flex items-center gap-1.5 hover:bg-secondary/60">
+          {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function generatePassword(len = 14) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const arr = new Uint32Array(len);
+  (globalThis.crypto ?? window.crypto).getRandomValues(arr);
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
+  return out;
 }
 
 function Field({
