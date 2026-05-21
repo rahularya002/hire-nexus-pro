@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { type RecruiterStatus } from "@/lib/ops/store";
-import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -63,10 +63,34 @@ const TEAM_ROLE_OPTIONS: { value: Exclude<DbRole, "client">; label: string }[] =
 ];
 
 function TeamPage() {
-  const [team, setTeam] = useState(() => [...recruiters]);
+  const [team, setTeam] = useState<{
+    id: string;
+    name: string;
+    initials: string;
+    role: string;
+    status: RecruiterStatus;
+    loginAt: string;
+    assignedClients: number;
+    assignedPositions: number;
+    sharesToday: number;
+    closuresMtd: number;
+    conversionPct: number;
+    joinedOn: string;
+  }[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { can, roles: myRoles } = useAuth();
   const isAdmin = myRoles.includes("admin");
+  const fetchTeam = useServerFn(getTeamMembers);
+
+  useEffect(() => {
+    fetchTeam({})
+      .then((res) => {
+        setTeam(res.members as any);
+      })
+      .catch(() => toast.error("Failed to load team"))
+      .finally(() => setLoading(false));
+  }, [fetchTeam]);
 
   const summary = useMemo(() => ({
     online: team.filter((r) => r.status !== "Offline").length,
