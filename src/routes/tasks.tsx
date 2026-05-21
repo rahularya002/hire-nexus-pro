@@ -221,6 +221,7 @@ function TasksPage() {
                       mode="single"
                       selected={form.dueDate}
                       onSelect={(d) => setForm({ ...form, dueDate: d })}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       initialFocus
                       className={cn("p-3 pointer-events-auto")}
                     />
