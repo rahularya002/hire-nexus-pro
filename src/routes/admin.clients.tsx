@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, AlertCircle, Mail, Phone, TrendingUp, Eye, EyeOff, Loader2, Check, IndianRupee } from "lucide-react";
+import { Plus, Building2, AlertCircle, Mail, Phone, Loader2, Check, Trash2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { createClientAccount } from "@/lib/team.functions";
 import { AppShell } from "@/components/app-shell";
-import { clients, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS, type Client } from "@/lib/mock-data";
-import { formatInrShort } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
+import { listClients, createClient, deleteClient, type ClientRow } from "@/lib/clients.functions";
+import { colorFor, initialsOf, daysSince } from "@/lib/display";
 
 export const Route = createFileRoute("/admin/clients")({
   component: () => <AppShell><Page /></AppShell>,
@@ -16,49 +16,53 @@ export const Route = createFileRoute("/admin/clients")({
 function Page() {
   const [open, setOpen] = useState(false);
   const { roles } = useAuth();
-  const isAdmin = roles.includes("admin");
-  // Recruiters never see inactive accounts.
-  const scoped = isAdmin ? clients : clients.filter((c) => !isClientInactive(c));
-  const [filter, setFilter] = useState<"all" | "active" | "inactive">(isAdmin ? "all" : "active");
-  const inactiveCount = scoped.filter(isClientInactive).length;
-  const visible = scoped.filter((c) => {
-    if (filter === "all") return true;
-    const inactive = isClientInactive(c);
-    return filter === "inactive" ? inactive : !inactive;
+  const isAdmin = roles.includes("admin") || roles.includes("lead_recruiter");
+  const fetchClients = useServerFn(listClients);
+  const { data: clients = [], isLoading } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => fetchClients(),
   });
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const activeCount = clients.filter((c) => c.status === "active").length;
+  const inactiveCount = clients.length - activeCount;
+  const visible = clients.filter((c) =>
+    filter === "all" ? true : filter === "active" ? c.status === "active" : c.status === "inactive",
+  );
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Client administration</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {scoped.length} total · {scoped.length - inactiveCount} active{isAdmin && ` · ${inactiveCount} inactive`}
-            {isAdmin && (
-              <span className="ml-2 text-[11px]">(auto-inactive after {INACTIVITY_MANDATE_DAYS}d without a new mandate or {INACTIVITY_CLOSURE_DAYS}d without a closure)</span>
-            )}
+            {clients.length} total · {activeCount} active · {inactiveCount} inactive
           </p>
         </div>
         <div className="flex gap-2">
+          <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
+            {(["all", "active", "inactive"] as const).map((f) => (
+              <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
+            ))}
+          </div>
           {isAdmin && (
-            <div className="inline-flex rounded-md border border-input bg-card overflow-hidden">
-              {(["all", "active", "inactive"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)} className={`h-9 px-3 text-xs font-medium capitalize ${filter === f ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60"}`}>{f}</button>
-              ))}
-            </div>
+            <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+              <Plus className="size-4" /> New client
+            </button>
           )}
-          <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
-            <Plus className="size-4" /> Onboard new client
-          </button>
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="divide-y divide-border">
-          {visible.map((c) => (
-            <ClientRow key={c.id} c={c} isAdmin={isAdmin} />
+          {isLoading && (
+            <div className="p-10 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full"><Loader2 className="size-4 animate-spin" /> Loading clients…</div>
+          )}
+          {!isLoading && visible.map((c) => (
+            <ClientItem key={c.id} c={c} isAdmin={isAdmin} />
           ))}
-          {visible.length === 0 && (
-            <div className="p-10 text-center text-sm text-muted-foreground">No clients match this filter.</div>
+          {!isLoading && visible.length === 0 && (
+            <div className="p-10 text-center text-sm text-muted-foreground">
+              {clients.length === 0 ? "No clients yet. Onboard your first client to get started." : "No clients match this filter."}
+            </div>
           )}
         </div>
       </div>
@@ -68,116 +72,108 @@ function Page() {
   );
 }
 
-function ClientRow({ c, isAdmin }: { c: Client; isAdmin: boolean }) {
-  const inactive = isClientInactive(c);
-  const mandateFlag = c.lastMandateDays > INACTIVITY_MANDATE_DAYS;
-  const closureFlag = c.lastClosureDays > INACTIVITY_CLOSURE_DAYS;
+function ClientItem({ c, isAdmin }: { c: ClientRow; isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const del = useServerFn(deleteClient);
+  const lastActivity = daysSince(c.last_activity_at ?? c.created_at);
+  const color = colorFor(c.id, c.color);
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete ${c.name}? This also removes its positions.`)) return;
+    try {
+      await del({ data: { id: c.id } });
+      toast.success("Client deleted");
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to delete");
+    }
+  }
+
   return (
     <Link to="/clients/$clientId" params={{ clientId: c.id }} className="block px-5 py-4 hover:bg-secondary/30 transition">
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="size-10 rounded-md grid place-items-center text-xs font-bold text-primary-foreground" style={{ background: c.color }}>{c.initials}</div>
+          <div className="size-10 rounded-md grid place-items-center text-xs font-bold text-primary-foreground" style={{ background: color }}>{initialsOf(c.name)}</div>
           <div className="min-w-0">
             <div className="font-medium truncate">{c.name}</div>
-            <div className="text-xs text-muted-foreground truncate">{c.industry} · SPOC {c.spoc.name}</div>
+            <div className="text-xs text-muted-foreground truncate">
+              {[c.industry, c.contact_name && `SPOC ${c.contact_name}`].filter(Boolean).join(" · ") || "—"}
+            </div>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-6 text-xs">
           <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Closures YTD</div>
-            <div className="text-sm font-semibold tabular-nums">{c.positionsClosedYTD}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Open positions</div>
+            <div className="text-sm font-semibold tabular-nums">{c.open_positions ?? 0}</div>
           </div>
-          <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Agencies</div>
-            <div className="text-sm font-semibold tabular-nums">{c.agencies.length}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Revenue YTD</div>
-            <div className="text-sm font-semibold tabular-nums inline-flex items-center gap-0.5"><IndianRupee className="size-3" />{formatInrShort(c.revenueYTDInr).replace("₹", "")}</div>
-          </div>
+          {c.contact_email && (
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><Mail className="size-3" /> Email</div>
+              <div className="text-sm truncate max-w-[180px]">{c.contact_email}</div>
+            </div>
+          )}
+          {c.contact_phone && (
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><Phone className="size-3" /> Phone</div>
+              <div className="text-sm">{c.contact_phone}</div>
+            </div>
+          )}
+          {lastActivity !== null && (
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Last activity</div>
+              <div className="text-sm">{lastActivity === 0 ? "Today" : `${lastActivity}d ago`}</div>
+            </div>
+          )}
         </div>
-        <div className="shrink-0">
-          {inactive ? (
+        <div className="shrink-0 flex items-center gap-2">
+          {c.status === "inactive" ? (
             <span className="inline-flex items-center gap-1 text-xs text-warning font-medium px-2 py-1 rounded bg-warning/10 border border-warning/20"><AlertCircle className="size-3" /> Inactive</span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs text-success font-medium px-2 py-1 rounded bg-success/10 border border-success/20"><Check className="size-3" /> Active</span>
           )}
+          {isAdmin && (
+            <button onClick={handleDelete} className="size-8 grid place-items-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" aria-label="Delete client">
+              <Trash2 className="size-4" />
+            </button>
+          )}
         </div>
       </div>
-
-      {isAdmin && inactive && (
-        <div className="mt-3 ml-13 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border border-warning/20 bg-warning/5 p-3 text-xs">
-          <Metric
-            label="Last mandate"
-            value={`${c.lastMandateDays}d ago`}
-            flag={mandateFlag}
-            sublabel={mandateFlag ? `> ${INACTIVITY_MANDATE_DAYS}d` : undefined}
-          />
-          <Metric
-            label="Last closure"
-            value={`${c.lastClosureDays}d ago`}
-            flag={closureFlag}
-            sublabel={closureFlag ? `> ${INACTIVITY_CLOSURE_DAYS}d` : undefined}
-          />
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">SPOC</div>
-            <div className="font-medium truncate">{c.spoc.name}</div>
-            <div className="text-muted-foreground inline-flex items-center gap-1 truncate"><Mail className="size-3" />{c.spoc.email}</div>
-            <div className="text-muted-foreground inline-flex items-center gap-1"><Phone className="size-3" />{c.spoc.phone}</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><TrendingUp className="size-3" />YTD</div>
-            <div className="font-medium">{c.positionsClosedYTD} closures</div>
-            <div className="text-muted-foreground">{formatInrShort(c.revenueYTDInr)} revenue</div>
-          </div>
-        </div>
-      )}
     </Link>
   );
 }
 
-function Metric({ label, value, flag, sublabel }: { label: string; value: string; flag?: boolean; sublabel?: string }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`font-medium ${flag ? "text-warning" : ""}`}>{value}</div>
-      {sublabel && <div className="text-[10px] text-warning/80">{sublabel}</div>}
-    </div>
-  );
-}
-
 function OnboardModal({ onClose }: { onClose: () => void }) {
-  const createFn = useServerFn(createClientAccount);
-  const [companyName, setCompanyName] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
+  const qc = useQueryClient();
+  const createFn = useServerFn(createClient);
+  const [name, setName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!companyName.trim() || !fullName.trim() || !email.trim()) {
-      setError("All fields are required.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    if (!name.trim()) { setError("Company name is required."); return; }
     setSubmitting(true);
     try {
       await createFn({
         data: {
-          companyName: companyName.trim(),
-          fullName: fullName.trim(),
-          email: email.trim(),
-          password,
+          name: name.trim(),
+          industry: industry.trim() || undefined,
+          contact_name: contactName.trim() || undefined,
+          contact_email: contactEmail.trim() || undefined,
+          contact_phone: contactPhone.trim() || undefined,
+          notes: notes.trim() || undefined,
         },
       });
-      toast.success(`Client account created for ${email.trim()}`);
+      toast.success(`Client "${name.trim()}" added`);
+      qc.invalidateQueries({ queryKey: ["clients"] });
       onClose();
     } catch (err: any) {
       setError(err?.message ?? "Failed to create client.");
@@ -198,34 +194,27 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
             <Building2 className="size-5" />
           </div>
           <div>
-            <div className="font-semibold">Onboard new client</div>
-            <div className="text-xs text-muted-foreground">Admin sets the login credentials directly</div>
+            <div className="font-semibold">New client</div>
+            <div className="text-xs text-muted-foreground">Add a company to start tracking mandates and positions</div>
           </div>
         </div>
         <div className="p-5 space-y-3">
-          <Field label="Company name" placeholder="e.g. Tata Digital" value={companyName} onChange={setCompanyName} />
-          <Field label="Contact person" placeholder="Full name" value={fullName} onChange={setFullName} />
-          <Field label="Login email" placeholder="hr@company.com" value={email} onChange={setEmail} type="email" />
+          <Field label="Company name" placeholder="e.g. Tata Digital" value={name} onChange={setName} />
+          <Field label="Industry" placeholder="e.g. Technology" value={industry} onChange={setIndustry} />
+          <Field label="Contact person (SPOC)" placeholder="Full name" value={contactName} onChange={setContactName} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contact email" placeholder="hr@company.com" value={contactEmail} onChange={setContactEmail} type="email" />
+            <Field label="Contact phone" placeholder="+91 …" value={contactPhone} onChange={setContactPhone} />
+          </div>
           <div>
-            <label className="text-xs font-medium text-foreground/80">Password</label>
-            <div className="mt-1 relative">
-              <input
-                type={showPwd ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                className="w-full h-9 rounded-md border border-input bg-background px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwd((s) => !s)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label={showPwd ? "Hide password" : "Show password"}
-              >
-                {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1">Share these credentials with the client manually.</p>
+            <label className="text-xs font-medium text-foreground/80">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Internal notes about this account…"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
           </div>
           {error && (
             <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
