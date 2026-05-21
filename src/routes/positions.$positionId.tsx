@@ -92,25 +92,3 @@ function PositionDetail() {
     </div>
   );
 }
-            <p className="text-sm text-foreground/90 leading-relaxed">{detail.resumeSummary}</p>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="h-9 px-4 rounded-md border border-border text-sm">Close</button>
-            <button className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center gap-1.5">
-              <FileText className="size-4" /> Open full CV
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Kv({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-medium mt-0.5">{value}</div>
-    </div>
-  );
-}
