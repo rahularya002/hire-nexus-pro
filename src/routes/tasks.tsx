@@ -168,7 +168,17 @@ function TasksPage() {
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); createTask(); }}>
             <div className="space-y-1.5"><Label>Title</Label><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Follow up on offer" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Client</Label><Input required value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} placeholder="Acme Corp" /></div>
+              <div className="space-y-1.5">
+                <Label>Client</Label>
+                <Select value={form.client} onValueChange={(v) => setForm({ ...form, client: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>
+                    {clientList.map((c) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5"><Label>Candidate</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
