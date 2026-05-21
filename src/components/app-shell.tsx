@@ -135,8 +135,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
   const meStatus = statusOpt(me.status);
-  const isRecruiterPortal = pathname === "/me" || pathname.startsWith("/me/");
-  const nav = isRecruiterPortal ? recruiterNav : agencyNav;
+  const isAgencyLead = roles.includes("admin") || roles.includes("lead_recruiter");
+  const nav = isAgencyLead ? agencyNav : recruiterNav;
 
   // Real authenticated identity (overrides mock recruiter for display)
   const displayName = profile?.full_name || profile?.email || "Account";
