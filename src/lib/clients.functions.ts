@@ -170,6 +170,13 @@ export const onboardClientWithLogin = createServerFn({ method: "POST" })
         );
       if (roleErr) throw new Error(roleErr.message);
 
+      // 2b. Activate profile (trigger defaults non-first users to 'pending')
+      const { error: profileErr } = await supabaseAdmin
+        .from("profiles")
+        .update({ status: "active", company_name: data.name })
+        .eq("id", newUserId);
+      if (profileErr) throw new Error(profileErr.message);
+
       // 3. Insert client row
       const payload = clean({
         name: data.name,
