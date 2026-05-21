@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type ClientRow = {
   id: string;
@@ -14,6 +15,7 @@ export type ClientRow = {
   color: string | null;
   last_activity_at: string | null;
   created_at: string;
+  user_id?: string | null;
   open_positions?: number;
 };
 
@@ -116,4 +118,82 @@ export const deleteClient = createServerFn({ method: "POST" })
     const { error } = await supabase.from("clients").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+const onboardSchema = upsertSchema.extend({
+  login_email: z.string().email().max(200),
+  login_password: z.string().min(8).max(72),
+  full_name: z.string().max(200).optional().nullable(),
+});
+
+function isAdminLike(roles: string[]) {
+  return roles.includes("admin") || roles.includes("lead_recruiter");
+}
+
+export const onboardClientWithLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => onboardSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    // verify caller is admin/lead
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    if (!isAdminLike(roleNames)) {
+      throw new Error("Only admins or lead recruiters can onboard clients.");
+    }
+
+    // 1. Create auth user
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: data.login_email,
+      password: data.login_password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: data.full_name ?? data.contact_name ?? data.name,
+        company_name: data.name,
+      },
+    });
+    if (createErr || !created.user) {
+      throw new Error(createErr?.message ?? "Failed to create login account.");
+    }
+    const newUserId = created.user.id;
+
+    try {
+      // 2. Assign 'client' role
+      const { error: roleErr } = await supabaseAdmin
+        .from("user_roles")
+        .insert({ user_id: newUserId, role: "client" });
+      if (roleErr) throw new Error(roleErr.message);
+
+      // 3. Insert client row
+      const payload = clean({
+        name: data.name,
+        industry: data.industry,
+        contact_name: data.contact_name ?? data.full_name,
+        contact_email: data.contact_email ?? data.login_email,
+        contact_phone: data.contact_phone,
+        notes: data.notes,
+        color: data.color,
+        created_by: userId,
+        user_id: newUserId,
+        last_activity_at: new Date().toISOString(),
+      });
+      const { data: row, error: insertErr } = await supabaseAdmin
+        .from("clients")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (insertErr) throw new Error(insertErr.message);
+
+      return {
+        client: row as ClientRow,
+        login: { email: data.login_email, password: data.login_password },
+      };
+    } catch (err) {
+      // best-effort rollback
+      await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
+      throw err;
+    }
   });
