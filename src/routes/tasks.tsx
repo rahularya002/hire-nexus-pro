@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { opsTasks, type OpsTask, type TaskState } from "@/lib/ops/store";
+import { opsTasks, recruiters, type OpsTask, type TaskState } from "@/lib/ops/store";
 import { ClipboardList, Phone, Mail, Send, Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -18,7 +18,14 @@ const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed
 function TasksPage() {
   const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", client: "", candidate: "", kind: "Call candidate" as OpsTask["kind"], due: "Today" });
+  const [form, setForm] = useState({
+    title: "",
+    client: "",
+    candidate: "",
+    kind: "Call candidate" as OpsTask["kind"],
+    due: "Today",
+    recruiterId: recruiters[0]?.id ?? "r1",
+  });
 
   const move = (id: string, dir: 1 | -1) => {
     setTasks((prev) =>
@@ -46,13 +53,14 @@ function TasksPage() {
         state: "Pending",
         sla: "ok",
         due: form.due,
-        recruiterId: "r1",
+        recruiterId: form.recruiterId,
       },
       ...prev,
     ]);
-    setForm({ title: "", client: "", candidate: "", kind: "Call candidate", due: "Today" });
+    const assignee = recruiters.find((r) => r.id === form.recruiterId);
+    setForm({ title: "", client: "", candidate: "", kind: "Call candidate", due: "Today", recruiterId: recruiters[0]?.id ?? "r1" });
     setOpen(false);
-    toast.success("Task created");
+    toast.success(assignee ? `Task assigned to ${assignee.name}` : "Task created");
   };
 
   return (
@@ -82,13 +90,23 @@ function TasksPage() {
                 </div>
                 <div className="p-2 space-y-2 flex-1">
                   {items.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No tasks</div>}
-                  {items.map((t) => (
+                  {items.map((t) => {
+                    const assignee = recruiters.find((r) => r.id === t.recruiterId);
+                    return (
                     <div key={t.id} className="rounded-lg border border-border bg-background/40 p-2.5 hover:border-primary/40 transition group">
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t.kind}</div>
                       <div className="text-sm font-medium leading-snug mt-1">{t.title}</div>
                       <div className="text-[11px] text-muted-foreground mt-1 truncate">
                         {t.client}{t.candidate && <> · {t.candidate}</>}
                       </div>
+                      {assignee && (
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <div className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
+                            {assignee.initials}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground truncate">{assignee.name}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-2.5">
                         <span className={cn(
                           "text-[10px] font-medium px-1.5 py-0.5 rounded inline-flex items-center gap-1",
@@ -107,7 +125,8 @@ function TasksPage() {
                         <button onClick={() => move(t.id, 1)} className="text-[10px] text-primary hover:underline font-medium">Advance →</button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -143,6 +162,25 @@ function TasksPage() {
                 </Select>
               </div>
               <div className="space-y-1.5"><Label>Due</Label><Input value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} placeholder="Today / Tomorrow" /></div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assign to</Label>
+              <Select value={form.recruiterId} onValueChange={(v) => setForm({ ...form, recruiterId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
+                <SelectContent>
+                  {recruiters.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
+                          {r.initials}
+                        </span>
+                        <span>{r.name}</span>
+                        <span className="text-[10px] text-muted-foreground">· {r.role}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
