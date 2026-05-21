@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { recruiters, type RecruiterStatus } from "@/lib/ops/store";
-import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
+import { type RecruiterStatus } from "@/lib/ops/store";
+import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { createTeamMember, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
+import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
