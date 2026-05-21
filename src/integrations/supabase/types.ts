@@ -29,6 +29,7 @@ export type Database = {
           notes: string | null
           status: Database["public"]["Enums"]["client_status"]
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           color?: string | null
@@ -44,6 +45,7 @@ export type Database = {
           notes?: string | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           color?: string | null
@@ -59,6 +61,7 @@ export type Database = {
           notes?: string | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
