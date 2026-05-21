@@ -1,81 +1,53 @@
-# Agencies per client + remove "sourced" from client-facing views
+# Fix dashboard gaps: profile/settings pages, greeting, login flash
 
-Two independent changes against the mock data and the relevant routes.
+Four small fixes to the agency portal so the post-login experience feels real.
 
-## 1. Agencies a company works with
+## 1. Stop the "pending approval" flash after admin login
 
-### Data (`src/lib/mock-data.ts`)
+Today `src/routes/login.tsx` and `src/routes/pending.tsx` decide where to send the user the moment a `session` appears, but before `profileLoaded` is true. With no roles loaded yet, both files fall through to `/pending`, which renders for a frame and then re-redirects to `/dashboard` once roles arrive.
 
-Extend the `Client` shape with an array of agency engagements:
+Fix: in both files, wait for `profileLoaded` from `useAuth()` before running the role-based redirect. No other logic changes.
 
-```ts
-export interface ClientAgencyEngagement {
-  id: string;              // "ta-talentflow"
-  name: string;            // "TalentFlow"
-  initials: string;
-  color: string;
-  spoc: string;            // agency-side relationship lead
-  positions: {
-    id: string;
-    title: string;
-    status: PositionStatus;
-    openings: number;
-    location: string;
-    postedDays: number;
-    candidatesShared: number;
-    closures: number;
-  }[];
-}
-```
+## 2. Dynamic greeting + name + date on the dashboard
 
-Add `agencies: ClientAgencyEngagement[]` to `Client` and seed each existing client with 1–3 agencies (TalentFlow + a couple of competitors like Antal, Michael Page, Randstad). Most positions can mirror what's in the existing `positions` array for that client; add 1–2 extra for the other agencies so the page feels real.
+`src/routes/dashboard.tsx` currently hardcodes:
 
-### List card (`src/routes/admin.clients.tsx`)
+- `Mission Control · Wed, May 14`
+- `Good afternoon, Aarav`
 
-Add a small "N agencies" stat between "Closures YTD" and "Revenue YTD". No row-level interaction change — single click already opens the detail page.
+Replace with:
 
-### Detail page (`src/routes/clients.$clientId.tsx`)
+- Date string from `new Date()` formatted as e.g. `Thu, May 21` (locale `en-US`, weekday short + month short + day).
+- Greeting derived from local hour: `Good morning` (<12), `Good afternoon` (<17), `Good evening` (otherwise).
+- Name from `useAuth().profile?.full_name` → first token. Fallbacks: email local-part, then `there`.
 
-Add an **Agencies** section above the existing "Open positions" block:
+No other dashboard content changes.
 
-- One card per agency: avatar + name + agency SPOC + counters (open positions, candidates shared this quarter, closures YTD).
-- Click an agency card → expands inline to reveal its positions table (title, status, openings, candidates shared, closures, posted X days ago). Click a position → opens existing `/positions/$positionId` page when it matches an entry in `positions[]`; otherwise a small "Agency-side requirement — details with TalentFlow's portal" subline.
+## 3. Add Profile page
 
-No new route needed — expand-in-place keeps it light and avoids a new file. (The user's "double click → page" was directional; an expandable list on the same page is the same mental model and avoids dead-end navigation.)
+New route `src/routes/profile.tsx` wrapped in `AppShell`. Read `profile`, `roles`, `user` from `useAuth()`. Show:
 
-## 2. Client dashboard: hide "sourced", show real funnel
+- Avatar (initials), full name, email, role badge, account status.
+- An "Edit profile" card with `full_name` and `company_name` inputs that update `public.profiles` via the browser supabase client (the existing RLS policy "Users can update their own profile" already allows this) and then calls `refresh()` from auth context.
 
-The client should never see internal sourcing counts. Replace with the agency-visible funnel: Shared / Shortlisted / Interviewed / Offered / Rejected.
+Wire the Profile dropdown item in `src/components/app-shell.tsx` to `<Link to="/profile">`.
 
-### `src/routes/client.index.tsx`
+## 4. Add Settings page
 
-Replace the 4 KPIs with 5 funnel tiles:
+New route `src/routes/settings.tsx` wrapped in `AppShell`. Two simple sections:
 
-- Profiles shared (sum of `funnel.shared`)
-- Shortlisted (`funnel.shortlisted`)
-- Interviewed (`funnel.interview`)
-- Offered (`funnel.offered`)
-- Rejected (count of candidates with `status === "rejected"` across all positions)
+- **Password** — change password via `supabase.auth.updateUser({ password })`.
+- **Session** — sign-out button (mirrors the dropdown action).
 
-Keep "Open positions" badge in the hero, drop the "Placed YTD" tile (it's now duplicative with Offered).
+Wire the Settings dropdown item in `app-shell.tsx` to `<Link to="/settings">`.
 
-Per-position row inline stats: replace `{ Shared, Shortlisted, Pending review }` with `{ Shared, Shortlisted, Interviewed, Offered, Rejected }` rendered as a tighter strip.
+## Files touched
 
-### `src/routes/client.positions.tsx`
+- edit `src/routes/login.tsx` — gate redirect on `profileLoaded`
+- edit `src/routes/pending.tsx` — gate redirect on `profileLoaded`
+- edit `src/routes/dashboard.tsx` — dynamic name/greeting/date in the header only
+- edit `src/components/app-shell.tsx` — link Profile and Settings dropdown items
+- add `src/routes/profile.tsx`
+- add `src/routes/settings.tsx`
 
-In the per-position stage counter, drop the `sourcing` step from the visible breakdown (keep it in the data but don't render it). Steps shown to the client: Shared → Shortlisted → Interviewed → Offered → Joined.
-
-### `src/routes/client.reports.tsx`
-
-Remove the **Sourced** bar and the **Sourced (all time)** stat. Recompute "conversion" as `joined / shared` (with safe divide). Funnel chart starts at "Profiles shared".
-
-## Files
-
-- `src/lib/mock-data.ts` — `ClientAgencyEngagement` type + `agencies` on every client.
-- `src/routes/admin.clients.tsx` — add "N agencies" stat to the row.
-- `src/routes/clients.$clientId.tsx` — new Agencies section with expand-on-click positions list.
-- `src/routes/client.index.tsx` — new 5-tile funnel KPIs + updated per-row stats.
-- `src/routes/client.positions.tsx` — hide the "sourcing" step.
-- `src/routes/client.reports.tsx` — drop sourced bar + stat, fix conversion formula.
-
-No DB migration. All changes are mock-data + presentation.
+No DB migrations, no schema changes, no changes to mock data or the rest of the dashboard.
