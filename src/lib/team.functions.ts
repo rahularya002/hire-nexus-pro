@@ -16,6 +16,53 @@ async function assertAdmin(supabase: any, userId: string) {
   if (!isAdmin) throw new Error("Only admins can perform this action.");
 }
 
+export const getTeamMembers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: profiles, error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, status, created_at");
+    if (profErr) throw new Error(profErr.message);
+
+    const { data: roles, error: roleErr } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id, role");
+    if (roleErr) throw new Error(roleErr.message);
+
+    const roleMap = new Map(roles?.map((r) => [r.user_id, r.role as TeamRole | "client"]) ?? []);
+
+    const members = (profiles ?? [])
+      .filter((p) => {
+        const r = roleMap.get(p.id);
+        return r && r !== "client";
+      })
+      .map((p) => {
+        const role = roleMap.get(p.id) ?? "recruiter";
+        const name = p.full_name ?? p.email ?? "Unknown";
+        const initials = name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+        const joinedOn = p.created_at
+          ? new Date(p.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+          : "—";
+        const status = p.status === "active" ? "Active" : p.status === "pending" ? "Available" : "Offline";
+        return {
+          id: p.id,
+          name,
+          initials,
+          role: role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          status,
+          loginAt: "—",
+          assignedClients: 0,
+          assignedPositions: 0,
+          sharesToday: 0,
+          closuresMtd: 0,
+          conversionPct: 0,
+          joinedOn,
+        };
+      });
+
+    return { members };
+  });
+
 const CreateSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(128),
