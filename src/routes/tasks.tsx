@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { opsTasks, recruiters, DEFAULT_TASK_KINDS, type OpsTask, type TaskState } from "@/lib/ops/store";
 import { clients as clientList } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth/auth-context";
+import { useCurrentRecruiter } from "@/lib/ops/access";
 import { ClipboardList, Phone, Mail, Send, Plus, Clock, CalendarIcon, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -21,6 +23,10 @@ const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed
 
 function TasksPage() {
   const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
+  const { roles: authRoles } = useAuth();
+  const me = useCurrentRecruiter();
+  const canSeeAll = authRoles.includes("admin") || authRoles.includes("lead_recruiter");
+  const visibleTasks = canSeeAll ? tasks : tasks.filter((t) => t.recruiterId === me.id);
   const [open, setOpen] = useState(false);
   const [kinds, setKinds] = useState<string[]>(DEFAULT_TASK_KINDS);
   const [manageKindsOpen, setManageKindsOpen] = useState(false);
@@ -106,7 +112,7 @@ function TasksPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           {COLUMNS.map((col) => {
-            const items = tasks.filter((t) => t.state === col);
+            const items = visibleTasks.filter((t) => t.state === col);
             return (
               <div key={col} className="rounded-xl border border-border bg-card flex flex-col min-h-[400px]">
                 <div className="p-3 border-b border-border flex items-center justify-between">
@@ -231,10 +237,14 @@ function TasksPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Assign to</Label>
-              <Select value={form.recruiterId} onValueChange={(v) => setForm({ ...form, recruiterId: v })}>
+              <Select
+                value={form.recruiterId}
+                onValueChange={(v) => setForm({ ...form, recruiterId: v })}
+                disabled={!canSeeAll}
+              >
                 <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
                 <SelectContent>
-                  {recruiters.map((r) => (
+                  {(canSeeAll ? recruiters : recruiters.filter((r) => r.id === me.id)).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       <span className="inline-flex items-center gap-2">
                         <span className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
@@ -247,6 +257,9 @@ function TasksPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {!canSeeAll && (
+                <p className="text-[11px] text-muted-foreground">You can only assign tasks to yourself.</p>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>

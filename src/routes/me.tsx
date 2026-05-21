@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useCurrentRecruiter, useMyRole, useCan, setMyStatus, useRoster } from "@/lib/ops/access";
+import { useAuth } from "@/lib/auth/auth-context";
 import type { RecruiterStatus } from "@/lib/ops/store";
 import { opsTasks, interviewProcesses } from "@/lib/ops/store";
 import { positions } from "@/lib/mock-data";
@@ -28,6 +29,26 @@ function MyDesk() {
   const can = useCan();
   const meStatus = statusMeta(me.status);
   const roster = useRoster();
+  const { profile, roles: authRoles } = useAuth();
+
+  const ROLE_LABEL: Record<string, string> = {
+    admin: "Admin",
+    lead_recruiter: "Lead Recruiter",
+    senior_recruiter: "Senior Recruiter",
+    recruiter: "Recruiter",
+    client: "Client",
+  };
+  const displayName = profile?.full_name || profile?.email?.split("@")[0] || me.name;
+  const firstName = displayName.split(/[\s@]+/)[0] ?? displayName;
+  const displayInitials = (profile?.full_name || profile?.email || me.name)
+    .split(/[\s@]+/)
+    .filter(Boolean)
+    .map((p) => p[0]!)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const primaryAuthRole = authRoles[0];
+  const displayRoleName = primaryAuthRole ? (ROLE_LABEL[primaryAuthRole] ?? primaryAuthRole) : role.name;
 
   // Filter mock data to "me"
   const myTasks = opsTasks.filter((t) => t.recruiterId === me.id);
@@ -51,12 +72,12 @@ function MyDesk() {
       {/* Header card */}
       <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 via-purple/5 to-info/5 p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4">
         <div className="size-14 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-lg font-semibold shadow-sm">
-          {me.initials}
+          {displayInitials}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Welcome back, {me.name.split(" ")[0]}</h1>
-            <Badge variant="outline" className="font-normal">{role.name}</Badge>
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Welcome back, {firstName}</h1>
+            <Badge variant="outline" className="font-normal">{displayRoleName}</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             Logged in at {me.loginAt} · {role.permissions.length} permissions enabled
