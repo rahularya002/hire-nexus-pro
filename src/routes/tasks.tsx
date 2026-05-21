@@ -237,10 +237,14 @@ function TasksPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Assign to</Label>
-              <Select value={form.recruiterId} onValueChange={(v) => setForm({ ...form, recruiterId: v })}>
+              <Select
+                value={form.recruiterId}
+                onValueChange={(v) => setForm({ ...form, recruiterId: v })}
+                disabled={!canSeeAll}
+              >
                 <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
                 <SelectContent>
-                  {recruiters.map((r) => (
+                  {(canSeeAll ? recruiters : recruiters.filter((r) => r.id === me.id)).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       <span className="inline-flex items-center gap-2">
                         <span className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
@@ -253,6 +257,9 @@ function TasksPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {!canSeeAll && (
+                <p className="text-[11px] text-muted-foreground">You can only assign tasks to yourself.</p>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
