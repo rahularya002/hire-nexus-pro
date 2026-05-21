@@ -14,6 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          color: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          industry: string | null
+          last_activity_at: string | null
+          name: string
+          notes: string | null
+          status: Database["public"]["Enums"]["client_status"]
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          last_activity_at?: string | null
+          name: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["client_status"]
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          last_activity_at?: string | null
+          name?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["client_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          experience: string | null
+          id: string
+          location: string | null
+          openings: number
+          posted_at: string
+          priority: Database["public"]["Enums"]["position_priority"]
+          salary: string | null
+          skills: string[]
+          status: Database["public"]["Enums"]["position_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experience?: string | null
+          id?: string
+          location?: string | null
+          openings?: number
+          posted_at?: string
+          priority?: Database["public"]["Enums"]["position_priority"]
+          salary?: string | null
+          skills?: string[]
+          status?: Database["public"]["Enums"]["position_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experience?: string | null
+          id?: string
+          location?: string | null
+          openings?: number
+          posted_at?: string
+          priority?: Database["public"]["Enums"]["position_priority"]
+          salary?: string | null
+          skills?: string[]
+          status?: Database["public"]["Enums"]["position_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company_name: string | null
@@ -103,6 +213,9 @@ export type Database = {
         | "client"
         | "lead_recruiter"
         | "senior_recruiter"
+      client_status: "active" | "inactive"
+      position_priority: "high" | "medium" | "low"
+      position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
     }
     CompositeTypes: {
@@ -238,6 +351,9 @@ export const Constants = {
         "lead_recruiter",
         "senior_recruiter",
       ],
+      client_status: ["active", "inactive"],
+      position_priority: ["high", "medium", "low"],
+      position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
     },
   },

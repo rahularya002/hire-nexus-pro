@@ -1,14 +1,18 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { MapPin, Users, Plus } from "lucide-react";
+import { MapPin, Plus, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
-import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
-import { positions, clients } from "@/lib/mock-data";
+import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { listClients } from "@/lib/clients.functions";
+import { listPositions, createPosition } from "@/lib/positions.functions";
+import { colorFor, initialsOf } from "@/lib/display";
 
 export const Route = createFileRoute("/positions")({
   component: () => <AppShell><PositionsShell /></AppShell>,
@@ -21,14 +25,30 @@ function PositionsShell() {
 
 function PositionsPage() {
   const [open, setOpen] = useState(false);
+  const fetchPositions = useServerFn(listPositions);
+  const fetchClients = useServerFn(listClients);
+  const { data: positions = [], isLoading } = useQuery({
+    queryKey: ["positions"],
+    queryFn: () => fetchPositions({ data: {} }),
+  });
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => fetchClients(),
+  });
+  const activeCount = positions.filter((p) => p.status !== "closed").length;
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Open requirements</h1>
-          <p className="text-sm text-muted-foreground mt-1">{positions.filter(p=>p.status!=="closed").length} active mandates across {clients.length} clients</p>
+          <p className="text-sm text-muted-foreground mt-1">{activeCount} active mandates across {clients.length} clients</p>
         </div>
-        <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+        <button
+          onClick={() => setOpen(true)}
+          disabled={clients.length === 0}
+          title={clients.length === 0 ? "Add a client first" : ""}
+          className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
           <Plus className="size-4" /> New position
         </button>
       </div>
@@ -36,14 +56,21 @@ function PositionsPage() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-secondary/30">
           <div className="col-span-5">Position</div>
-          <div className="col-span-2">Client</div>
+          <div className="col-span-3">Client</div>
           <div className="col-span-2">Salary</div>
           <div className="col-span-2">Status</div>
-          <div className="col-span-1 text-right">Pipeline</div>
         </div>
         <div className="divide-y divide-border">
-          {positions.map((p) => {
-            const client = clients.find(c => c.id === p.clientId)!;
+          {isLoading && (
+            <div className="p-10 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full"><Loader2 className="size-4 animate-spin" /> Loading positions…</div>
+          )}
+          {!isLoading && positions.length === 0 && (
+            <div className="p-10 text-center text-sm text-muted-foreground">
+              {clients.length === 0 ? "Add a client first, then create positions for them." : "No positions yet. Click \"New position\" to add one."}
+            </div>
+          )}
+          {!isLoading && positions.map((p) => {
+            const c = p.client;
             return (
               <Link key={p.id} to="/positions/$positionId" params={{ positionId: p.id }}
                 className="grid grid-cols-1 md:grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-secondary/40 transition">
@@ -53,30 +80,74 @@ function PositionsPage() {
                     <PriorityBadge priority={p.priority} />
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">
-                    <MapPin className="size-3" /> {p.location} · {p.experience}
+                    <MapPin className="size-3" /> {[p.location, p.experience].filter(Boolean).join(" · ") || "—"}
                   </div>
                 </div>
-                <div className="md:col-span-2 flex items-center gap-2 min-w-0">
-                  <div className="size-7 rounded-md grid place-items-center text-[10px] font-bold text-primary-foreground shrink-0" style={{background: client.color}}>{client.initials}</div>
-                  <div className="text-sm truncate">{client.name}</div>
+                <div className="md:col-span-3 flex items-center gap-2 min-w-0">
+                  {c && (
+                    <>
+                      <div className="size-7 rounded-md grid place-items-center text-[10px] font-bold text-primary-foreground shrink-0" style={{background: colorFor(c.id, c.color)}}>{initialsOf(c.name)}</div>
+                      <div className="text-sm truncate">{c.name}</div>
+                    </>
+                  )}
                 </div>
-                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{p.salary}</div>
+                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{p.salary ?? "—"}</div>
                 <div className="md:col-span-2"><StatusBadge status={p.status} /></div>
-                <div className="md:col-span-1 md:text-right text-sm font-semibold tabular-nums inline-flex items-center md:justify-end gap-1">
-                  <Users className="size-3.5 text-muted-foreground" /> {p.candidates.length}
-                </div>
               </Link>
             );
           })}
         </div>
       </div>
 
-      <NewPositionDialog open={open} onOpenChange={setOpen} />
+      <NewPositionDialog open={open} onOpenChange={setOpen} clients={clients} />
     </div>
   );
 }
 
-function NewPositionDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function NewPositionDialog({ open, onOpenChange, clients }: { open: boolean; onOpenChange: (v: boolean) => void; clients: { id: string; name: string }[] }) {
+  const qc = useQueryClient();
+  const createFn = useServerFn(createPosition);
+  const [title, setTitle] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [location, setLocation] = useState("");
+  const [experience, setExperience] = useState("");
+  const [salary, setSalary] = useState("");
+  const [openings, setOpenings] = useState(1);
+  const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
+  const [skills, setSkills] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!clientId) { toast.error("Select a client"); return; }
+    setSubmitting(true);
+    try {
+      await createFn({
+        data: {
+          title: title.trim(),
+          client_id: clientId,
+          location: location.trim() || undefined,
+          experience: experience.trim() || undefined,
+          salary: salary.trim() || undefined,
+          openings,
+          priority,
+          description: description.trim() || undefined,
+          skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+        },
+      });
+      toast.success("Position created");
+      qc.invalidateQueries({ queryKey: ["positions"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      setTitle(""); setClientId(""); setLocation(""); setExperience(""); setSalary(""); setSkills(""); setDescription(""); setOpenings(1); setPriority("medium");
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to create position");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -84,26 +155,39 @@ function NewPositionDialog({ open, onOpenChange }: { open: boolean; onOpenChange
           <DialogTitle>New position</DialogTitle>
           <DialogDescription>Create a new open requirement.</DialogDescription>
         </DialogHeader>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            toast.success("Position created");
-            onOpenChange(false);
-          }}
-        >
-          <div className="space-y-1.5"><Label>Title</Label><Input required placeholder="Senior Frontend Engineer" /></div>
+        <form className="space-y-3" onSubmit={handleSubmit}>
+          <div className="space-y-1.5"><Label>Title</Label><Input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Senior Frontend Engineer" /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Client</Label><Input required placeholder="Acme Corp" /></div>
-            <div className="space-y-1.5"><Label>Location</Label><Input required placeholder="Bengaluru" /></div>
+            <div className="space-y-1.5">
+              <Label>Client</Label>
+              <select required value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Select client…</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5"><Label>Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Bengaluru" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Experience</Label><Input required placeholder="5-8 yrs" /></div>
-            <div className="space-y-1.5"><Label>Salary</Label><Input required placeholder="₹30-40 LPA" /></div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5"><Label>Experience</Label><Input value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="5-8 yrs" /></div>
+            <div className="space-y-1.5"><Label>Salary</Label><Input value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="₹30-40 LPA" /></div>
+            <div className="space-y-1.5"><Label>Openings</Label><Input type="number" min={1} value={openings} onChange={(e) => setOpenings(Math.max(1, Number(e.target.value) || 1))} /></div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Priority</Label>
+            <select value={priority} onChange={(e) => setPriority(e.target.value as any)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div className="space-y-1.5"><Label>Skills (comma-separated)</Label><Input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, TypeScript, Design Systems" /></div>
+          <div className="space-y-1.5">
+            <Label>Description</Label>
+            <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the role entails…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit">Create position</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Creating…" : "Create position"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
