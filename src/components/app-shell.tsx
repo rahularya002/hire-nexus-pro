@@ -41,30 +41,73 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean; perm?: string };
-const agencyNav: NavItem[] = [
-  { to: "/dashboard",     label: "Dashboard",          icon: LayoutDashboard, exact: true },
-  { to: "/tasks",         label: "Tasks",              icon: ClipboardList },
-  { to: "/admin/clients", label: "Clients",            icon: Building2 },
-  { to: "/messages",      label: "Messages",           icon: MessageSquare },
-  { to: "/positions",     label: "Open Requirements",  icon: Briefcase },
-  { to: "/ongoing",       label: "Ongoing",            icon: Activity },
-  { to: "/interviews",    label: "Interviews",         icon: CalendarClock },
-  { to: "/pipeline",      label: "Pipeline",           icon: Workflow },
-  { to: "/database",      label: "Candidate DB",       icon: Database },
-  { to: "/closed",        label: "Closed",             icon: CheckCircle2 },
-  { to: "/billing",       label: "Billing",            icon: Receipt },
-  { to: "/team",          label: "Recruiter Roster",   icon: UsersRound },
-  { to: "/activity",      label: "Recruiter Activity", icon: Activity },
+type NavSection = { label: string; items: NavItem[] };
+
+const agencyNav: NavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+      { to: "/tasks",     label: "Tasks",     icon: ClipboardList },
+      { to: "/messages",  label: "Messages",  icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Hiring Pipeline",
+    items: [
+      { to: "/positions",  label: "Open Requirements", icon: Briefcase },
+      { to: "/ongoing",    label: "Ongoing",           icon: Activity },
+      { to: "/interviews", label: "Interviews",        icon: CalendarClock },
+      { to: "/pipeline",   label: "Pipeline",          icon: Workflow },
+      { to: "/closed",     label: "Closed",            icon: CheckCircle2 },
+    ],
+  },
+  {
+    label: "Talent & Clients",
+    items: [
+      { to: "/database",      label: "Candidate DB", icon: Database },
+      { to: "/admin/clients", label: "Clients",      icon: Building2 },
+    ],
+  },
+  {
+    label: "Team & Operations",
+    items: [
+      { to: "/team",     label: "Recruiter Roster",   icon: UsersRound },
+      { to: "/activity", label: "Recruiter Activity", icon: Activity },
+      { to: "/billing",  label: "Billing",            icon: Receipt },
+    ],
+  },
 ];
-const recruiterNav: NavItem[] = [
-  { to: "/me",            label: "My Desk",            icon: Home, exact: true },
-  { to: "/tasks",         label: "Tasks",              icon: ClipboardList, perm: "candidates.view" },
-  { to: "/positions",     label: "Open Requirements",  icon: Briefcase,    perm: "positions.view" },
-  { to: "/interviews",    label: "Interviews",         icon: CalendarClock, perm: "candidates.view" },
-  { to: "/pipeline",      label: "Pipeline",           icon: Workflow,     perm: "pipeline.move" },
-  { to: "/database",      label: "Candidate DB",       icon: Database,     perm: "candidates.view" },
-  { to: "/team",          label: "Recruiter Roster",   icon: UsersRound,   perm: "team.view" },
-  { to: "/activity",      label: "My Activity",        icon: Activity },
+
+const recruiterNav: NavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/me",    label: "My Desk", icon: Home, exact: true },
+      { to: "/tasks", label: "Tasks",   icon: ClipboardList, perm: "candidates.view" },
+    ],
+  },
+  {
+    label: "Hiring Pipeline",
+    items: [
+      { to: "/positions",  label: "Open Requirements", icon: Briefcase,     perm: "positions.view" },
+      { to: "/interviews", label: "Interviews",        icon: CalendarClock, perm: "candidates.view" },
+      { to: "/pipeline",   label: "Pipeline",          icon: Workflow,      perm: "pipeline.move" },
+    ],
+  },
+  {
+    label: "Talent",
+    items: [
+      { to: "/database", label: "Candidate DB", icon: Database, perm: "candidates.view" },
+    ],
+  },
+  {
+    label: "Team",
+    items: [
+      { to: "/team",     label: "Recruiter Roster", icon: UsersRound, perm: "team.view" },
+      { to: "/activity", label: "My Activity",      icon: Activity },
+    ],
+  },
 ];
 
 const STATUS_OPTS: { value: RecruiterStatus; label: string; dot: string; cls: string; Icon: typeof Home }[] = [
@@ -129,30 +172,44 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
-          {nav.filter((i) => !i.perm || can(i.perm as PermKey)).map((item) => {
-            const active = item.exact
-              ? pathname === item.to
-              : pathname === item.to || pathname.startsWith(item.to + "/");
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <Icon className="size-4" />
-                <span>{item.label}</span>
-                {active && <ChevronRight className="ml-auto size-3.5 opacity-60" />}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {nav
+            .map((section) => ({
+              ...section,
+              items: section.items.filter((i) => !i.perm || can(i.perm as PermKey)),
+            }))
+            .filter((section) => section.items.length > 0)
+            .map((section, idx) => (
+              <div key={section.label} className={cn(idx > 0 && "mt-5")}>
+                <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                  {section.label}
+                </div>
+                <div className="space-y-0.5">
+                  {section.items.map((item) => {
+                    const active = item.exact
+                      ? pathname === item.to
+                      : pathname === item.to || pathname.startsWith(item.to + "/");
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                          active
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                        )}
+                      >
+                        <Icon className="size-4" />
+                        <span>{item.label}</span>
+                        {active && <ChevronRight className="ml-auto size-3.5 opacity-60" />}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
         </nav>
 
         <div className="p-3 border-t border-sidebar-border">
