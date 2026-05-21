@@ -1,14 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { format } from "date-fns";
 import { AppShell } from "@/components/app-shell";
-import { opsTasks, recruiters, type OpsTask, type TaskState } from "@/lib/ops/store";
-import { ClipboardList, Phone, Mail, Send, Plus, Clock } from "lucide-react";
+import { opsTasks, recruiters, DEFAULT_TASK_KINDS, type OpsTask, type TaskState } from "@/lib/ops/store";
+import { clients as clientList } from "@/lib/mock-data";
+import { ClipboardList, Phone, Mail, Send, Plus, Clock, CalendarIcon, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/tasks")({ component: TasksPage });
@@ -18,12 +22,15 @@ const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed
 function TasksPage() {
   const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
   const [open, setOpen] = useState(false);
+  const [kinds, setKinds] = useState<string[]>(DEFAULT_TASK_KINDS);
+  const [manageKindsOpen, setManageKindsOpen] = useState(false);
+  const [newKind, setNewKind] = useState("");
   const [form, setForm] = useState({
     title: "",
     client: "",
     candidate: "",
-    kind: "Call candidate" as OpsTask["kind"],
-    due: "Today",
+    kind: DEFAULT_TASK_KINDS[0],
+    dueDate: undefined as Date | undefined,
     recruiterId: recruiters[0]?.id ?? "r1",
   });
 
@@ -43,6 +50,7 @@ function TasksPage() {
       toast.error("Title and client are required");
       return;
     }
+    const dueLabel = form.dueDate ? format(form.dueDate, "PPP") : "No due date";
     setTasks((prev) => [
       {
         id: `t-${Date.now()}`,
@@ -52,15 +60,32 @@ function TasksPage() {
         kind: form.kind,
         state: "Pending",
         sla: "ok",
-        due: form.due,
+        due: dueLabel,
         recruiterId: form.recruiterId,
       },
       ...prev,
     ]);
     const assignee = recruiters.find((r) => r.id === form.recruiterId);
-    setForm({ title: "", client: "", candidate: "", kind: "Call candidate", due: "Today", recruiterId: recruiters[0]?.id ?? "r1" });
+    setForm({ title: "", client: "", candidate: "", kind: kinds[0] ?? "Call candidate", dueDate: undefined, recruiterId: recruiters[0]?.id ?? "r1" });
     setOpen(false);
     toast.success(assignee ? `Task assigned to ${assignee.name}` : "Task created");
+  };
+
+  const addKind = () => {
+    const v = newKind.trim();
+    if (!v) return;
+    if (kinds.some((k) => k.toLowerCase() === v.toLowerCase())) {
+      toast.error("That kind already exists");
+      return;
+    }
+    setKinds((prev) => [...prev, v]);
+    setNewKind("");
+    toast.success(`Added "${v}"`);
+  };
+
+  const removeKind = (k: string) => {
+    setKinds((prev) => prev.filter((x) => x !== k));
+    if (form.kind === k) setForm((f) => ({ ...f, kind: kinds[0] ?? "" }));
   };
 
   return (
@@ -143,25 +168,65 @@ function TasksPage() {
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); createTask(); }}>
             <div className="space-y-1.5"><Label>Title</Label><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Follow up on offer" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Client</Label><Input required value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} placeholder="Acme Corp" /></div>
+              <div className="space-y-1.5">
+                <Label>Client</Label>
+                <Select value={form.client} onValueChange={(v) => setForm({ ...form, client: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>
+                    {clientList.map((c) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5"><Label>Candidate</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Kind</Label>
-                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as OpsTask["kind"] })}>
+                  <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Call candidate">Call candidate</SelectItem>
-                    <SelectItem value="Confirm interview">Confirm interview</SelectItem>
-                    <SelectItem value="Share shortlist">Share shortlist</SelectItem>
-                    <SelectItem value="Follow up with client">Follow up with client</SelectItem>
-                    <SelectItem value="Schedule interview round">Schedule interview round</SelectItem>
-                    <SelectItem value="Collect feedback">Collect feedback</SelectItem>
+                      {kinds.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                  <button
+                    type="button"
+                    onClick={() => setManageKindsOpen(true)}
+                    className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    <Pencil className="size-3" /> Manage kinds
+                  </button>
               </div>
-              <div className="space-y-1.5"><Label>Due</Label><Input value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} placeholder="Today / Tomorrow" /></div>
+              <div className="space-y-1.5">
+                <Label>Due</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !form.dueDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 size-4" />
+                      {form.dueDate ? format(form.dueDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={form.dueDate}
+                      onSelect={(d) => setForm({ ...form, dueDate: d })}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Assign to</Label>
@@ -187,6 +252,46 @@ function TasksPage() {
               <Button type="submit">Create task</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageKindsOpen} onOpenChange={setManageKindsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage task kinds</DialogTitle>
+            <DialogDescription>Add or remove the kinds available when creating a task.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newKind}
+                onChange={(e) => setNewKind(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKind(); } }}
+                placeholder="e.g. Negotiate offer"
+              />
+              <Button type="button" onClick={addKind}><Plus className="size-4" /> Add</Button>
+            </div>
+            <div className="rounded-md border border-border divide-y divide-border max-h-72 overflow-y-auto">
+              {kinds.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-6">No kinds yet — add one above.</div>
+              )}
+              {kinds.map((k) => (
+                <div key={k} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span>{k}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeKind(k)}
+                    className="text-[11px] text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => setManageKindsOpen(false)}>Done</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppShell>

@@ -1,11 +1,14 @@
 export type TaskState = "Pending" | "Ongoing" | "Interview Pending" | "Closed" | "Reopened" | "No-show";
-export type TaskKind =
-  | "Call candidate"
-  | "Confirm interview"
-  | "Share shortlist"
-  | "Follow up with client"
-  | "Schedule interview round"
-  | "Collect feedback";
+export type TaskKind = string;
+
+export const DEFAULT_TASK_KINDS: string[] = [
+  "Call candidate",
+  "Confirm interview",
+  "Share shortlist",
+  "Follow up with client",
+  "Schedule interview round",
+  "Collect feedback",
+];
 
 export interface OpsTask {
   id: string;
