@@ -161,10 +161,13 @@ export const onboardClientWithLogin = createServerFn({ method: "POST" })
     const newUserId = created.user.id;
 
     try {
-      // 2. Assign 'client' role
+      // 2. Ensure 'client' role (handle_new_user trigger already inserts it for non-first users)
       const { error: roleErr } = await supabaseAdmin
         .from("user_roles")
-        .insert({ user_id: newUserId, role: "client" });
+        .upsert(
+          { user_id: newUserId, role: "client" },
+          { onConflict: "user_id,role", ignoreDuplicates: true },
+        );
       if (roleErr) throw new Error(roleErr.message);
 
       // 3. Insert client row
