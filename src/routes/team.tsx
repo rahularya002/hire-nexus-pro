@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { recruiters, type RecruiterStatus } from "@/lib/ops/store";
+import { type RecruiterStatus } from "@/lib/ops/store";
 import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { createTeamMember, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
+import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
@@ -63,10 +63,34 @@ const TEAM_ROLE_OPTIONS: { value: Exclude<DbRole, "client">; label: string }[] =
 ];
 
 function TeamPage() {
-  const [team, setTeam] = useState(() => [...recruiters]);
+  const [team, setTeam] = useState<{
+    id: string;
+    name: string;
+    initials: string;
+    role: string;
+    status: RecruiterStatus;
+    loginAt: string;
+    assignedClients: number;
+    assignedPositions: number;
+    sharesToday: number;
+    closuresMtd: number;
+    conversionPct: number;
+    joinedOn: string;
+  }[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { can, roles: myRoles } = useAuth();
   const isAdmin = myRoles.includes("admin");
+  const fetchTeam = useServerFn(getTeamMembers);
+
+  useEffect(() => {
+    fetchTeam({})
+      .then((res) => {
+        setTeam(res.members as any);
+      })
+      .catch(() => toast.error("Failed to load team"))
+      .finally(() => setLoading(false));
+  }, [fetchTeam]);
 
   const summary = useMemo(() => ({
     online: team.filter((r) => r.status !== "Offline").length,
