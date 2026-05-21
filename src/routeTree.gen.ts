@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScoutRouteImport } from './routes/scout'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingRouteImport } from './routes/pending'
@@ -61,9 +63,19 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScoutRoute = ScoutRouteImport.update({
   id: '/scout',
   path: '/scout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PositionsRoute = PositionsRouteImport.update({
@@ -244,7 +256,9 @@ export interface FileRoutesByFullPath {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -282,7 +296,9 @@ export interface FileRoutesByTo {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -321,7 +337,9 @@ export interface FileRoutesById {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
+  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -361,7 +379,9 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/profile'
     | '/scout'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/team'
@@ -399,7 +419,9 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/profile'
     | '/scout'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/team'
@@ -437,7 +459,9 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/profile'
     | '/scout'
+    | '/settings'
     | '/signup'
     | '/tasks'
     | '/team'
@@ -476,7 +500,9 @@ export interface RootRouteChildren {
   PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
+  ProfileRoute: typeof ProfileRoute
   ScoutRoute: typeof ScoutRoute
+  SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
@@ -518,11 +544,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/scout': {
       id: '/scout'
       path: '/scout'
       fullPath: '/scout'
       preLoaderRoute: typeof ScoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/positions': {
@@ -816,7 +856,9 @@ const rootRouteChildren: RootRouteChildren = {
   PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
+  ProfileRoute: ProfileRoute,
   ScoutRoute: ScoutRoute,
+  SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,

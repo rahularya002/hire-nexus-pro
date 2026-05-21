@@ -11,7 +11,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { session, roles, profile, loading } = useAuth();
+  const { session, roles, profile, loading, profileLoaded } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -19,10 +19,11 @@ function LoginPage() {
 
   useEffect(() => {
     if (loading || !session) return;
+    if (!profileLoaded) return;
     if (roles.includes("admin") || roles.includes("recruiter")) navigate({ to: "/dashboard", replace: true });
     else if (roles.includes("client") && profile?.status === "active") navigate({ to: "/client", replace: true });
     else navigate({ to: "/pending", replace: true });
-  }, [loading, session, roles, profile, navigate]);
+  }, [loading, profileLoaded, session, roles, profile, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

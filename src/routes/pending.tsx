@@ -9,7 +9,7 @@ export const Route = createFileRoute("/pending")({
 });
 
 function PendingPage() {
-  const { session, profile, roles, loading, signOut } = useAuth();
+  const { session, profile, roles, loading, profileLoaded, signOut } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,6 +18,7 @@ function PendingPage() {
       navigate({ to: "/login", replace: true });
       return;
     }
+    if (!profileLoaded) return;
     if (roles.includes("admin") || roles.includes("recruiter")) {
       navigate({ to: "/dashboard", replace: true });
       return;
@@ -25,7 +26,7 @@ function PendingPage() {
     if (roles.includes("client") && profile?.status === "active") {
       navigate({ to: "/client", replace: true });
     }
-  }, [loading, session, roles, profile, navigate]);
+  }, [loading, profileLoaded, session, roles, profile, navigate]);
 
   return (
     <div className="min-h-screen grid place-items-center bg-[#0b0807] text-white px-4">

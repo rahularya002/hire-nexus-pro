@@ -41,9 +41,18 @@ function Cockpit() {
   const [myStatus, setMyStatus] = useState<RecruiterStatus>("Active");
   const [taskTab, setTaskTab] = useState<TaskState>("Pending");
   const myTasks = tasksByState(taskTab);
-  const { roles } = useAuth();
+  const { roles, profile, user } = useAuth();
   const isAdmin = roles.includes("admin");
   const inactiveClients = isAdmin ? inactiveClientsAll : [];
+
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = (profile?.full_name?.trim().split(/\s+/)[0])
+    || (profile?.email?.split("@")[0])
+    || (user?.email?.split("@")[0])
+    || "there";
 
   const digest = [
     { label: "Profiles shared", ...dailyDigest.shares },
@@ -57,8 +66,8 @@ function Cockpit() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mission Control · Wed, May 14</div>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Good afternoon, Aarav</h1>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mission Control · {dateLabel}</div>
+          <h1 className="text-3xl font-semibold tracking-tight mt-1">{greeting}, {firstName}</h1>
           <p className="text-sm text-muted-foreground mt-1">Your operational cockpit — every active mandate, task and conversation in one place.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
