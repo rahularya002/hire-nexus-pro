@@ -31,6 +31,7 @@ import type { RecruiterStatus } from "@/lib/ops/store";
 import { AuthGate } from "@/components/auth-gate";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useNavigate } from "@tanstack/react-router";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
