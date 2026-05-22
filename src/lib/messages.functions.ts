@@ -136,12 +136,15 @@ export const getOrCreateThreadForClient = createServerFn({ method: "POST" })
     const id = await ensureThreadFor({ supabase }, clientId);
     const { data: thread } = await supabase
       .from("message_threads")
-      .select(
-        "id, client_id, subject, pinned, last_message_at, created_at, client:clients(id, name, color, contact_name)",
-      )
+      .select("id, client_id, subject, pinned, last_message_at, created_at")
       .eq("id", id)
       .single();
-    return thread as ThreadRow;
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id, name, color, contact_name")
+      .eq("id", clientId)
+      .maybeSingle();
+    return { ...(thread as any), client: client ?? null } as ThreadRow;
   });
 
 export const listMessages = createServerFn({ method: "GET" })
@@ -229,11 +232,13 @@ export const markThreadRead = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const col = data.viewer === "staff" ? "read_by_staff_at" : "read_by_client_at";
+    const col: "read_by_staff_at" | "read_by_client_at" =
+      data.viewer === "staff" ? "read_by_staff_at" : "read_by_client_at";
     const otherRole = data.viewer === "staff" ? "client" : "staff";
+    const update: Record<string, string> = { [col]: new Date().toISOString() };
     const { error } = await supabase
       .from("messages")
-      .update({ [col]: new Date().toISOString() })
+      .update(update as any)
       .eq("thread_id", data.threadId)
       .eq("sender_role", otherRole)
       .is(col, null);
