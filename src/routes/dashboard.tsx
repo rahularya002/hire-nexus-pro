@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import {
   Building2, Briefcase, CalendarClock, ClipboardList,
   ArrowUpRight, Sparkles, AlertTriangle, MessageSquare,
@@ -15,6 +17,7 @@ import {
 import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
+import { listActivities, formatRelative, type ActivityRow } from "@/lib/activities.functions";
 
 export const Route = createFileRoute("/dashboard")({
   component: IndexPage,
@@ -301,6 +304,11 @@ function Cockpit() {
             ))}
           </div>
         </CockpitCard>
+      </div>
+
+      {/* Recruiter activity status */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <DashboardActivityFeed />
       </div>
 
       {/* Recruiter activity status */}
