@@ -1,53 +1,55 @@
-# Fix dashboard gaps: profile/settings pages, greeting, login flash
+# End-to-end test — findings + fix plan
 
-Four small fixes to the agency portal so the post-login experience feels real.
+## What I did
 
-## 1. Stop the "pending approval" flash after admin login
+Logged in as **client@gmail.com**, opened **/client/upload**, filled "Senior Backend Engineer - Test by AI" (Bengaluru, 5–8 years) and clicked **Submit JD**.
 
-Today `src/routes/login.tsx` and `src/routes/pending.tsx` decide where to send the user the moment a `session` appears, but before `profileLoaded` is true. With no roles loaded yet, both files fall through to `/pending`, which renders for a frame and then re-redirects to `/dashboard` once roles arrive.
+Result: red error banner — **"No client account linked to your login."**
 
-Fix: in both files, wait for `profileLoaded` from `useAuth()` before running the role-based redirect. No other logic changes.
+## Root cause (confirmed)
 
-## 2. Dynamic greeting + name + date on the dashboard
+The `client@gmail.com` profile *is* correctly linked — DB shows `clients.id = 301c7b12-…-7f63eaef457a` with `user_id = 6ded5f64-…` and `role = client`.
 
-`src/routes/dashboard.tsx` currently hardcodes:
+The failure is **RLS**. `src/routes/client.upload.tsx` runs a browser-side query:
 
-- `Mission Control · Wed, May 14`
-- `Good afternoon, Aarav`
+```ts
+supabase.from("clients").select("id").eq("user_id", user.id).maybeSingle()
+```
 
-Replace with:
+But `public.clients` only has one SELECT policy — **"Staff can view clients"** (admin / lead_recruiter / recruiter). There is **no policy letting a client read their own clients row**, so the query returns 0 rows and we throw "No client account linked".
 
-- Date string from `new Date()` formatted as e.g. `Thu, May 21` (locale `en-US`, weekday short + month short + day).
-- Greeting derived from local hour: `Good morning` (<12), `Good afternoon` (<17), `Good evening` (otherwise).
-- Name from `useAuth().profile?.full_name` → first token. Fallbacks: email local-part, then `there`.
+Same gap will hit any other client-portal page that needs to read its own `clients` row directly from the browser (profile/header, account team, etc.).
 
-No other dashboard content changes.
+Until this is fixed, **the admin cannot see the request** (nothing is created) and the recruiter-assignment step can't even start.
 
-## 3. Add Profile page
+## Fix plan
 
-New route `src/routes/profile.tsx` wrapped in `AppShell`. Read `profile`, `roles`, `user` from `useAuth()`. Show:
+### Step 1 — Migration: let clients read their own clients row
 
-- Avatar (initials), full name, email, role badge, account status.
-- An "Edit profile" card with `full_name` and `company_name` inputs that update `public.profiles` via the browser supabase client (the existing RLS policy "Users can update their own profile" already allows this) and then calls `refresh()` from auth context.
+Add a new RLS policy (does not weaken staff access, does not expose other clients):
 
-Wire the Profile dropdown item in `src/components/app-shell.tsx` to `<Link to="/profile">`.
+```sql
+CREATE POLICY "Clients view own client row"
+  ON public.clients FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+```
 
-## 4. Add Settings page
+That's the minimal, surgical fix that unblocks `/client/upload` and any future client-portal read of `clients`.
 
-New route `src/routes/settings.tsx` wrapped in `AppShell`. Two simple sections:
+### Step 2 — Resume the end-to-end test (no code changes)
 
-- **Password** — change password via `supabase.auth.updateUser({ password })`.
-- **Session** — sign-out button (mirrors the dropdown action).
+1. As **client@gmail.com** → `/client/upload` → submit the same JD → expect success screen.
+2. Verify in DB that a row landed in `positions` with `client_id = 301c7b12-…`.
+3. Log out, log in as **admin@gmail.com** → `/positions` (and `/dashboard`) → confirm the new requirement is visible.
+4. Open the position → assign **recruit@gmail.com** as the owning recruiter (whichever assign UI the position detail exposes — `positions.$positionId`).
+5. Log out, log in as **recruit@gmail.com** → `/positions` (or `/dashboard`) → confirm the recruiter sees the assigned position.
 
-Wire the Settings dropdown item in `app-shell.tsx` to `<Link to="/settings">`.
+### Step 3 — Report findings
 
-## Files touched
+After step 2, I'll summarise: which steps passed, which UI looked broken, and any further RLS / assignment gaps I hit while testing (recruiter assignment may need its own follow-up — I'll know once I reach that screen).
 
-- edit `src/routes/login.tsx` — gate redirect on `profileLoaded`
-- edit `src/routes/pending.tsx` — gate redirect on `profileLoaded`
-- edit `src/routes/dashboard.tsx` — dynamic name/greeting/date in the header only
-- edit `src/components/app-shell.tsx` — link Profile and Settings dropdown items
-- add `src/routes/profile.tsx`
-- add `src/routes/settings.tsx`
+## Notes / scope
 
-No DB migrations, no schema changes, no changes to mock data or the rest of the dashboard.
+- Only one DB migration; no app code changes needed to unblock the test.
+- I'll keep the rest of the test purely interactive — no other edits unless we hit another blocker, in which case I'll stop and report before touching code.
