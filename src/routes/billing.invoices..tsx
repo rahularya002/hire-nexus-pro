@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { getInvoice, setInvoiceStatus, fmtINR, fmtDate, type InvoiceStatus } from "@/lib/billing.functions";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/billing/invoices/$invoiceId")({
+export const Route = createFileRoute("/billing/invoices/")({
   component: () => <AppShell><Page /></AppShell>,
 });
 

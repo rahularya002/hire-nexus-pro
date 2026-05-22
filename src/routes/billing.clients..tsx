@@ -9,7 +9,7 @@ import {
 } from "@/lib/billing.functions";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/billing/clients/$clientId")({
+export const Route = createFileRoute("/billing/clients/")({
   component: () => <AppShell><Page /></AppShell>,
 });
 

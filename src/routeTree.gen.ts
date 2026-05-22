@@ -47,6 +47,8 @@ import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
 import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
+import { Route as BillingInvoicesRouteImport } from './routes/billing.invoices.'
+import { Route as BillingClientsRouteImport } from './routes/billing.clients.'
 
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
@@ -240,6 +242,16 @@ const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
   path: '/clients/$clientId',
   getParentRoute: () => BillingRoute,
 } as any)
+const BillingInvoicesRoute = BillingInvoicesRouteImport.update({
+  id: '/invoices/',
+  path: '/invoices/',
+  getParentRoute: () => BillingRoute,
+} as any)
+const BillingClientsRoute = BillingClientsRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => BillingRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -277,6 +289,8 @@ export interface FileRoutesByFullPath {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/billing/clients/': typeof BillingClientsRoute
+  '/billing/invoices/': typeof BillingInvoicesRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -317,6 +331,8 @@ export interface FileRoutesByTo {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
+  '/billing/clients': typeof BillingClientsRoute
+  '/billing/invoices': typeof BillingInvoicesRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -358,6 +374,8 @@ export interface FileRoutesById {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/billing/clients/': typeof BillingClientsRoute
+  '/billing/invoices/': typeof BillingInvoicesRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -400,6 +418,8 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/billing/clients/'
+    | '/billing/invoices/'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -440,6 +460,8 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client'
+    | '/billing/clients'
+    | '/billing/invoices'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -480,6 +502,8 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/billing/clients/'
+    | '/billing/invoices/'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -789,15 +813,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingClientsClientIdRouteImport
       parentRoute: typeof BillingRoute
     }
+    '/billing/invoices/': {
+      id: '/billing/invoices/'
+      path: '/invoices'
+      fullPath: '/billing/invoices/'
+      preLoaderRoute: typeof BillingInvoicesRouteImport
+      parentRoute: typeof BillingRoute
+    }
+    '/billing/clients/': {
+      id: '/billing/clients/'
+      path: '/clients'
+      fullPath: '/billing/clients/'
+      preLoaderRoute: typeof BillingClientsRouteImport
+      parentRoute: typeof BillingRoute
+    }
   }
 }
 
 interface BillingRouteChildren {
+  BillingClientsRoute: typeof BillingClientsRoute
+  BillingInvoicesRoute: typeof BillingInvoicesRoute
   BillingClientsClientIdRoute: typeof BillingClientsClientIdRoute
   BillingInvoicesInvoiceIdRoute: typeof BillingInvoicesInvoiceIdRoute
 }
 
 const BillingRouteChildren: BillingRouteChildren = {
+  BillingClientsRoute: BillingClientsRoute,
+  BillingInvoicesRoute: BillingInvoicesRoute,
   BillingClientsClientIdRoute: BillingClientsClientIdRoute,
   BillingInvoicesInvoiceIdRoute: BillingInvoicesInvoiceIdRoute,
 }
@@ -879,3 +921,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
