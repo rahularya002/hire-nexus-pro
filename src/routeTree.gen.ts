@@ -38,6 +38,7 @@ import { Route as ClientTeamRouteImport } from './routes/client.team'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
+import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientMessagesRouteImport } from './routes/client.messages'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
@@ -192,6 +193,11 @@ const ClientPlacementsRoute = ClientPlacementsRouteImport.update({
   path: '/client/placements',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientPipelineRoute = ClientPipelineRouteImport.update({
+  id: '/client/pipeline',
+  path: '/client/pipeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientMessagesRoute = ClientMessagesRouteImport.update({
   id: '/client/messages',
   path: '/client/messages',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/messages': typeof ClientMessagesRoute
+  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/messages': typeof ClientMessagesRoute
+  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
   '/client/messages': typeof ClientMessagesRoute
+  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -381,6 +390,7 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/messages'
+    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/messages'
+    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -459,6 +470,7 @@ export interface FileRouteTypes {
     | '/client/documents'
     | '/client/interviews'
     | '/client/messages'
+    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -499,6 +511,7 @@ export interface RootRouteChildren {
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
+  ClientPipelineRoute: typeof ClientPipelineRoute
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
@@ -713,6 +726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPlacementsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/pipeline': {
+      id: '/client/pipeline'
+      path: '/client/pipeline'
+      fullPath: '/client/pipeline'
+      preLoaderRoute: typeof ClientPipelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/messages': {
       id: '/client/messages'
       path: '/client/messages'
@@ -847,6 +867,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
   ClientMessagesRoute: ClientMessagesRoute,
+  ClientPipelineRoute: ClientPipelineRoute,
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,
