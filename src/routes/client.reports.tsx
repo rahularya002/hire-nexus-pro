@@ -1,31 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Cell } from "recharts";
 import { ClientShell } from "@/components/client-shell";
-import { aggregateFunnel, monthlyHires, sourceMix, accountTeam } from "@/lib/client-data";
+import { getClientReports } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/client/reports")({
   component: () => <ClientShell><Page /></ClientShell>,
 });
 
 function Page() {
-  const f = aggregateFunnel();
+  const fn = useServerFn(getClientReports);
+  const q = useQuery({ queryKey: ["client", "reports"], queryFn: () => fn() });
+  const f = q.data?.funnel ?? { shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
+  const monthlyHires = q.data?.monthlyHires ?? [];
   const funnelData = [
-    { stage: "Shared",      count: f.shared },
+    { stage: "Shared", count: f.shared },
     { stage: "Shortlisted", count: f.shortlisted },
     { stage: "Interviewed", count: f.interview },
-    { stage: "Offered",     count: f.offered },
-    { stage: "Joined",      count: f.joined },
+    { stage: "Offered", count: f.offered },
+    { stage: "Joined", count: f.joined },
   ];
   const conv = f.shared > 0 ? Math.round((f.joined / f.shared) * 100) : 0;
-  const avgResponse = (accountTeam.reduce((a, r) => a + r.responseHrs, 0) / accountTeam.length).toFixed(1);
-  const funnelColors = [
-    "var(--purple)",
-    "var(--primary)",
-    "var(--warning)",
-    "var(--chart-1)",
-    "var(--success)",
-  ];
+  const funnelColors = ["var(--purple)", "var(--primary)", "var(--warning)", "var(--chart-1)", "var(--success)"];
 
   return (
     <div className="space-y-6">
@@ -34,14 +32,13 @@ function Page() {
         <h1 className="text-2xl font-semibold tracking-tight mt-1 inline-flex items-center gap-2">
           <BarChart3 className="size-5 text-primary" /> Reports
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Funnel conversion, hires and recruiter performance for your account.</p>
+        <p className="text-sm text-muted-foreground mt-1">Funnel conversion and hires for your account.</p>
       </div>
 
-      <div className="grid sm:grid-cols-4 gap-3">
-        <Stat label="Profiles shared (all time)" value={f.shared.toString()} />
+      <div className="grid sm:grid-cols-3 gap-3">
+        <Stat label="Profiles shared" value={f.shared.toString()} />
         <Stat label="Joined" value={f.joined.toString()} />
         <Stat label="Share → join conversion" value={`${conv}%`} />
-        <Stat label="Avg recruiter response" value={`${avgResponse} hr`} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -54,9 +51,7 @@ function Page() {
                 <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{ fill: "var(--accent)", opacity: 0.3 }} contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} />
                 <Bar dataKey="count" radius={[6,6,0,0]}>
-                  {funnelData.map((_, i) => (
-                    <Cell key={i} fill={funnelColors[i % funnelColors.length]} />
-                  ))}
+                  {funnelData.map((_, i) => <Cell key={i} fill={funnelColors[i % funnelColors.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -74,39 +69,6 @@ function Page() {
                 <Bar dataKey="hires" fill="var(--primary)" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card title="Source-of-hire mix">
-          <div className="space-y-2.5">
-            {sourceMix.map((s) => (
-              <div key={s.source}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span>{s.source}</span>
-                  <span className="tabular-nums text-muted-foreground">{s.pct}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                  <div className="h-full bg-primary" style={{ width: `${s.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card title="Recruiter response time">
-          <div className="space-y-3">
-            {accountTeam.map((r) => (
-              <div key={r.id} className="flex items-center gap-3">
-                <div className="size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[11px] font-semibold">
-                  {r.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium truncate">{r.name}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{r.role}</div>
-                </div>
-                <div className="text-sm font-semibold tabular-nums">{r.responseHrs} hr</div>
-              </div>
-            ))}
           </div>
         </Card>
       </div>

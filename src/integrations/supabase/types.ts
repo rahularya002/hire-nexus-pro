@@ -164,6 +164,74 @@ export type Database = {
         }
         Relationships: []
       }
+      client_billing_terms: {
+        Row: {
+          billing_cycle: Database["public"]["Enums"]["billing_cycle"]
+          client_id: string
+          created_at: string
+          currency: string
+          fee_model: Database["public"]["Enums"]["fee_model"]
+          fee_value: number
+          gst_pct: number
+          id: string
+          invoice_day_of_month: number
+          payment_terms_days: number
+          po_number: string | null
+          po_required: boolean
+          replacement_policy: Database["public"]["Enums"]["replacement_policy"]
+          replacement_window_days: number
+          tds_pct: number
+          tiers: Json
+          updated_at: string
+        }
+        Insert: {
+          billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
+          client_id: string
+          created_at?: string
+          currency?: string
+          fee_model?: Database["public"]["Enums"]["fee_model"]
+          fee_value?: number
+          gst_pct?: number
+          id?: string
+          invoice_day_of_month?: number
+          payment_terms_days?: number
+          po_number?: string | null
+          po_required?: boolean
+          replacement_policy?: Database["public"]["Enums"]["replacement_policy"]
+          replacement_window_days?: number
+          tds_pct?: number
+          tiers?: Json
+          updated_at?: string
+        }
+        Update: {
+          billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
+          client_id?: string
+          created_at?: string
+          currency?: string
+          fee_model?: Database["public"]["Enums"]["fee_model"]
+          fee_value?: number
+          gst_pct?: number
+          id?: string
+          invoice_day_of_month?: number
+          payment_terms_days?: number
+          po_number?: string | null
+          po_required?: boolean
+          replacement_policy?: Database["public"]["Enums"]["replacement_policy"]
+          replacement_window_days?: number
+          tds_pct?: number
+          tiers?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_billing_terms_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           color: string | null
@@ -362,6 +430,131 @@ export type Database = {
             columns: ["position_id"]
             isOneToOne: false
             referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_line_items: {
+        Row: {
+          amount_inr: number
+          candidate_name: string
+          created_at: string
+          ctc_inr: number | null
+          fee_basis: string
+          id: string
+          invoice_id: string
+          joining_date: string | null
+          kind: Database["public"]["Enums"]["invoice_line_kind"]
+          placement_id: string | null
+          position_title: string
+        }
+        Insert: {
+          amount_inr?: number
+          candidate_name: string
+          created_at?: string
+          ctc_inr?: number | null
+          fee_basis?: string
+          id?: string
+          invoice_id: string
+          joining_date?: string | null
+          kind?: Database["public"]["Enums"]["invoice_line_kind"]
+          placement_id?: string | null
+          position_title: string
+        }
+        Update: {
+          amount_inr?: number
+          candidate_name?: string
+          created_at?: string
+          ctc_inr?: number | null
+          fee_basis?: string
+          id?: string
+          invoice_id?: string
+          joining_date?: string | null
+          kind?: Database["public"]["Enums"]["invoice_line_kind"]
+          placement_id?: string | null
+          position_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_line_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_line_items_placement_id_fkey"
+            columns: ["placement_id"]
+            isOneToOne: false
+            referencedRelation: "placements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          due_date: string
+          gst_inr: number
+          id: string
+          invoice_no: string
+          issue_date: string
+          notes: string | null
+          period_from: string
+          period_to: string
+          po_number: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal_inr: number
+          tds_inr: number
+          total_inr: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          due_date: string
+          gst_inr?: number
+          id?: string
+          invoice_no: string
+          issue_date: string
+          notes?: string | null
+          period_from: string
+          period_to: string
+          po_number?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal_inr?: number
+          tds_inr?: number
+          total_inr?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          due_date?: string
+          gst_inr?: number
+          id?: string
+          invoice_no?: string
+          issue_date?: string
+          notes?: string | null
+          period_from?: string
+          period_to?: string
+          po_number?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal_inr?: number
+          tds_inr?: number
+          total_inr?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -762,9 +955,11 @@ export type Database = {
         | "rounds"
         | "offered"
         | "closed"
+      billing_cycle: "monthly" | "per_joining"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
       client_status: "active" | "inactive"
       document_kind: "jd" | "onboarding" | "offer" | "resume" | "other"
+      fee_model: "percent_ctc" | "flat_per_hire" | "tiered"
       interview_kind:
         | "hr_screen"
         | "technical"
@@ -786,11 +981,16 @@ export type Database = {
         | "completed"
         | "no_show"
         | "cancelled"
-      invoice_status: "draft" | "sent" | "paid" | "overdue"
+      invoice_line_kind:
+        | "placement"
+        | "replacement_covered"
+        | "credit_left_in_window"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       message_sender_role: "staff" | "client"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
+      replacement_policy: "free_replacement" | "pro_rata_credit" | "none"
       task_sla: "ok" | "warning" | "breach"
       task_state:
         | "Pending"
@@ -957,9 +1157,11 @@ export const Constants = {
         "offered",
         "closed",
       ],
+      billing_cycle: ["monthly", "per_joining"],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],
       client_status: ["active", "inactive"],
       document_kind: ["jd", "onboarding", "offer", "resume", "other"],
+      fee_model: ["percent_ctc", "flat_per_hire", "tiered"],
       interview_kind: [
         "hr_screen",
         "technical",
@@ -984,11 +1186,17 @@ export const Constants = {
         "no_show",
         "cancelled",
       ],
-      invoice_status: ["draft", "sent", "paid", "overdue"],
+      invoice_line_kind: [
+        "placement",
+        "replacement_covered",
+        "credit_left_in_window",
+      ],
+      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       message_sender_role: ["staff", "client"],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
+      replacement_policy: ["free_replacement", "pro_rata_credit", "none"],
       task_sla: ["ok", "warning", "breach"],
       task_state: [
         "Pending",
