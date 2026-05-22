@@ -291,6 +291,49 @@ export const setInvoiceStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/* ---------- Terms upsert ---------- */
+
+const tierSchema = z.object({
+  upToCtcInr: z.number().nonnegative(),
+  flatFeeInr: z.number().nonnegative(),
+});
+
+const upsertTermsSchema = z.object({
+  clientId: z.string().uuid(),
+  fee_model: z.enum(FEE_MODELS),
+  fee_value: z.number().nonnegative(),
+  tiers: z.array(tierSchema).max(20).default([]),
+  replacement_window_days: z.number().int().min(0).max(365),
+  replacement_policy: z.enum(REPLACEMENT_POLICIES),
+  billing_cycle: z.enum(BILLING_CYCLES),
+  invoice_day_of_month: z.number().int().min(1).max(28),
+  payment_terms_days: z.number().int().min(0).max(180),
+  gst_pct: z.number().min(0).max(50),
+  tds_pct: z.number().min(0).max(50),
+  currency: z.string().min(3).max(8).default("INR"),
+  po_required: z.boolean(),
+  po_number: z.string().max(64).nullable().optional(),
+});
+
+export const upsertBillingTerms = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.input<typeof upsertTermsSchema>) => upsertTermsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { clientId, ...rest } = data;
+    const payload = {
+      client_id: clientId,
+      ...rest,
+      tiers: rest.tiers ?? [],
+      po_number: rest.po_number ?? null,
+    };
+    const { error } = await supabase
+      .from("client_billing_terms")
+      .upsert(payload, { onConflict: "client_id" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const getClientBilling = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { clientId: string }) => z.object({ clientId: z.string().uuid() }).parse(d))
