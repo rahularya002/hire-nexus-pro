@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type PositionRow = {
   id: string;
@@ -16,6 +17,7 @@ export type PositionRow = {
   skills: string[];
   posted_at: string;
   created_at: string;
+  assigned_recruiter_id: string | null;
   client?: { id: string; name: string; color: string | null; industry: string | null; contact_name: string | null } | null;
 };
 
@@ -30,6 +32,7 @@ const upsertSchema = z.object({
   status: z.enum(["open", "in_progress", "interviews", "closed"]).optional(),
   description: z.string().max(10_000).optional().nullable(),
   skills: z.array(z.string().min(1).max(60)).max(30).optional(),
+  assigned_recruiter_id: z.string().uuid().nullable().optional(),
 });
 
 function clean<T extends Record<string, any>>(o: T): T {
@@ -112,4 +115,47 @@ export const deletePosition = createServerFn({ method: "POST" })
     const { error } = await supabase.from("positions").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const assignPositionRecruiter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      assigned_recruiter_id: z.string().uuid().nullable(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: row, error } = await supabase
+      .from("positions")
+      .update({ assigned_recruiter_id: data.assigned_recruiter_id })
+      .eq("id", data.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as PositionRow;
+  });
+
+export const listAssignableRecruiters = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { data: roles, error: rErr } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id, role")
+      .in("role", ["recruiter", "senior_recruiter", "lead_recruiter"]);
+    if (rErr) throw new Error(rErr.message);
+    const ids = (roles ?? []).map((r) => r.user_id);
+    if (ids.length === 0) return [] as { id: string; name: string; role: string }[];
+    const { data: profiles, error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", ids);
+    if (pErr) throw new Error(pErr.message);
+    const roleMap = new Map(roles!.map((r) => [r.user_id, r.role as string]));
+    return (profiles ?? []).map((p) => ({
+      id: p.id,
+      name: p.full_name ?? p.email ?? "Unknown",
+      role: roleMap.get(p.id) ?? "recruiter",
+    }));
   });
