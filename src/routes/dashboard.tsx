@@ -351,24 +351,6 @@ function Cockpit() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <DashboardActivityFeed />
       </div>
-                  <td className="px-2 py-2.5">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium">
-                      <span className={cn("size-1.5 rounded-full", statusDot(r.status), r.status === "Active" && "animate-pulse")} />
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2.5 text-right text-xs text-muted-foreground tabular-nums">{r.loginAt}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">{r.assignedClients}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">{r.assignedPositions}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums font-medium">{r.sharesToday}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">{r.closuresMtd}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-success">{r.conversionPct}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
