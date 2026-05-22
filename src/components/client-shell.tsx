@@ -3,8 +3,6 @@ import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, A
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { clientCompany } from "@/lib/client-data";
-import { activityEvents } from "@/lib/client-data";
 import { getAgencyLastPath, getSelectedClientId, setSelectedClientId } from "@/lib/portal-state";
 import { clients } from "@/lib/mock-data";
 import { AuthGate } from "@/components/auth-gate";
@@ -71,7 +69,11 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
-  const unread = activityEvents.filter((e) => e.unread).length;
+
+  const companyName = profile?.company_name || profile?.full_name || profile?.email || "Client Portal";
+  const companyInitials = (companyName.match(/\b\w/g) ?? ["C"]).slice(0, 2).join("").toUpperCase();
+  const companyColor = "oklch(0.62 0.20 295)";
+  const fullName = profile?.full_name || "Client";
 
   // Persist the "selected client" the user was viewing on the agency side.
   // Falls back to the first client so the link is always meaningful.
@@ -97,11 +99,11 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex bg-background text-foreground">
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0 h-screen self-start">
         <div className="h-16 flex items-center gap-3 px-5 border-b border-sidebar-border">
-          <div className="size-9 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground shadow-sm" style={{ background: clientCompany.color }}>
-            {clientCompany.initials}
+          <div className="size-9 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground shadow-sm" style={{ background: companyColor }}>
+            {companyInitials}
           </div>
           <div className="leading-tight min-w-0">
-            <div className="font-semibold tracking-tight truncate">{clientCompany.name}</div>
+            <div className="font-semibold tracking-tight truncate">{companyName}</div>
             <div className="text-[11px] text-muted-foreground truncate">Client Portal</div>
           </div>
         </div>
@@ -125,16 +127,11 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-3 border-t border-sidebar-border">
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="text-xs font-medium">Your recruitment partner</div>
-            <div className="text-[11px] text-muted-foreground mt-1">TalentFlow · Aarav Reddy</div>
-            <div className="text-[11px] text-muted-foreground">aarav@talentflow.in</div>
-          </div>
           <button
             type="button"
             // returnPath is a runtime string (last visited agency route); cast to bypass route literal typing.
             onClick={() => navigate({ to: returnPath as never })}
-            className="mt-3 w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
+            className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
             title={`Return to ${returnPath}`}
           >
             <ArrowLeft className="size-3.5 shrink-0 group-hover:-translate-x-0.5 transition" />
@@ -148,8 +145,8 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 sticky top-0 z-20 backdrop-blur bg-background/80 border-b border-border flex items-center gap-3 px-4 md:px-8">
-          <div className="md:hidden size-9 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground" style={{ background: clientCompany.color }}>
-            {clientCompany.initials}
+          <div className="md:hidden size-9 rounded-lg grid place-items-center text-sm font-bold text-primary-foreground" style={{ background: companyColor }}>
+            {companyInitials}
           </div>
           <div className="hidden md:flex items-center gap-2 flex-1 max-w-md">
             <div className="relative w-full">
@@ -175,8 +172,8 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
-                <div className="text-sm font-medium">Vikram Shah</div>
-                <div className="text-[11px] text-muted-foreground font-normal">Head of Talent</div>
+                <div className="text-sm font-medium">{fullName}</div>
+                <div className="text-[11px] text-muted-foreground font-normal">{profile?.company_name || "Client"}</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer">

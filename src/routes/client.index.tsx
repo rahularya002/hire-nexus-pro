@@ -1,26 +1,53 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin, Loader2 } from "lucide-react";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
-import { clientCompany, clientPositions } from "@/lib/client-data";
+import { listPositions, type PositionRow } from "@/lib/positions.functions";
+import { listApplications, type ApplicationRow } from "@/lib/candidates.functions";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/client/")({
   component: () => <ClientShell><Dashboard /></ClientShell>,
 });
 
+type Funnel = { shared: number; shortlisted: number; interview: number; offered: number; rejected: number };
+
+function funnelFor(apps: ApplicationRow[]): Funnel {
+  const f: Funnel = { shared: 0, shortlisted: 0, interview: 0, offered: 0, rejected: 0 };
+  for (const a of apps) {
+    switch (a.stage) {
+      case "shared_with_client": f.shared++; break;
+      case "client_shortlist": f.shortlisted++; f.shared++; break;
+      case "interview_scheduled":
+      case "rounds": f.interview++; f.shortlisted++; f.shared++; break;
+      case "offered": f.offered++; f.interview++; f.shortlisted++; f.shared++; break;
+      case "closed": f.rejected++; break;
+      default: break;
+    }
+  }
+  return f;
+}
+
 function Dashboard() {
-  const open = clientPositions.filter(p => p.status !== "closed").length;
-  const totals = clientPositions.reduce(
-    (a, p) => {
-      const f = p.funnel ?? { sourced: 0, shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
-      a.shared      += f.shared;
-      a.shortlisted += f.shortlisted;
-      a.interview   += f.interview;
-      a.offered     += f.offered;
-      a.rejected    += p.candidates.filter((c) => c.status === "rejected").length;
-      return a;
-    },
-    { shared: 0, shortlisted: 0, interview: 0, offered: 0, rejected: 0 },
-  );
+  const { profile } = useAuth();
+  const fetchPositions = useServerFn(listPositions);
+  const fetchApps = useServerFn(listApplications);
+  const posQ = useQuery({ queryKey: ["client-positions"], queryFn: () => fetchPositions({ data: {} }) });
+  const appQ = useQuery({ queryKey: ["client-applications-all"], queryFn: () => fetchApps({ data: {} }) });
+
+  const positions = posQ.data ?? [];
+  const apps = appQ.data ?? [];
+  const open = positions.filter((p) => p.status !== "closed").length;
+  const appsByPosition = new Map<string, ApplicationRow[]>();
+  for (const a of apps) {
+    const list = appsByPosition.get(a.position_id) ?? [];
+    list.push(a);
+    appsByPosition.set(a.position_id, list);
+  }
+  const totals = funnelFor(apps);
+  const companyName = profile?.company_name || profile?.full_name || "there";
+  const loading = posQ.isLoading || appQ.isLoading;
 
   const kpis = [
     { label: "Profiles shared", value: totals.shared,      icon: Send,         tone: "from-primary/15 to-primary/5 text-primary" },
@@ -34,11 +61,11 @@ function Dashboard() {
     <div className="space-y-8">
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl border border-border p-6 md:p-8 bg-gradient-to-br from-primary/10 via-purple/5 to-card">
-        <div className="absolute -right-20 -top-20 size-64 rounded-full opacity-30 blur-3xl" style={{ background: clientCompany.color }} />
+        <div className="absolute -right-20 -top-20 size-64 rounded-full opacity-30 blur-3xl" style={{ background: "oklch(0.62 0.20 295)" }} />
         <div className="relative flex items-start justify-between gap-6 flex-wrap">
           <div className="min-w-0">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{clientCompany.tagline}</div>
-            <h1 className="text-3xl font-semibold tracking-tight mt-2">Welcome back, {clientCompany.name}</h1>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your hiring at a glance</div>
+            <h1 className="text-3xl font-semibold tracking-tight mt-2">Welcome back, {companyName}</h1>
             <p className="text-sm text-muted-foreground mt-2 max-w-xl">
               You have <span className="font-semibold text-foreground">{open} active mandates</span> and <span className="font-semibold text-foreground">{totals.shared} profiles</span> shared with you so far.
             </p>
@@ -84,7 +111,17 @@ function Dashboard() {
         </div>
 
         <div className="grid gap-3">
-          {clientPositions.map((p) => (
+          {loading && (
+            <div className="rounded-xl border border-border bg-card p-8 inline-flex items-center gap-2 justify-center text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading positions…
+            </div>
+          )}
+          {!loading && positions.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
+              No positions yet. Upload a JD to get started.
+            </div>
+          )}
+          {positions.map((p) => (
             <Link key={p.id} to="/client/positions/$positionId" params={{ positionId: p.id }}
               className="group rounded-xl border border-border bg-card p-5 hover:shadow-md hover:border-primary/30 transition">
               <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -94,13 +131,13 @@ function Dashboard() {
                     <ClientStatusBadge status={p.status} />
                   </div>
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
-                    <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location}</span>
+                    <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location ?? "—"}</span>
                     <span>{p.experience} · {p.salary}</span>
                     <span>{p.openings} opening{p.openings>1?"s":""}</span>
-                    <span>Posted {p.postedDays}d ago</span>
+                    <span>Posted {daysAgo(p.posted_at)}d ago</span>
                   </div>
                 </div>
-                <PositionFunnel p={p} />
+                <PositionFunnel f={funnelFor(appsByPosition.get(p.id) ?? [])} />
               </div>
             </Link>
           ))}
@@ -108,6 +145,10 @@ function Dashboard() {
       </section>
     </div>
   );
+}
+
+function daysAgo(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "purple" | "warning" }) {
@@ -120,16 +161,14 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "pu
   );
 }
 
-function PositionFunnel({ p }: { p: typeof clientPositions[number] }) {
-  const f = p.funnel ?? { sourced: 0, shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
-  const rejected = p.candidates.filter((c) => c.status === "rejected").length;
+function PositionFunnel({ f }: { f: Funnel }) {
   return (
     <div className="flex items-center gap-5 shrink-0">
       <Stat label="Shared"      value={f.shared} />
       <Stat label="Shortlisted" value={f.shortlisted} tone="purple" />
       <Stat label="Interviewed" value={f.interview} />
-      <Stat label="Offered"     value={f.offered + f.joined} />
-      <Stat label="Rejected"    value={rejected} tone="warning" />
+      <Stat label="Offered"     value={f.offered} />
+      <Stat label="Rejected"    value={f.rejected} tone="warning" />
     </div>
   );
 }

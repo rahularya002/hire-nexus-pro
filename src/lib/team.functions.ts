@@ -176,3 +176,72 @@ export const createClientAccount = createServerFn({ method: "POST" })
 
     return { ok: true, userId: newUserId, email: data.email };
   });
+
+export type ClientAccountMember = {
+  id: string;
+  name: string;
+  initials: string;
+  email: string;
+  role: string;
+  owned: { id: string; title: string; location: string | null }[];
+};
+
+/**
+ * Returns the recruiters assigned to the requesting client's positions,
+ * plus the positions each one owns. Used by the client portal "Account Team" page.
+ */
+export const getClientAccountTeam = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ members: ClientAccountMember[] }> => {
+    const { supabase, userId } = context;
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!client?.id) return { members: [] };
+
+    const { data: positions, error: pErr } = await supabase
+      .from("positions")
+      .select("id, title, location, assigned_recruiter_id")
+      .eq("client_id", client.id);
+    if (pErr) throw new Error(pErr.message);
+
+    const recruiterIds = Array.from(
+      new Set(
+        (positions ?? [])
+          .map((p) => p.assigned_recruiter_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (recruiterIds.length === 0) return { members: [] };
+
+    const [{ data: profs }, { data: roles }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("id, full_name, email").in("id", recruiterIds),
+      supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", recruiterIds),
+    ]);
+    const roleMap = new Map((roles ?? []).map((r) => [r.user_id, r.role as string]));
+
+    const members: ClientAccountMember[] = (profs ?? []).map((p) => {
+      const name = p.full_name ?? p.email ?? "Recruiter";
+      const initials = name
+        .split(/\s+/)
+        .map((s) => s[0] ?? "")
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+      const owned = (positions ?? [])
+        .filter((pp) => pp.assigned_recruiter_id === p.id)
+        .map((pp) => ({ id: pp.id, title: pp.title, location: pp.location }));
+      const rawRole = roleMap.get(p.id) ?? "recruiter";
+      return {
+        id: p.id,
+        name,
+        initials,
+        email: p.email ?? "—",
+        role: rawRole.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        owned,
+      };
+    });
+    return { members };
+  });
