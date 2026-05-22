@@ -47,6 +47,7 @@ import { Route as AdminClientsRouteImport } from './routes/admin.clients'
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
 import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
+import { Route as ApiPublicCronRouteImport } from './routes/api/public/cron'
 
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
@@ -240,6 +241,11 @@ const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
   path: '/clients/$clientId',
   getParentRoute: () => BillingRoute,
 } as any)
+const ApiPublicCronRoute = ApiPublicCronRouteImport.update({
+  id: '/api/public/cron',
+  path: '/api/public/cron',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -277,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client': typeof ClientIndexRoute
+  '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -358,6 +366,7 @@ export interface FileRoutesById {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/client/': typeof ClientIndexRoute
+  '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client'
+    | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/client/'
+    | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -519,6 +531,7 @@ export interface RootRouteChildren {
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
   ClientIndexRoute: typeof ClientIndexRoute
+  ApiPublicCronRoute: typeof ApiPublicCronRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -789,6 +802,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingClientsClientIdRouteImport
       parentRoute: typeof BillingRoute
     }
+    '/api/public/cron': {
+      id: '/api/public/cron'
+      path: '/api/public/cron'
+      fullPath: '/api/public/cron'
+      preLoaderRoute: typeof ApiPublicCronRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -875,6 +895,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
   ClientIndexRoute: ClientIndexRoute,
+  ApiPublicCronRoute: ApiPublicCronRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
