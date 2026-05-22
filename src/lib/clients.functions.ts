@@ -114,9 +114,44 @@ export const deleteClient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { error } = await supabase.from("clients").delete().eq("id", data.id);
+    const { supabase, userId } = context;
+    // verify caller is admin/lead
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    if (!isAdminLike(roleNames)) {
+      throw new Error("Only admins or lead recruiters can delete clients.");
+    }
+
+    // Look up linked auth user before deleting the row
+    const { data: clientRow } = await supabaseAdmin
+      .from("clients")
+      .select("user_id")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    // Delete dependent positions first (no FK cascade defined)
+    const { error: posErr } = await supabaseAdmin
+      .from("positions")
+      .delete()
+      .eq("client_id", data.id);
+    if (posErr) throw new Error(posErr.message);
+
+    const { error } = await supabaseAdmin.from("clients").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    // Best-effort: remove the linked auth account so the login is revoked
+    if (clientRow?.user_id) {
+      try {
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", clientRow.user_id);
+        await supabaseAdmin.from("profiles").delete().eq("id", clientRow.user_id);
+        await supabaseAdmin.auth.admin.deleteUser(clientRow.user_id);
+      } catch (e) {
+        console.error("Failed to fully delete client auth user", e);
+      }
+    }
     return { ok: true };
   });
 
