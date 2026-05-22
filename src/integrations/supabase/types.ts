@@ -776,6 +776,7 @@ export type Database = {
       }
       positions: {
         Row: {
+          assigned_recruiter_id: string | null
           client_id: string
           created_at: string
           created_by: string | null
@@ -793,6 +794,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_recruiter_id?: string | null
           client_id: string
           created_at?: string
           created_by?: string | null
@@ -810,6 +812,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_recruiter_id?: string | null
           client_id?: string
           created_at?: string
           created_by?: string | null
