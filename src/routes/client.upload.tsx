@@ -162,7 +162,7 @@ function Page() {
         <p className="text-sm text-muted-foreground mt-1">Fill in the role details below. Your recruiter will be notified instantly.</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* JD file dropzone */}
         <div className="rounded-xl border-2 border-dashed border-border bg-card p-6 hover:border-primary/40 transition">
           <label className="flex items-center gap-4 cursor-pointer">
@@ -170,11 +170,11 @@ function Page() {
               <FileUp className="size-6" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium">{file ?? "Drop your JD PDF here"}</div>
+              <div className="font-medium">{file?.name ?? "Drop your JD PDF here"}</div>
               <div className="text-xs text-muted-foreground">or click to browse · PDF, DOCX up to 10MB</div>
             </div>
             <span className="text-xs text-primary font-medium">Browse</span>
-            <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0]?.name ?? null)} />
+            <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
 
@@ -207,10 +207,14 @@ function Page() {
             {scouting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
             {scouting ? "Scouting candidates..." : "Run Talent Scout"}
           </button>
-          <button type="submit" className="h-10 inline-flex items-center gap-2 px-5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
-            <Upload className="size-4" /> Submit JD
+          <button type="submit" disabled={saving} className="h-10 inline-flex items-center gap-2 px-5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60">
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+            {saving ? "Submitting…" : "Submit JD"}
           </button>
         </div>
+        {saveError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-sm px-3 py-2">{saveError}</div>
+        )}
       </form>
 
       {(scouting || scoutError || candidates) && (
