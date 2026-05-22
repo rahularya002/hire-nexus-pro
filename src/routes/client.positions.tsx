@@ -1,13 +1,53 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { MapPin, Plus, Clock, ArrowRight } from "lucide-react";
+import { useState, useMemo } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { MapPin, Plus, Clock, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
-import { clientPositions, PROGRESS_STEPS, currentStep, recruiterFor, type ClientPosition } from "@/lib/client-data";
+import { listPositions, type PositionRow } from "@/lib/positions.functions";
+import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
+import { getClientAccountTeam, type ClientAccountMember } from "@/lib/team.functions";
 
-// Client-facing: hide internal "sourcing" stage. They should only see what
-// the agency has actually shared with them onwards.
-const VISIBLE_STEPS = PROGRESS_STEPS.filter((s) => s.id !== "sourcing");
+const VISIBLE_STEPS = [
+  { id: "received",  label: "Received" },
+  { id: "shared",    label: "Profiles shared" },
+  { id: "review",    label: "Client review" },
+  { id: "interview", label: "Interviews" },
+  { id: "offer",     label: "Offer / Joined" },
+] as const;
+type StepId = (typeof VISIBLE_STEPS)[number]["id"];
+
+type Funnel = { shared: number; shortlisted: number; interview: number; offered: number; joined: number };
+
+function funnelFor(apps: ApplicationRow[]): Funnel {
+  const f: Funnel = { shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
+  for (const a of apps) {
+    switch (a.stage as ApplicationStage) {
+      case "shared_with_client": f.shared++; break;
+      case "client_shortlist": f.shortlisted++; f.shared++; break;
+      case "interview_scheduled":
+      case "rounds": f.interview++; f.shortlisted++; f.shared++; break;
+      case "offered": f.offered++; f.interview++; f.shortlisted++; f.shared++; break;
+      case "closed": f.joined++; break;
+      default: break;
+    }
+  }
+  return f;
+}
+
+function currentStepOf(p: PositionRow, f: Funnel): StepId {
+  if (p.status === "closed") return "offer";
+  if (f.offered > 0 || f.joined > 0) return "offer";
+  if (f.interview > 0) return "interview";
+  if (f.shortlisted > 0) return "review";
+  if (f.shared > 0) return "shared";
+  return "received";
+}
+
+function daysAgo(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+}
 
 export const Route = createFileRoute("/client/positions")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -15,10 +55,33 @@ export const Route = createFileRoute("/client/positions")({
 
 function Page() {
   const [filter, setFilter] = useState<"all" | "active" | "closed">("all");
-  const filtered = clientPositions.filter((p) =>
+  const fetchPositions = useServerFn(listPositions);
+  const fetchApps = useServerFn(listApplications);
+  const fetchTeam = useServerFn(getClientAccountTeam);
+  const posQ = useQuery({ queryKey: ["client-positions"], queryFn: () => fetchPositions({ data: {} }) });
+  const appQ = useQuery({ queryKey: ["client-applications-all"], queryFn: () => fetchApps({ data: {} }) });
+  const teamQ = useQuery({ queryKey: ["client-account-team"], queryFn: () => fetchTeam() });
+
+  const positions = posQ.data ?? [];
+  const apps = appQ.data ?? [];
+  const team = teamQ.data?.members ?? [];
+  const recruiterMap = useMemo(() => new Map(team.map((m) => [m.id, m])), [team]);
+
+  const appsByPosition = useMemo(() => {
+    const m = new Map<string, ApplicationRow[]>();
+    for (const a of apps) {
+      const arr = m.get(a.position_id) ?? [];
+      arr.push(a);
+      m.set(a.position_id, arr);
+    }
+    return m;
+  }, [apps]);
+
+  const filtered = positions.filter((p) =>
     filter === "all" ? true : filter === "closed" ? p.status === "closed" : p.status !== "closed"
   );
-  const active = clientPositions.filter((p) => p.status !== "closed").length;
+  const active = positions.filter((p) => p.status !== "closed").length;
+  const loading = posQ.isLoading || appQ.isLoading;
 
   return (
     <div className="space-y-6">
@@ -27,7 +90,7 @@ function Page() {
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Sent to TalentFlow</div>
           <h1 className="text-2xl font-semibold tracking-tight mt-1">My Requirements</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {clientPositions.length} requirement{clientPositions.length > 1 ? "s" : ""} · {active} active · live progress from your recruitment partner
+            {positions.length} requirement{positions.length === 1 ? "" : "s"} · {active} active · live progress from your recruitment partner
           </p>
         </div>
         <Link to="/client/upload" className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
@@ -46,7 +109,24 @@ function Page() {
       </div>
 
       <div className="grid gap-4">
-        {filtered.map((p) => <RequirementCard key={p.id} p={p} />)}
+        {loading && (
+          <div className="rounded-xl border border-border bg-card p-8 inline-flex items-center gap-2 justify-center text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Loading…
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
+            No requirements in this view.
+          </div>
+        )}
+        {filtered.map((p) => (
+          <RequirementCard
+            key={p.id}
+            p={p}
+            funnel={funnelFor(appsByPosition.get(p.id) ?? [])}
+            recruiter={p.assigned_recruiter_id ? recruiterMap.get(p.assigned_recruiter_id) : undefined}
+          />
+        ))}
       </div>
     </div>
   );
@@ -58,21 +138,19 @@ function slaTone(days: number): { label: string; cls: string } {
   return                 { label: "Overdue",  cls: "bg-destructive/15 text-destructive border-destructive/25" };
 }
 
-function RequirementCard({ p }: { p: ClientPosition }) {
-  const rawStep = currentStep(p);
-  // Collapse "sourcing" → "received" for client view.
-  const step = rawStep === "sourcing" ? "received" : rawStep;
+function RequirementCard({ p, funnel, recruiter }: { p: PositionRow; funnel: Funnel; recruiter?: ClientAccountMember }) {
+  const days = daysAgo(p.posted_at);
+  const step = currentStepOf(p, funnel);
   const stepIndex = VISIBLE_STEPS.findIndex((s) => s.id === step);
-  const recruiter = recruiterFor(p.recruiterId);
-  const sla = slaTone(p.sentDaysAgo ?? p.postedDays);
-  const f = p.funnel ?? { sourced: 0, shared: 0, shortlisted: 0, interview: 0, offered: 0, joined: 0 };
-  const stepCount = (id: typeof PROGRESS_STEPS[number]["id"]) => {
+  const sla = slaTone(days);
+  const stepCount = (id: StepId) => {
     if (id === "shared")    return f.shared;
     if (id === "review")    return f.shortlisted;
     if (id === "interview") return f.interview;
     if (id === "offer")     return f.offered + f.joined;
     return null;
   };
+  const f = funnel;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 hover:shadow-md hover:border-primary/30 transition">
@@ -88,11 +166,11 @@ function RequirementCard({ p }: { p: ClientPosition }) {
             </span>
           </div>
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
-            <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location}</span>
+            <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location ?? "—"}</span>
             <span>{p.experience} · {p.salary}</span>
             <span>{p.openings} opening{p.openings > 1 ? "s" : ""}</span>
-            <span className="inline-flex items-center gap-1"><Clock className="size-3" />Sent {p.sentDaysAgo ?? p.postedDays}d ago</span>
-            <span>Recruiter · <span className="text-foreground font-medium">{recruiter.name}</span></span>
+            <span className="inline-flex items-center gap-1"><Clock className="size-3" />Sent {days}d ago</span>
+            <span>Recruiter · <span className="text-foreground font-medium">{recruiter?.name ?? "Account team"}</span></span>
           </div>
         </div>
         <Link to="/client/positions/$positionId" params={{ positionId: p.id }}
@@ -106,7 +184,7 @@ function RequirementCard({ p }: { p: ClientPosition }) {
         <div className="relative">
           <div className="absolute left-0 right-0 top-3 h-0.5 bg-border" />
           <div className="absolute left-0 top-3 h-0.5 bg-primary transition-all"
-            style={{ width: `${(stepIndex / (PROGRESS_STEPS.length - 1)) * 100}%` }} />
+            style={{ width: `${Math.max(0, stepIndex) / (VISIBLE_STEPS.length - 1) * 100}%` }} />
           <div className="relative grid" style={{ gridTemplateColumns: `repeat(${VISIBLE_STEPS.length}, minmax(0, 1fr))` }}>
             {VISIBLE_STEPS.map((s, i) => {
               const done = i < stepIndex;
