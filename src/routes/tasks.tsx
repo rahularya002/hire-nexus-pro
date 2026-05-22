@@ -1,12 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { format } from "date-fns";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
-import { opsTasks, recruiters, DEFAULT_TASK_KINDS, type OpsTask, type TaskState } from "@/lib/ops/store";
-import { clients as clientList } from "@/lib/mock-data";
-import { useAuth } from "@/lib/auth/auth-context";
-import { useCurrentRecruiter } from "@/lib/ops/access";
-import { ClipboardList, Phone, Mail, Send, Plus, Clock, CalendarIcon, Pencil } from "lucide-react";
+import {
+  listTasks,
+  createTask as createTaskFn,
+  moveTaskState,
+  deleteTask,
+  DEFAULT_TASK_KINDS,
+  TASK_STATES,
+  type TaskRow,
+  type TaskState,
+} from "@/lib/tasks.functions";
+import { listClients, type ClientRow } from "@/lib/clients.functions";
+import { ClipboardList, Plus, Clock, CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,62 +28,81 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/tasks")({ component: TasksPage });
 
-const COLUMNS: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed", "Reopened", "No-show"];
+const COLUMNS: TaskState[] = [...TASK_STATES];
 
 function TasksPage() {
-  const [tasks, setTasks] = useState<OpsTask[]>(opsTasks);
-  const { roles: authRoles } = useAuth();
-  const me = useCurrentRecruiter();
-  const canSeeAll = authRoles.includes("admin") || authRoles.includes("lead_recruiter");
-  const visibleTasks = canSeeAll ? tasks : tasks.filter((t) => t.recruiterId === me.id);
+  const qc = useQueryClient();
+  const fetchTasks = useServerFn(listTasks);
+  const fetchClients = useServerFn(listClients);
+  const addTask = useServerFn(createTaskFn);
+  const moveTask = useServerFn(moveTaskState);
+  const removeTask = useServerFn(deleteTask);
+
+  const { data: tasks = [], isLoading } = useQuery({ queryKey: ["tasks"], queryFn: () => fetchTasks() });
+  const { data: clientsList = [] } = useQuery<ClientRow[]>({ queryKey: ["clients"], queryFn: () => fetchClients() });
+
   const [open, setOpen] = useState(false);
-  const [kinds, setKinds] = useState<string[]>(DEFAULT_TASK_KINDS);
+  const [kinds, setKinds] = useState<string[]>([...DEFAULT_TASK_KINDS]);
   const [manageKindsOpen, setManageKindsOpen] = useState(false);
   const [newKind, setNewKind] = useState("");
   const [form, setForm] = useState({
     title: "",
-    client: "",
+    client_id: "",
     candidate: "",
-    kind: DEFAULT_TASK_KINDS[0],
+    kind: DEFAULT_TASK_KINDS[0] as string,
     dueDate: undefined as Date | undefined,
-    recruiterId: recruiters[0]?.id ?? "r1",
   });
 
+  const moveMut = useMutation({
+    mutationFn: (v: { id: string; state: TaskState }) => moveTask({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const createMut = useMutation({
+    mutationFn: (data: {
+      title: string;
+      kind?: string;
+      client_id?: string | null;
+      notes?: string | null;
+      due_at?: string | null;
+      due_label?: string | null;
+    }) => addTask({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setOpen(false);
+      setForm({ title: "", client_id: "", candidate: "", kind: kinds[0] ?? "Call candidate", dueDate: undefined });
+      toast.success("Task created");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => removeTask({ data: { id } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const clientById = new Map(clientsList.map((c) => [c.id, c]));
+
   const move = (id: string, dir: 1 | -1) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        const idx = COLUMNS.indexOf(t.state);
-        const next = COLUMNS[Math.min(COLUMNS.length - 1, Math.max(0, idx + dir))];
-        return { ...t, state: next };
-      })
-    );
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    const idx = COLUMNS.indexOf(t.state);
+    const next = COLUMNS[Math.min(COLUMNS.length - 1, Math.max(0, idx + dir))];
+    if (next === t.state) return;
+    moveMut.mutate({ id, state: next });
   };
 
-  const createTask = () => {
-    if (!form.title || !form.client) {
-      toast.error("Title and client are required");
-      return;
-    }
-    const dueLabel = form.dueDate ? format(form.dueDate, "PPP") : "No due date";
-    setTasks((prev) => [
-      {
-        id: `t-${Date.now()}`,
-        title: form.title,
-        client: form.client,
-        candidate: form.candidate || undefined,
-        kind: form.kind,
-        state: "Pending",
-        sla: "ok",
-        due: dueLabel,
-        recruiterId: form.recruiterId,
-      },
-      ...prev,
-    ]);
-    const assignee = recruiters.find((r) => r.id === form.recruiterId);
-    setForm({ title: "", client: "", candidate: "", kind: kinds[0] ?? "Call candidate", dueDate: undefined, recruiterId: recruiters[0]?.id ?? "r1" });
-    setOpen(false);
-    toast.success(assignee ? `Task assigned to ${assignee.name}` : "Task created");
+  const submitCreate = () => {
+    if (!form.title) { toast.error("Title is required"); return; }
+    const dueLabel = form.dueDate ? format(form.dueDate, "PPP") : null;
+    createMut.mutate({
+      title: form.title,
+      kind: form.kind,
+      client_id: form.client_id || null,
+      notes: form.candidate ? `Candidate: ${form.candidate}` : null,
+      due_at: form.dueDate ? form.dueDate.toISOString() : null,
+      due_label: dueLabel,
+    });
   };
 
   const addKind = () => {
@@ -112,7 +140,7 @@ function TasksPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           {COLUMNS.map((col) => {
-            const items = visibleTasks.filter((t) => t.state === col);
+            const items = tasks.filter((t) => t.state === col);
             return (
               <div key={col} className="rounded-xl border border-border bg-card flex flex-col min-h-[400px]">
                 <div className="p-3 border-b border-border flex items-center justify-between">
@@ -120,22 +148,18 @@ function TasksPage() {
                   <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{items.length}</span>
                 </div>
                 <div className="p-2 space-y-2 flex-1">
-                  {items.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No tasks</div>}
-                  {items.map((t) => {
-                    const assignee = recruiters.find((r) => r.id === t.recruiterId);
+                  {isLoading && col === COLUMNS[0] && <div className="text-xs text-muted-foreground text-center py-6">Loading…</div>}
+                  {!isLoading && items.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No tasks</div>}
+                  {items.map((t: TaskRow) => {
+                    const c = t.client_id ? clientById.get(t.client_id) : null;
+                    const dueLabel = t.due_label ?? (t.due_at ? format(new Date(t.due_at), "PP") : "No due date");
                     return (
                     <div key={t.id} className="rounded-lg border border-border bg-background/40 p-2.5 hover:border-primary/40 transition group">
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t.kind}</div>
                       <div className="text-sm font-medium leading-snug mt-1">{t.title}</div>
-                      <div className="text-[11px] text-muted-foreground mt-1 truncate">
-                        {t.client}{t.candidate && <> · {t.candidate}</>}
-                      </div>
-                      {assignee && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <div className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
-                            {assignee.initials}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground truncate">{assignee.name}</span>
+                      {(c || t.notes) && (
+                        <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                          {c?.name}{c && t.notes && " · "}{t.notes}
                         </div>
                       )}
                       <div className="flex items-center justify-between mt-2.5">
@@ -143,13 +167,15 @@ function TasksPage() {
                           "text-[10px] font-medium px-1.5 py-0.5 rounded inline-flex items-center gap-1",
                           t.sla === "breach" ? "bg-destructive/10 text-destructive" : t.sla === "warning" ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"
                         )}>
-                          <Clock className="size-2.5" /> {t.due}
+                          <Clock className="size-2.5" /> {dueLabel}
                         </span>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                          <button title="Call" className="size-6 grid place-items-center rounded hover:bg-secondary text-muted-foreground"><Phone className="size-3" /></button>
-                          <button title="WhatsApp" className="size-6 grid place-items-center rounded hover:bg-secondary text-muted-foreground"><Send className="size-3" /></button>
-                          <button title="Email" className="size-6 grid place-items-center rounded hover:bg-secondary text-muted-foreground"><Mail className="size-3" /></button>
-                        </div>
+                        <button
+                          title="Delete"
+                          onClick={() => deleteMut.mutate(t.id)}
+                          className="size-6 grid place-items-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60">
                         <button onClick={() => move(t.id, -1)} className="text-[10px] text-muted-foreground hover:text-foreground">← Back</button>
@@ -171,21 +197,21 @@ function TasksPage() {
             <DialogTitle>New task</DialogTitle>
             <DialogDescription>Add a task to the Pending column.</DialogDescription>
           </DialogHeader>
-          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); createTask(); }}>
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); submitCreate(); }}>
             <div className="space-y-1.5"><Label>Title</Label><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Follow up on offer" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Client</Label>
-                <Select value={form.client} onValueChange={(v) => setForm({ ...form, client: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                <Select value={form.client_id} onValueChange={(v) => setForm({ ...form, client_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Optional client" /></SelectTrigger>
                   <SelectContent>
-                    {clientList.map((c) => (
-                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                    {clientsList.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5"><Label>Candidate</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
+              <div className="space-y-1.5"><Label>Candidate / Note</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -235,35 +261,11 @@ function TasksPage() {
                 </Popover>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Assign to</Label>
-              <Select
-                value={form.recruiterId}
-                onValueChange={(v) => setForm({ ...form, recruiterId: v })}
-                disabled={!canSeeAll}
-              >
-                <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
-                <SelectContent>
-                  {(canSeeAll ? recruiters : recruiters.filter((r) => r.id === me.id)).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <span className="size-5 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[9px] font-semibold">
-                          {r.initials}
-                        </span>
-                        <span>{r.name}</span>
-                        <span className="text-[10px] text-muted-foreground">· {r.role}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!canSeeAll && (
-                <p className="text-[11px] text-muted-foreground">You can only assign tasks to yourself.</p>
-              )}
-            </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit">Create task</Button>
+              <Button type="submit" disabled={createMut.isPending}>
+                {createMut.isPending ? "Creating…" : "Create task"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
