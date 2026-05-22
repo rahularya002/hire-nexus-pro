@@ -1,23 +1,67 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, Video, ArrowUpRight, Building2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { todaysInterviews } from "@/lib/mock-data";
-import { interviewProcesses, type RoundStatus } from "@/lib/ops/store";
+import {
+  listInterviews,
+  INTERVIEW_STATUS_LABEL,
+  INTERVIEW_PROVIDER_LABEL,
+  INTERVIEW_KIND_LABEL,
+  formatInterviewWhen,
+  type InterviewRow,
+  type InterviewStatus,
+} from "@/lib/interviews.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/interviews")({
   component: () => <AppShell><Page /></AppShell>,
 });
 
-function statusTone(s: RoundStatus) {
-  if (s === "Confirmed") return "bg-success/15 text-success border-success/25";
-  if (s === "Completed") return "bg-success/20 text-success border-success/30";
-  if (s === "Pending confirmation") return "bg-warning/15 text-warning border-warning/25";
-  if (s === "Reschedule requested") return "bg-info/15 text-info border-info/25";
+function statusTone(s: InterviewStatus) {
+  if (s === "confirmed") return "bg-success/15 text-success border-success/25";
+  if (s === "completed") return "bg-success/20 text-success border-success/30";
+  if (s === "pending_confirmation") return "bg-warning/15 text-warning border-warning/25";
+  if (s === "reschedule_requested") return "bg-info/15 text-info border-info/25";
   return "bg-destructive/10 text-destructive border-destructive/25";
 }
 
+function initialsOf(name?: string | null) {
+  if (!name) return "?";
+  return name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+}
+
 function Page() {
+  const fetchInterviews = useServerFn(listInterviews);
+  const { data: all = [], isLoading } = useQuery({
+    queryKey: ["staff-interviews"],
+    queryFn: () => fetchInterviews({ data: { scope: "all" } }),
+  });
+
+  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const endToday = new Date(); endToday.setHours(23,59,59,999);
+  const todays = all.filter((i) => {
+    if (!i.scheduled_at) return false;
+    const t = new Date(i.scheduled_at).getTime();
+    return t >= startToday.getTime() && t <= endToday.getTime();
+  });
+
+  // Group all interviews by application_id => process
+  const processMap = new Map<string, InterviewRow[]>();
+  for (const i of all) {
+    const list = processMap.get(i.application_id) ?? [];
+    list.push(i);
+    processMap.set(i.application_id, list);
+  }
+  const processes = Array.from(processMap.entries()).map(([appId, rounds]) => ({
+    id: appId,
+    rounds: rounds.sort((a, b) => a.round_index - b.round_index),
+    candidate: rounds[0]?.candidate?.name ?? "Unknown",
+    candidateInitials: initialsOf(rounds[0]?.candidate?.name),
+    position: rounds[0]?.position?.title ?? "—",
+    client: rounds[0]?.position?.client?.name ?? "—",
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -26,7 +70,7 @@ function Page() {
           <CalendarClock className="size-5 text-primary" /> Interviews
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Multi-round pipeline · slot negotiation · provider integration · reminders.
+          {isLoading ? "Loading…" : "Multi-round pipeline · slot negotiation · provider integration · reminders."}
         </p>
       </div>
 
@@ -34,9 +78,9 @@ function Page() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <h2 className="font-semibold tracking-tight text-sm">Today's interviews</h2>
-          <span className="text-xs text-muted-foreground">{todaysInterviews.length} scheduled</span>
+          <span className="text-xs text-muted-foreground">{todays.length} scheduled</span>
         </div>
-        <TodayByCompany />
+        <TodayByCompany rows={todays} />
       </div>
 
       {/* Multi-round processes */}
@@ -45,9 +89,15 @@ function Page() {
         <p className="text-xs text-muted-foreground">Each candidate progresses through their own dynamic interview pipeline.</p>
       </div>
 
+      {processes.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-card/30 p-12 text-center text-sm text-muted-foreground">
+          No interview processes yet. Schedule interviews from a candidate's application.
+        </div>
+      )}
+
       <div className="space-y-4">
-        {interviewProcesses.map((proc) => {
-          const completed = proc.rounds.filter((r) => r.status === "Completed").length;
+        {processes.map((proc) => {
+          const completed = proc.rounds.filter((r) => r.status === "completed").length;
           return (
             <Link
               key={proc.id}
@@ -80,9 +130,9 @@ function Page() {
                           "rounded-md border px-2.5 py-2 text-left",
                           statusTone(r.status)
                         )}>
-                          <div className="text-[9px] uppercase tracking-wider opacity-80">R{r.index}</div>
-                          <div className="text-xs font-semibold truncate">{r.kind}</div>
-                          <div className="text-[10px] opacity-80 truncate mt-0.5">{r.scheduledFor}</div>
+                          <div className="text-[9px] uppercase tracking-wider opacity-80">R{r.round_index}</div>
+                          <div className="text-xs font-semibold truncate">{INTERVIEW_KIND_LABEL[r.kind]}</div>
+                          <div className="text-[10px] opacity-80 truncate mt-0.5">{formatInterviewWhen(r.scheduled_at)}</div>
                         </div>
                         {!isLast && (
                           <div className="hidden sm:block absolute top-1/2 -right-1 -translate-y-1/2 w-1 h-px bg-border" />
@@ -100,9 +150,10 @@ function Page() {
   );
 }
 
-function TodayByCompany() {
-  const groups = todaysInterviews.reduce<Record<string, typeof todaysInterviews>>((acc, i) => {
-    (acc[i.client] ||= []).push(i);
+function TodayByCompany({ rows }: { rows: InterviewRow[] }) {
+  const groups = rows.reduce<Record<string, InterviewRow[]>>((acc, i) => {
+    const key = i.position?.client?.name ?? "Unknown client";
+    (acc[key] ||= []).push(i);
     return acc;
   }, {});
   const entries = Object.entries(groups).sort(([, a], [, b]) => b.length - a.length);
@@ -123,15 +174,20 @@ function TodayByCompany() {
           <div className="divide-y divide-border/60">
             {list.map((i) => (
               <div key={i.id} className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition">
-                <div className="text-sm font-semibold text-primary tabular-nums w-16">{i.time}</div>
+                <div className="text-sm font-semibold text-primary tabular-nums w-16">
+                  {i.scheduled_at ? new Date(i.scheduled_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{i.candidate} · <span className="text-muted-foreground font-normal">{i.position}</span></div>
-                  <div className="text-[11px] text-muted-foreground truncate">{i.round}</div>
+                  <div className="text-sm font-medium truncate">{i.candidate?.name ?? "Unknown"} · <span className="text-muted-foreground font-normal">{i.position?.title ?? "—"}</span></div>
+                  <div className="text-[11px] text-muted-foreground truncate">R{i.round_index} · {INTERVIEW_KIND_LABEL[i.kind]} · {INTERVIEW_STATUS_LABEL[i.status]}</div>
                 </div>
                 <span className="text-[11px] px-2 py-0.5 rounded-md bg-info/10 text-info inline-flex items-center gap-1">
-                  <Video className="size-3" />{i.mode}
+                  <Video className="size-3" />{INTERVIEW_PROVIDER_LABEL[i.provider]}
                 </span>
-                <button className="text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90">Join</button>
+                <a href={i.meeting_link ?? "#"} target="_blank" rel="noreferrer"
+                   className={cn("text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center", !i.meeting_link && "opacity-50 pointer-events-none")}>
+                  Join
+                </a>
               </div>
             ))}
           </div>
