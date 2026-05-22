@@ -271,7 +271,7 @@ export const createApplication = createServerFn({ method: "POST" })
       client_id: row.position?.client_id ?? null,
       client_visible: CLIENT_VISIBLE_STAGES.includes(stage),
     });
-    return row as ApplicationRow;
+    return row as unknown as ApplicationRow;
   });
 
 export const updateApplicationStage = createServerFn({ method: "POST" })
@@ -314,7 +314,7 @@ export const updateApplicationStage = createServerFn({ method: "POST" })
         client_visible: CLIENT_VISIBLE_STAGES.includes(stage),
       });
     }
-    return row as ApplicationRow;
+    return row as unknown as ApplicationRow;
   });
 
 export const deleteApplication = createServerFn({ method: "POST" })
