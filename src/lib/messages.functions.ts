@@ -81,12 +81,20 @@ export const listThreads = createServerFn({ method: "GET" })
 
     const { data: threads, error } = await supabase
       .from("message_threads")
-      .select(
-        "id, client_id, subject, pinned, last_message_at, created_at, client:clients(id, name, color, contact_name)",
-      )
+      .select("id, client_id, subject, pinned, last_message_at, created_at")
       .order("pinned", { ascending: false })
       .order("last_message_at", { ascending: false, nullsFirst: false });
     if (error) throw new Error(error.message);
+
+    const clientIds = Array.from(new Set((threads ?? []).map((t: any) => t.client_id)));
+    const clientMap = new Map<string, { id: string; name: string; color: string | null; contact_name: string | null }>();
+    if (clientIds.length) {
+      const { data: clientRows } = await supabase
+        .from("clients")
+        .select("id, name, color, contact_name")
+        .in("id", clientIds);
+      for (const c of (clientRows ?? []) as any[]) clientMap.set(c.id, c);
+    }
 
     const threadIds = (threads ?? []).map((t: any) => t.id);
     const lastMap = new Map<string, MessageRow>();
@@ -111,6 +119,7 @@ export const listThreads = createServerFn({ method: "GET" })
 
     return (threads ?? []).map((t: any) => ({
       ...t,
+      client: clientMap.get(t.client_id) ?? null,
       last_message: lastMap.get(t.id) ?? null,
       unread_count: unreadMap.get(t.id) ?? 0,
     })) as ThreadRow[];
