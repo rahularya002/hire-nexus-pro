@@ -170,6 +170,183 @@ export type Database = {
         }
         Relationships: []
       }
+      interviews: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          candidate_reminder: boolean
+          created_at: string
+          created_by: string | null
+          cv_attached: boolean
+          duration_minutes: number | null
+          id: string
+          interviewer: string | null
+          kind: Database["public"]["Enums"]["interview_kind"]
+          location: string | null
+          meeting_link: string | null
+          notes: string | null
+          position_id: string
+          provider: Database["public"]["Enums"]["interview_provider"]
+          recruiter_reminder: boolean
+          round_index: number
+          scheduled_at: string | null
+          status: Database["public"]["Enums"]["interview_status"]
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          candidate_reminder?: boolean
+          created_at?: string
+          created_by?: string | null
+          cv_attached?: boolean
+          duration_minutes?: number | null
+          id?: string
+          interviewer?: string | null
+          kind?: Database["public"]["Enums"]["interview_kind"]
+          location?: string | null
+          meeting_link?: string | null
+          notes?: string | null
+          position_id: string
+          provider?: Database["public"]["Enums"]["interview_provider"]
+          recruiter_reminder?: boolean
+          round_index?: number
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["interview_status"]
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          candidate_reminder?: boolean
+          created_at?: string
+          created_by?: string | null
+          cv_attached?: boolean
+          duration_minutes?: number | null
+          id?: string
+          interviewer?: string | null
+          kind?: Database["public"]["Enums"]["interview_kind"]
+          location?: string | null
+          meeting_link?: string | null
+          notes?: string | null
+          position_id?: string
+          provider?: Database["public"]["Enums"]["interview_provider"]
+          recruiter_reminder?: boolean
+          round_index?: number
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["interview_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      placements: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          ctc_display: string | null
+          ctc_inr: number | null
+          guarantee_window_days: number
+          id: string
+          invoice_amount_inr: number | null
+          invoice_status: Database["public"]["Enums"]["invoice_status"]
+          joining_date: string | null
+          notes: string | null
+          offer_date: string | null
+          position_id: string
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          ctc_display?: string | null
+          ctc_inr?: number | null
+          guarantee_window_days?: number
+          id?: string
+          invoice_amount_inr?: number | null
+          invoice_status?: Database["public"]["Enums"]["invoice_status"]
+          joining_date?: string | null
+          notes?: string | null
+          offer_date?: string | null
+          position_id: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          ctc_display?: string | null
+          ctc_inr?: number | null
+          guarantee_window_days?: number
+          id?: string
+          invoice_amount_inr?: number | null
+          invoice_status?: Database["public"]["Enums"]["invoice_status"]
+          joining_date?: string | null
+          notes?: string | null
+          offer_date?: string | null
+          position_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placements_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placements_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placements_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placements_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       positions: {
         Row: {
           client_id: string
@@ -336,6 +513,28 @@ export type Database = {
         | "closed"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
       client_status: "active" | "inactive"
+      interview_kind:
+        | "hr_screen"
+        | "technical"
+        | "hiring_manager"
+        | "panel"
+        | "ceo"
+        | "culture_fit"
+        | "case_study"
+      interview_provider:
+        | "google_meet"
+        | "microsoft_teams"
+        | "zoom"
+        | "on_site"
+        | "phone"
+      interview_status:
+        | "pending_confirmation"
+        | "confirmed"
+        | "reschedule_requested"
+        | "completed"
+        | "no_show"
+        | "cancelled"
+      invoice_status: "draft" | "sent" | "paid" | "overdue"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
@@ -485,6 +684,31 @@ export const Constants = {
       ],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],
       client_status: ["active", "inactive"],
+      interview_kind: [
+        "hr_screen",
+        "technical",
+        "hiring_manager",
+        "panel",
+        "ceo",
+        "culture_fit",
+        "case_study",
+      ],
+      interview_provider: [
+        "google_meet",
+        "microsoft_teams",
+        "zoom",
+        "on_site",
+        "phone",
+      ],
+      interview_status: [
+        "pending_confirmation",
+        "confirmed",
+        "reschedule_requested",
+        "completed",
+        "no_show",
+        "cancelled",
+      ],
+      invoice_status: ["draft", "sent", "paid", "overdue"],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
