@@ -121,6 +121,31 @@ function clean<T extends Record<string, any>>(o: T): T {
   return out;
 }
 
+async function logActivity(
+  supabase: any,
+  userId: string,
+  payload: {
+    kind: string;
+    title: string;
+    detail?: string | null;
+    client_id?: string | null;
+    position_id?: string | null;
+    candidate_id?: string | null;
+    application_id?: string | null;
+    client_visible?: boolean;
+  },
+) {
+  try {
+    const clean_payload: any = { ...payload, actor_id: userId };
+    for (const k of Object.keys(clean_payload)) {
+      if (clean_payload[k] === "" || clean_payload[k] === undefined) delete clean_payload[k];
+    }
+    await supabase.from("activities").insert(clean_payload);
+  } catch {
+    /* never throw from logging */
+  }
+}
+
 const INTERVIEW_SELECT =
   "*, candidate:candidates(id,name,role), position:positions(id,title,client_id, client:clients(id,name,color))";
 
@@ -219,6 +244,16 @@ export const createInterview = createServerFn({ method: "POST" })
       .select(INTERVIEW_SELECT)
       .single();
     if (error) throw new Error(error.message);
+    await logActivity(supabase, userId, {
+      kind: "interview_scheduled",
+      title: `Interview scheduled${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
+      detail: row.position?.title ?? null,
+      application_id: row.application_id,
+      candidate_id: row.candidate_id,
+      position_id: row.position_id,
+      client_id: row.position?.client_id ?? null,
+      client_visible: true,
+    });
     return row as InterviewRow;
   });
 
@@ -228,7 +263,7 @@ export const updateInterview = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).merge(interviewSchema.partial()).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const { id, ...rest } = data;
     const { data: row, error } = await supabase
       .from("interviews")
@@ -237,6 +272,33 @@ export const updateInterview = createServerFn({ method: "POST" })
       .select(INTERVIEW_SELECT)
       .single();
     if (error) throw new Error(error.message);
+    if (data.status) {
+      const kind =
+        data.status === "completed" ? "interview_completed"
+        : data.status === "cancelled" || data.status === "no_show" ? "stage_change"
+        : "interview_scheduled";
+      await logActivity(supabase, userId, {
+        kind,
+        title: `Interview ${INTERVIEW_STATUS_LABEL[data.status]}${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
+        detail: row.position?.title ?? null,
+        application_id: row.application_id,
+        candidate_id: row.candidate_id,
+        position_id: row.position_id,
+        client_id: row.position?.client_id ?? null,
+        client_visible: true,
+      });
+    } else if (data.scheduled_at) {
+      await logActivity(supabase, userId, {
+        kind: "interview_scheduled",
+        title: `Interview rescheduled${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
+        detail: row.position?.title ?? null,
+        application_id: row.application_id,
+        candidate_id: row.candidate_id,
+        position_id: row.position_id,
+        client_id: row.position?.client_id ?? null,
+        client_visible: true,
+      });
+    }
     return row as InterviewRow;
   });
 
@@ -302,6 +364,16 @@ export const createPlacement = createServerFn({ method: "POST" })
       .select(PLACEMENT_SELECT)
       .single();
     if (error) throw new Error(error.message);
+    await logActivity(supabase, userId, {
+      kind: "offer",
+      title: `Placement created${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
+      detail: row.position?.title ?? row.ctc_display ?? null,
+      application_id: row.application_id,
+      candidate_id: row.candidate_id,
+      position_id: row.position_id,
+      client_id: row.client_id,
+      client_visible: true,
+    });
     return row as PlacementRow;
   });
 
