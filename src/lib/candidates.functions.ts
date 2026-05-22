@@ -94,6 +94,36 @@ function clean<T extends Record<string, any>>(o: T): T {
   return out;
 }
 
+async function logActivity(
+  supabase: any,
+  userId: string,
+  payload: {
+    kind: string;
+    title: string;
+    detail?: string | null;
+    client_id?: string | null;
+    position_id?: string | null;
+    candidate_id?: string | null;
+    application_id?: string | null;
+    client_visible?: boolean;
+  },
+) {
+  try {
+    await supabase.from("activities").insert(clean({ ...payload, actor_id: userId }));
+  } catch {
+    // swallow — logging must never break primary mutation
+  }
+}
+
+async function clientIdForPosition(supabase: any, positionId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("positions")
+    .select("client_id")
+    .eq("id", positionId)
+    .maybeSingle();
+  return (data?.client_id as string | undefined) ?? null;
+}
+
 export const listCandidates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -132,6 +162,12 @@ export const createCandidate = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await logActivity(supabase, userId, {
+      kind: "submission",
+      title: `Candidate added: ${row.name}`,
+      detail: row.role ?? null,
+      candidate_id: row.id,
+    });
     return row as CandidateRow;
   });
 
@@ -141,7 +177,7 @@ export const updateCandidate = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).merge(candidateSchema.partial()).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const { id, ...rest } = data;
     const { data: row, error } = await supabase
       .from("candidates")
@@ -150,6 +186,11 @@ export const updateCandidate = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await logActivity(supabase, userId, {
+      kind: "note",
+      title: `Candidate updated: ${row.name}`,
+      candidate_id: row.id,
+    });
     return row as CandidateRow;
   });
 
@@ -157,9 +198,18 @@ export const deleteCandidate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    const { data: existing } = await supabase
+      .from("candidates")
+      .select("name")
+      .eq("id", data.id)
+      .maybeSingle();
     const { error } = await supabase.from("candidates").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    await logActivity(supabase, userId, {
+      kind: "note",
+      title: `Candidate removed${existing?.name ? `: ${existing.name}` : ""}`,
+    });
     return { ok: true };
   });
 
@@ -208,9 +258,19 @@ export const createApplication = createServerFn({ method: "POST" })
     const { data: row, error } = await supabase
       .from("applications")
       .insert(clean({ ...data, created_by: userId }))
-      .select("*")
+      .select("*, candidate:candidates(name), position:positions(title, client_id)")
       .single();
     if (error) throw new Error(error.message);
+    const stage = row.stage as ApplicationStage;
+    await logActivity(supabase, userId, {
+      kind: stage === "shared_with_client" ? "share" : "submission",
+      title: `${row.candidate?.name ?? "Candidate"} → ${row.position?.title ?? "position"} (${STAGE_LABEL[stage] ?? stage})`,
+      application_id: row.id,
+      candidate_id: row.candidate_id,
+      position_id: row.position_id,
+      client_id: row.position?.client_id ?? null,
+      client_visible: CLIENT_VISIBLE_STAGES.includes(stage),
+    });
     return row as ApplicationRow;
   });
 
@@ -227,15 +287,33 @@ export const updateApplicationStage = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const { id, ...rest } = data;
     const { data: row, error } = await supabase
       .from("applications")
       .update(clean(rest))
       .eq("id", id)
-      .select("*")
+      .select("*, candidate:candidates(name), position:positions(title, client_id)")
       .single();
     if (error) throw new Error(error.message);
+    if (data.stage) {
+      const stage = row.stage as ApplicationStage;
+      const kind =
+        stage === "shared_with_client" ? "share"
+        : stage === "offered" ? "offer"
+        : stage === "closed" ? "closure"
+        : "stage_change";
+      await logActivity(supabase, userId, {
+        kind,
+        title: `${row.candidate?.name ?? "Candidate"} moved to ${STAGE_LABEL[stage] ?? stage}`,
+        detail: row.position?.title ?? null,
+        application_id: row.id,
+        candidate_id: row.candidate_id,
+        position_id: row.position_id,
+        client_id: row.position?.client_id ?? null,
+        client_visible: CLIENT_VISIBLE_STAGES.includes(stage),
+      });
+    }
     return row as ApplicationRow;
   });
 
