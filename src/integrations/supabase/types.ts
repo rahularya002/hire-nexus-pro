@@ -215,6 +215,66 @@ export type Database = {
         }
         Relationships: []
       }
+      documents: {
+        Row: {
+          application_id: string | null
+          candidate_id: string | null
+          client_id: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["document_kind"]
+          mime: string | null
+          name: string
+          notes: string | null
+          position_id: string | null
+          received: boolean
+          required: boolean
+          size_bytes: number | null
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["document_kind"]
+          mime?: string | null
+          name: string
+          notes?: string | null
+          position_id?: string | null
+          received?: boolean
+          required?: boolean
+          size_bytes?: number | null
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["document_kind"]
+          mime?: string | null
+          name?: string
+          notes?: string | null
+          position_id?: string | null
+          received?: boolean
+          required?: boolean
+          size_bytes?: number | null
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       interviews: {
         Row: {
           application_id: string
@@ -305,6 +365,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_threads: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          last_message_at: string | null
+          pinned: boolean
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          pinned?: boolean
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          pinned?: boolean
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          attachments: Json
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          initials: string
+          read_by_client_at: string | null
+          read_by_staff_at: string | null
+          sender_id: string | null
+          sender_role: Database["public"]["Enums"]["message_sender_role"]
+          thread_id: string
+        }
+        Insert: {
+          attachments?: Json
+          author_name: string
+          body?: string
+          created_at?: string
+          id?: string
+          initials: string
+          read_by_client_at?: string | null
+          read_by_staff_at?: string | null
+          sender_id?: string | null
+          sender_role: Database["public"]["Enums"]["message_sender_role"]
+          thread_id: string
+        }
+        Update: {
+          attachments?: Json
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          initials?: string
+          read_by_client_at?: string | null
+          read_by_staff_at?: string | null
+          sender_id?: string | null
+          sender_role?: Database["public"]["Enums"]["message_sender_role"]
+          thread_id?: string
+        }
+        Relationships: []
       }
       placements: {
         Row: {
@@ -596,6 +728,10 @@ export type Database = {
         Args: { _position_id: string; _user_id: string }
         Returns: boolean
       }
+      is_client_owner_of_thread: {
+        Args: { _thread_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       activity_kind:
@@ -628,6 +764,7 @@ export type Database = {
         | "closed"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
       client_status: "active" | "inactive"
+      document_kind: "jd" | "onboarding" | "offer" | "resume" | "other"
       interview_kind:
         | "hr_screen"
         | "technical"
@@ -650,6 +787,7 @@ export type Database = {
         | "no_show"
         | "cancelled"
       invoice_status: "draft" | "sent" | "paid" | "overdue"
+      message_sender_role: "staff" | "client"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
@@ -821,6 +959,7 @@ export const Constants = {
       ],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],
       client_status: ["active", "inactive"],
+      document_kind: ["jd", "onboarding", "offer", "resume", "other"],
       interview_kind: [
         "hr_screen",
         "technical",
@@ -846,6 +985,7 @@ export const Constants = {
         "cancelled",
       ],
       invoice_status: ["draft", "sent", "paid", "overdue"],
+      message_sender_role: ["staff", "client"],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
