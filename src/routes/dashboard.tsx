@@ -445,3 +445,43 @@ function ChannelIcon({ channel }: { channel: "WhatsApp" | "Email" | "Call" }) {
 
 // Suppress unused import warning for Coffee (reserved for future Break visual)
 void Coffee;
+
+function DashboardActivityFeed() {
+  const fetchActivities = useServerFn(listActivities);
+  const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
+    queryKey: ["dashboard-activities"],
+    queryFn: () => fetchActivities({ data: { limit: 8 } }),
+  });
+  return (
+    <>
+      <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Activity className="size-4 text-primary" />
+          <h3 className="font-semibold tracking-tight">Recent activity</h3>
+          <span className="text-[11px] text-muted-foreground">{events.length} recent events</span>
+        </div>
+        <Link to="/activity" className="text-xs text-primary font-medium inline-flex items-center gap-1">
+          View all <ArrowUpRight className="size-3" />
+        </Link>
+      </div>
+      <div className="divide-y divide-border">
+        {isLoading && <div className="p-6 text-sm text-muted-foreground text-center">Loading…</div>}
+        {!isLoading && events.length === 0 && (
+          <div className="p-6 text-sm text-muted-foreground text-center">No activity recorded yet.</div>
+        )}
+        {events.map((e) => (
+          <div key={e.id} className="flex items-start gap-3 p-3 hover:bg-secondary/30 transition">
+            <div className="size-8 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0 text-[10px] font-semibold uppercase">
+              {e.kind.slice(0, 2)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{e.title}</div>
+              {e.detail && <div className="text-[11px] text-muted-foreground truncate">{e.detail}</div>}
+            </div>
+            <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(e.occurred_at)}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
