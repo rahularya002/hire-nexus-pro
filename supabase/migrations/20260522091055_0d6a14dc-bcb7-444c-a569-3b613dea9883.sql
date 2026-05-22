@@ -1,0 +1,1 @@
+ALTER TABLE public.notification_dedup ENABLE ROW LEVEL SECURITY;
