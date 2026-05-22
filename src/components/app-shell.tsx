@@ -31,6 +31,7 @@ import type { RecruiterStatus } from "@/lib/ops/store";
 import { AuthGate } from "@/components/auth-gate";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useNavigate } from "@tanstack/react-router";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -271,38 +272,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger className="ml-auto relative size-9 grid place-items-center rounded-md hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <Bell className="size-4" />
-              <span className="absolute top-2 right-2 size-1.5 rounded-full bg-destructive" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-0">
-              <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-                <div className="text-sm font-semibold">Notifications</div>
-                <button className="text-[11px] text-primary font-medium hover:underline">Mark all read</button>
-              </div>
-              <div className="max-h-80 overflow-y-auto divide-y divide-border">
-                {[
-                  { t: "New profile shared", d: "Arjun Malhotra · Sr. Product Designer", ago: "12m", unread: true },
-                  { t: "Interview confirmed", d: "Sneha Kulkarni · Tata Digital · Wed 4:30 PM", ago: "1h", unread: true },
-                  { t: "Client feedback received", d: "Reliance Brands · Head of E-commerce", ago: "3h", unread: false },
-                  { t: "Offer accepted", d: "Karan Verma · Full Stack Engineer", ago: "Yesterday", unread: false },
-                ].map((n, i) => (
-                  <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 hover:bg-secondary/50 transition cursor-pointer">
-                    <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", n.unread ? "bg-primary" : "bg-transparent")} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium truncate">{n.t}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{n.d}</div>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{n.ago}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-border px-3 py-2 text-center">
-                <Link to="/activity" className="text-xs text-primary font-medium hover:underline">View all activity</Link>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell viewAllHref="/activity" />
 
           <div className="pl-2 border-l border-border">
             <DropdownMenu>

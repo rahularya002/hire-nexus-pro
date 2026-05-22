@@ -631,6 +631,63 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_dedup: {
+        Row: {
+          created_at: string
+          dedup_key: string
+        }
+        Insert: {
+          created_at?: string
+          dedup_key: string
+        }
+        Update: {
+          created_at?: string
+          dedup_key?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          link: string | null
+          read_at: string | null
+          related_interview_id: string | null
+          related_invoice_id: string | null
+          related_task_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          link?: string | null
+          read_at?: string | null
+          related_interview_id?: string | null
+          related_invoice_id?: string | null
+          related_task_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          link?: string | null
+          read_at?: string | null
+          related_interview_id?: string | null
+          related_invoice_id?: string | null
+          related_task_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       placements: {
         Row: {
           application_id: string
@@ -987,6 +1044,11 @@ export type Database = {
         | "credit_left_in_window"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       message_sender_role: "staff" | "client"
+      notification_kind:
+        | "interview_reminder"
+        | "task_sla_breach"
+        | "invoice_overdue"
+        | "system"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
@@ -1193,6 +1255,12 @@ export const Constants = {
       ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       message_sender_role: ["staff", "client"],
+      notification_kind: [
+        "interview_reminder",
+        "task_sla_breach",
+        "invoice_overdue",
+        "system",
+      ],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],

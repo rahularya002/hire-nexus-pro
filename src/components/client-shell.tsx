@@ -1,5 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { clientCompany } from "@/lib/client-data";
@@ -161,37 +162,7 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
             <Upload className="size-4" /> Upload JD
           </Link>
           <div className="flex-1" />
-          <DropdownMenu>
-            <DropdownMenuTrigger className="relative size-9 grid place-items-center rounded-md hover:bg-secondary outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <Bell className="size-4" />
-              {unread > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground grid place-items-center">
-                  {unread}
-                </span>
-              )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-0">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notifications</span>
-                <Link to="/client/activity" className="text-[11px] text-primary font-medium">View all</Link>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="max-h-80 overflow-y-auto">
-                {activityEvents.slice(0, 6).map((e) => (
-                  <div key={e.id} className="px-3 py-2.5 border-b border-border last:border-0 hover:bg-secondary/50">
-                    <div className="flex items-start gap-2">
-                      {e.unread && <span className="mt-1.5 size-1.5 rounded-full bg-primary shrink-0" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium truncate">{e.title}</div>
-                        <div className="text-[11px] text-muted-foreground truncate">{e.detail}</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{e.timeAgo}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell viewAllHref="/client/activity" />
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 pl-2 ml-1 border-l border-border outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
               <div className="size-8 rounded-full bg-gradient-to-br from-info to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
