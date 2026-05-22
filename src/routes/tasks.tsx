@@ -59,7 +59,14 @@ function TasksPage() {
     onError: (e: Error) => toast.error(e.message),
   });
   const createMut = useMutation({
-    mutationFn: (data: Parameters<typeof addTask>[0]["data"]) => addTask({ data }),
+    mutationFn: (data: {
+      title: string;
+      kind?: string;
+      client_id?: string | null;
+      notes?: string | null;
+      due_at?: string | null;
+      due_label?: string | null;
+    }) => addTask({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       setOpen(false);
