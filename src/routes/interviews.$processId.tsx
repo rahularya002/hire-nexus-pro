@@ -56,11 +56,11 @@ function Detail() {
   };
 
   const updateMutation = useMutation({
-    mutationFn: (vars: Parameters<typeof updateFn>[0]["data"]) => updateFn({ data: vars }),
+    mutationFn: (vars: any) => updateFn({ data: vars }),
     onSuccess: invalidate,
   });
   const createMutation = useMutation({
-    mutationFn: (vars: Parameters<typeof createFn>[0]["data"]) => createFn({ data: vars }),
+    mutationFn: (vars: any) => createFn({ data: vars }),
     onSuccess: invalidate,
   });
   const deleteMutation = useMutation({
