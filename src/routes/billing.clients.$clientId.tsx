@@ -1,34 +1,49 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useSyncExternalStore } from "react";
-import { ArrowLeft, Receipt, ShieldCheck, FileText, Settings2 } from "lucide-react";
+import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Receipt, ShieldCheck, FileText, Settings2, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
-  getTerms, previewCurrentCycle, invoicesForClient, activeReplacementWindow,
-  fmtINR, fmtDate, clientName, clientInitials, clientColor,
-  subscribeBilling, getBillingVersion,
-} from "@/lib/billing-data";
+  getClientBilling, generateInvoiceForClient, fmtINR, fmtDate,
+  type InvoiceStatus,
+} from "@/lib/billing.functions";
+import { EditTermsDialog } from "@/components/edit-terms-dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/billing/clients/$clientId")({
   component: () => <AppShell><Page /></AppShell>,
 });
 
-const STATUS_TONE = {
+const STATUS_TONE: Record<InvoiceStatus, string> = {
   draft:     "bg-muted/40 text-muted-foreground border-border",
   sent:      "bg-info/15 text-info border-info/25",
   paid:      "bg-success/15 text-success border-success/25",
   overdue:   "bg-destructive/15 text-destructive border-destructive/25",
   cancelled: "bg-muted/40 text-muted-foreground border-border",
-} as const;
+};
 
 function Page() {
-  useSyncExternalStore(subscribeBilling, getBillingVersion, getBillingVersion);
   const { clientId } = Route.useParams();
-  const terms = getTerms(clientId);
-  if (!terms) throw notFound();
-  const preview = previewCurrentCycle(clientId)!;
-  const invs = invoicesForClient(clientId).sort((a, b) => b.issueDate.localeCompare(a.issueDate));
-  const guarantees = activeReplacementWindow(clientId);
+  const qc = useQueryClient();
+  const fn = useServerFn(getClientBilling);
+  const genFn = useServerFn(generateInvoiceForClient);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const q = useQuery({
+    queryKey: ["billing", "client", clientId],
+    queryFn: () => fn({ data: { clientId } }),
+  });
+  const gen = useMutation({
+    mutationFn: () => genFn({ data: { clientId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["billing"] }),
+  });
+
+  if (q.isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
+  if (q.data === null) throw notFound();
+  const d = q.data!;
+  const { client, terms, cycle, invoices, guarantees } = d;
+  const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <div className="space-y-6">
@@ -37,43 +52,48 @@ function Page() {
       </Link>
 
       <div className="rounded-2xl border border-border bg-gradient-to-br from-card via-card to-secondary/40 p-6 flex items-start gap-5">
-        <div className="size-14 rounded-xl grid place-items-center text-lg font-bold text-primary-foreground" style={{ background: clientColor(clientId) }}>
-          {clientInitials(clientId)}
-        </div>
+        <div className="size-14 rounded-xl grid place-items-center text-lg font-bold text-primary-foreground bg-primary">{initials}</div>
         <div className="flex-1 min-w-0">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Billing profile</div>
-          <h1 className="text-2xl font-semibold tracking-tight">{clientName(clientId)}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">Custom contractual terms · invoiced on actual joinings.</p>
         </div>
+        <button
+          onClick={() => gen.mutate()}
+          disabled={gen.isPending || cycle.items.length === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 hover:opacity-90 transition"
+        >
+          <Plus className="size-4" /> {gen.isPending ? "Generating…" : "Generate invoice"}
+        </button>
       </div>
 
       <section className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold inline-flex items-center gap-2"><Settings2 className="size-4 text-primary" /> Commercial terms</h2>
-            <button className="text-xs text-muted-foreground hover:text-foreground">Edit terms</button>
+            <button onClick={() => setEditOpen(true)} className="text-xs text-primary hover:underline">Edit terms</button>
           </div>
           <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
             <Term label="Fee model" value={
-              terms.feeModel === "percent_ctc" ? `${terms.feeValue}% of CTC` :
-              terms.feeModel === "flat_per_hire" ? `Flat ${fmtINR(terms.feeValue)} per hire` :
-              `Tiered (${terms.tiers?.length} bands)`
+              terms.fee_model === "percent_ctc" ? `${terms.fee_value}% of CTC` :
+              terms.fee_model === "flat_per_hire" ? `Flat ${fmtINR(terms.fee_value)} per hire` :
+              `Tiered (${terms.tiers?.length ?? 0} bands)`
             } />
-            <Term label="Billing cycle" value={terms.billingCycle === "monthly" ? `Monthly · invoice on day ${terms.invoiceDayOfMonth}` : "Per joining"} />
-            <Term label="Payment terms" value={`Net ${terms.paymentTermsDays}`} />
-            <Term label="Replacement window" value={`${terms.replacementWindowDays} days · ${terms.replacementPolicy.replace(/_/g," ")}`} />
-            <Term label="Taxes" value={`GST ${terms.gstPct}% · TDS ${terms.tdsPct}%`} />
-            <Term label="Purchase order" value={terms.poRequired ? (terms.poNumber ?? "Required") : "Not required"} />
+            <Term label="Billing cycle" value={terms.billing_cycle === "monthly" ? `Monthly · invoice on day ${terms.invoice_day_of_month}` : "Per joining"} />
+            <Term label="Payment terms" value={`Net ${terms.payment_terms_days}`} />
+            <Term label="Replacement window" value={`${terms.replacement_window_days} days · ${terms.replacement_policy.replace(/_/g," ")}`} />
+            <Term label="Taxes" value={`GST ${terms.gst_pct}% · TDS ${terms.tds_pct}%`} />
+            <Term label="Purchase order" value={terms.po_required ? (terms.po_number ?? "Required") : "Not required"} />
           </div>
-          {terms.feeModel === "tiered" && terms.tiers && (
+          {terms.fee_model === "tiered" && terms.tiers && terms.tiers.length > 0 && (
             <div className="mt-4 rounded-lg border border-border/60 bg-secondary/30 p-3">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Tier table</div>
               <table className="w-full text-xs">
                 <tbody className="divide-y divide-border/60">
                   {terms.tiers.map((t, i) => (
                     <tr key={i}>
-                      <td className="py-1.5">CTC ≤ {t.upToCtcLakhs} L</td>
-                      <td className="py-1.5 text-right tabular-nums font-medium">{fmtINR(t.flatFeeLakhs)}</td>
+                      <td className="py-1.5">CTC ≤ {fmtINR(t.upToCtcInr)}</td>
+                      <td className="py-1.5 text-right tabular-nums font-medium">{fmtINR(t.flatFeeInr)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -84,18 +104,18 @@ function Page() {
 
         <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-sm font-semibold inline-flex items-center gap-2"><Receipt className="size-4 text-primary" /> Current cycle</h2>
-          <div className="mt-3 text-xs text-muted-foreground">{fmtDate(preview.from)} → {fmtDate(preview.to)}</div>
-          <div className="text-3xl font-semibold tabular-nums mt-2">{fmtINR(preview.total)}</div>
-          <div className="text-[11px] text-muted-foreground">{preview.items.length} line item{preview.items.length === 1 ? "" : "s"} · issues {fmtDate(preview.issueDate)}</div>
+          <div className="mt-3 text-xs text-muted-foreground">{fmtDate(cycle.from)} → {fmtDate(cycle.to)}</div>
+          <div className="text-3xl font-semibold tabular-nums mt-2">{fmtINR(cycle.total)}</div>
+          <div className="text-[11px] text-muted-foreground">{cycle.items.length} line item{cycle.items.length === 1 ? "" : "s"} · issues {fmtDate(cycle.issueDate)}</div>
           <div className="grid grid-cols-3 gap-2 mt-4 text-[11px]">
-            <Mini label="Subtotal" value={fmtINR(preview.subtotal)} />
-            <Mini label={`GST ${terms.gstPct}%`} value={fmtINR(preview.gst)} />
-            <Mini label={`TDS ${terms.tdsPct}%`} value={`-${fmtINR(preview.tds)}`} tone="muted" />
+            <Mini label="Subtotal" value={fmtINR(cycle.subtotal)} />
+            <Mini label={`GST ${terms.gst_pct}%`} value={fmtINR(cycle.gst)} />
+            <Mini label={`TDS ${terms.tds_pct}%`} value={`-${fmtINR(cycle.tds)}`} tone="muted" />
           </div>
         </div>
       </section>
 
-      {preview.items.length > 0 && (
+      {cycle.items.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold mb-2.5">Open cycle accrual</h2>
           <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -110,13 +130,13 @@ function Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {preview.items.map((li) => (
-                  <tr key={li.eventId} className="hover:bg-secondary/30 transition">
-                    <td className="px-4 py-3 font-medium">{li.candidateName}</td>
-                    <td className="px-2 py-3 text-xs text-muted-foreground">{li.positionTitle}</td>
-                    <td className="px-2 py-3 text-xs">{fmtDate(li.joiningDate)}</td>
-                    <td className="px-2 py-3 text-xs">{li.feeBasis}</td>
-                    <td className={cn("px-4 py-3 text-right tabular-nums font-medium", li.amountLakhs < 0 ? "text-warning" : li.amountLakhs === 0 ? "text-muted-foreground" : "")}>{fmtINR(li.amountLakhs)}</td>
+                {cycle.items.map((li) => (
+                  <tr key={li.placement_id} className="hover:bg-secondary/30 transition">
+                    <td className="px-4 py-3 font-medium">{li.candidate_name}</td>
+                    <td className="px-2 py-3 text-xs text-muted-foreground">{li.position_title}</td>
+                    <td className="px-2 py-3 text-xs">{fmtDate(li.joining_date)}</td>
+                    <td className="px-2 py-3 text-xs">{li.fee_basis}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-medium">{fmtINR(li.amount_inr)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -129,19 +149,19 @@ function Page() {
         <div>
           <h2 className="text-sm font-semibold mb-2.5 inline-flex items-center gap-2"><FileText className="size-4 text-primary" /> Invoice history</h2>
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            {invs.length === 0 ? (
+            {invoices.length === 0 ? (
               <div className="p-6 text-sm text-muted-foreground">No invoices yet.</div>
             ) : (
               <ul className="divide-y divide-border">
-                {invs.map((i) => (
+                {invoices.map((i) => (
                   <li key={i.id}>
                     <Link to="/billing/invoices/$invoiceId" params={{ invoiceId: i.id }} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/30 transition">
                       <div className="min-w-0">
-                        <div className="text-sm font-medium">{i.invoiceNo}</div>
-                        <div className="text-[11px] text-muted-foreground">{fmtDate(i.periodFrom)} → {fmtDate(i.periodTo)}</div>
+                        <div className="text-sm font-medium">{i.invoice_no}</div>
+                        <div className="text-[11px] text-muted-foreground">{fmtDate(i.period_from)} → {fmtDate(i.period_to)}</div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="text-sm tabular-nums">{fmtINR(i.totalLakhs)}</div>
+                        <div className="text-sm tabular-nums">{fmtINR(Number(i.total_inr))}</div>
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border capitalize", STATUS_TONE[i.status])}>{i.status}</span>
                       </div>
                     </Link>
@@ -160,14 +180,14 @@ function Page() {
             ) : (
               <ul className="divide-y divide-border">
                 {guarantees.map((g) => (
-                  <li key={g.event.id} className="px-4 py-3">
+                  <li key={g.placement_id} className="px-4 py-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium">{g.event.candidateName}</div>
+                      <div className="text-sm font-medium">{g.candidate_name}</div>
                       <div className="text-xs text-muted-foreground">{g.remaining}d left</div>
                     </div>
-                    <div className="text-[11px] text-muted-foreground">{g.event.positionTitle} · joined {fmtDate(g.event.joiningDate)}</div>
+                    <div className="text-[11px] text-muted-foreground">{g.position_title} · joined {fmtDate(g.joining_date)}</div>
                     <div className="mt-2 h-1.5 rounded-full bg-secondary overflow-hidden">
-                      <div className="h-full bg-success" style={{ width: `${Math.min(100, (g.elapsed / terms.replacementWindowDays) * 100)}%` }} />
+                      <div className="h-full bg-success" style={{ width: `${Math.min(100, (g.elapsed / terms.replacement_window_days) * 100)}%` }} />
                     </div>
                   </li>
                 ))}
@@ -176,6 +196,14 @@ function Page() {
           </div>
         </div>
       </section>
+
+      <EditTermsDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        clientId={clientId}
+        initial={terms}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["billing"] })}
+      />
     </div>
   );
 }
