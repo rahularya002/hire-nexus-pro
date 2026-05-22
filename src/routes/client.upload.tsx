@@ -4,6 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { Upload, FileUp, Sparkles, CheckCircle2, ArrowLeft, Loader2, MapPin, Briefcase, Building2 } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import { scoutCandidates, type ScoutCandidate } from "@/lib/scout-match.functions";
+import { createPosition } from "@/lib/positions.functions";
+import { createDocument } from "@/lib/documents.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/client/upload")({
@@ -12,8 +16,11 @@ export const Route = createFileRoute("/client/upload")({
 
 function Page() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
-  const [file, setFile] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [form, setForm] = useState({
     jobTitle: "",
     location: "",
@@ -28,6 +35,8 @@ function Page() {
   const [scoutError, setScoutError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<ScoutCandidate[] | null>(null);
   const runScout = useServerFn(scoutCandidates);
+  const createPositionFn = useServerFn(createPosition);
+  const createDocumentFn = useServerFn(createDocument);
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -48,7 +57,7 @@ function Page() {
           experience: form.experience,
           skills: form.skills,
           jd: form.jd,
-          fileName: file,
+          fileName: file?.name ?? null,
         },
       });
       if (res.error) setScoutError(res.error);
@@ -57,6 +66,72 @@ function Page() {
       setScoutError(e instanceof Error ? e.message : "Talent Scout failed.");
     } finally {
       setScouting(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) {
+      setSaveError("You must be signed in.");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Find the client row linked to this user
+      const { data: clientRow, error: clientErr } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (clientErr) throw clientErr;
+      if (!clientRow?.id) throw new Error("No client account linked to your login.");
+
+      const priority = (form.priority.toLowerCase() as "high" | "medium" | "low");
+      const position = await createPositionFn({
+        data: {
+          client_id: clientRow.id,
+          title: form.jobTitle,
+          location: form.location || null,
+          experience: form.experience || null,
+          salary: form.salary || null,
+          openings: form.openings ? Math.max(1, parseInt(form.openings, 10) || 1) : 1,
+          priority,
+          status: "open",
+          description: form.jd || null,
+          skills: form.skills
+            ? form.skills.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 30)
+            : [],
+        },
+      });
+
+      if (file) {
+        const safe = file.name.replace(/[^\w.\-]+/g, "_");
+        const path = `${clientRow.id}/jd/${Date.now()}-${safe}`;
+        const { error: upErr } = await supabase.storage
+          .from("documents")
+          .upload(path, file, { cacheControl: "3600", upsert: false });
+        if (upErr) throw upErr;
+        await createDocumentFn({
+          data: {
+            name: file.name,
+            kind: "jd",
+            client_id: clientRow.id,
+            position_id: position.id,
+            storage_bucket: "documents",
+            storage_path: path,
+            mime: file.type || "application/octet-stream",
+            size_bytes: file.size,
+            required: false,
+            received: true,
+          },
+        });
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to submit JD.");
+    } finally {
+      setSaving(false);
     }
   }
 
