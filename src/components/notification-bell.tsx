@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   listNotifications,
   markNotificationRead,
@@ -29,10 +30,12 @@ export function NotificationBell({ viewAllHref = "/activity" }: { viewAllHref?: 
   const markOne = useServerFn(markNotificationRead);
   const markAll = useServerFn(markAllNotificationsRead);
   const qc = useQueryClient();
+  const { session } = useAuth();
 
   const { data } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => fetchList({ data: { limit: 20 } }),
+    enabled: !!session,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
