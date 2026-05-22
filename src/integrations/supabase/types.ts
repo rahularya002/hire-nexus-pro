@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      applications: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          match_score: number | null
+          notes: string | null
+          position_id: string
+          stage: Database["public"]["Enums"]["application_stage"]
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          match_score?: number | null
+          notes?: string | null
+          position_id: string
+          stage?: Database["public"]["Enums"]["application_stage"]
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          match_score?: number | null
+          notes?: string | null
+          position_id?: string
+          stage?: Database["public"]["Enums"]["application_stage"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_company: string | null
+          email: string | null
+          experience: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          resume_url: string | null
+          role: string | null
+          skills: string[]
+          source: Database["public"]["Enums"]["candidate_source"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_company?: string | null
+          email?: string | null
+          experience?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          role?: string | null
+          skills?: string[]
+          source?: Database["public"]["Enums"]["candidate_source"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_company?: string | null
+          email?: string | null
+          experience?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          role?: string | null
+          skills?: string[]
+          source?: Database["public"]["Enums"]["candidate_source"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           color: string | null
@@ -208,6 +313,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_client_owner_of_position: {
+        Args: { _position_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
@@ -216,6 +325,16 @@ export type Database = {
         | "client"
         | "lead_recruiter"
         | "senior_recruiter"
+      application_stage:
+        | "sourcing"
+        | "recruiter_shortlist"
+        | "shared_with_client"
+        | "client_shortlist"
+        | "interview_scheduled"
+        | "rounds"
+        | "offered"
+        | "closed"
+      candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
       client_status: "active" | "inactive"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
@@ -354,6 +473,17 @@ export const Constants = {
         "lead_recruiter",
         "senior_recruiter",
       ],
+      application_stage: [
+        "sourcing",
+        "recruiter_shortlist",
+        "shared_with_client",
+        "client_shortlist",
+        "interview_scheduled",
+        "rounds",
+        "offered",
+        "closed",
+      ],
+      candidate_source: ["manual", "scout", "referral", "database", "inbound"],
       client_status: ["active", "inactive"],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
