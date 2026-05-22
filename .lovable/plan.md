@@ -1,55 +1,58 @@
-# End-to-end test — findings + fix plan
+## What's happening today
 
-## What I did
+You're right — most of what shows on the **Dashboard**, **Team**, **Client portal home**, **Billing invoice detail** and a few other places is hard-coded mock data from these files:
 
-Logged in as **client@gmail.com**, opened **/client/upload**, filled "Senior Backend Engineer - Test by AI" (Bengaluru, 5–8 years) and clicked **Submit JD**.
+- `src/lib/mock-data.ts` (clients, positions, today's interviews)
+- `src/lib/ops/store.ts` (tasks, SLA warnings, daily digest, recruiter roster)
+- `src/lib/chat-data.ts`, `src/lib/billing-data.ts`, `src/lib/client-data.ts`, `src/lib/portal-state.ts`
 
-Result: red error banner — **"No client account linked to your login."**
+Meanwhile the actual DB has only **1 client, 1 position**, nothing else — so the live-data pages (Pipeline, Interviews, Tasks, Activity, Billing list, Placements, Messages, Notifications) look empty.
 
-## Root cause (confirmed)
+I'll fix this in two passes: **seed real data**, then **rewire screens to read from DB**.
 
-The `client@gmail.com` profile *is* correctly linked — DB shows `clients.id = 301c7b12-…-7f63eaef457a` with `user_id = 6ded5f64-…` and `role = client`.
+---
 
-The failure is **RLS**. `src/routes/client.upload.tsx` runs a browser-side query:
+## Plan
 
-```ts
-supabase.from("clients").select("id").eq("user_id", user.id).maybeSingle()
-```
+### 1. Seed realistic data into the DB
+One insert script that adds, scoped to the existing `Acme` client + the 3 real users (admin, recruit, client):
 
-But `public.clients` only has one SELECT policy — **"Staff can view clients"** (admin / lead_recruiter / recruiter). There is **no policy letting a client read their own clients row**, so the query returns 0 rows and we throw "No client account linked".
+- **5 more clients** (Reliance Brands, PhonePe, Swiggy, Nykaa, Razorpay) with colors/industry/contacts
+- **~10 positions** across those clients (mix of open / in_progress / interviews / closed, varied priority, a few assigned to `recruit@gmail.com`)
+- **~15 candidates** with skills/experience
+- **~20 applications** spread across stages (sourcing → shared_with_client → client_shortlist → interview_scheduled → offered → closed)
+- **~6 interviews** (some today, some upcoming, mixed status)
+- **~12 tasks** across all states (Pending, Ongoing, Interview Pending, Closed, Reopened, No-show) with realistic SLA + due labels, assigned to recruiter
+- **~15 activities** (some `client_visible=true` so the client portal feed populates)
+- **3 placements** + **3 invoices** (draft / sent / paid) + line items, plus `client_billing_terms` for each client
+- **1 message thread per client** with 2–3 messages each
+- **A handful of notifications** for the admin user
 
-Same gap will hit any other client-portal page that needs to read its own `clients` row directly from the browser (profile/header, account team, etc.).
+### 2. Rewire dashboard & key screens to read live data
 
-Until this is fixed, **the admin cannot see the request** (nothing is created) and the recruiter-assignment step can't even start.
+| File | Change |
+|---|---|
+| `src/routes/dashboard.tsx` | Replace `clients` / `positions` / `todaysInterviews` / `opsTasks` / `tasksByState` / `pendingConfirmations` / `slaWarnings` / `dailyDigest` / `recruiters` / `inactiveClientsAll` with `useQuery` calls to existing server fns (`listClients`, `listPositions`, `listInterviews`, `listTasks`, `listActivities`, `listTeam`) and compute the digest counts/SLA from real rows. Empty-state copy when 0 rows. |
+| `src/routes/team.tsx` | Already partially DB-backed via `listTeam`; remove any remaining `recruiters` mock imports. |
+| `src/routes/client.index.tsx` | Use `listPositions` (RLS scopes to client) + `listActivities` for the client portal home. |
+| `src/routes/client.positions.tsx`, `client.positions.$positionId.tsx` | Same — drop `clientPositions` mock, use DB. |
+| `src/routes/client.team.tsx` | Pull recruiter info from `listTeam` filtered to positions assigned for that client. |
+| `src/routes/billing.invoices.$invoiceId.tsx` | Use `getInvoice` server fn (add if missing) — currently reads `billing-data.ts`. |
+| `src/components/app-shell.tsx`, `client-shell.tsx`, `ui-bits.tsx`, `chat-thread.tsx` | Strip the mock imports they still reference (mostly type re-exports). |
 
-## Fix plan
+### 3. Cleanup
+- Keep `src/lib/mock-data.ts` etc. as **types-only** (export the TS types/enums still used by components) and remove the seeded constant arrays so nothing accidentally falls back to mock data.
+- Leave `src/lib/client-data.ts` mock arrays for any screen we haven't migrated yet (Reports, etc.) — those are out of scope this turn unless you want them too.
 
-### Step 1 — Migration: let clients read their own clients row
+### 4. Verify
+- Log in as **admin** → dashboard shows real counts, real positions, real tasks, real activity feed.
+- Log in as **client** → portal home shows their 1 position + activity from seeded data.
+- Log in as **recruiter** → sees positions assigned to them, tasks assigned to them.
 
-Add a new RLS policy (does not weaken staff access, does not expose other clients):
+---
 
-```sql
-CREATE POLICY "Clients view own client row"
-  ON public.clients FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid());
-```
+## Out of scope (ask if you want them too)
+- Reports/analytics charts on `client.reports.tsx` (still mock-driven)
+- The `src/lib/ops/store.ts` "recruiter live status" widget — there's no `recruiter_status` table; I'll either drop the live-status pill or derive a static "Active" until a real presence system exists. **Default: drop the live-status table on the dashboard and replace with the DB-backed Team list.**
 
-That's the minimal, surgical fix that unblocks `/client/upload` and any future client-portal read of `clients`.
-
-### Step 2 — Resume the end-to-end test (no code changes)
-
-1. As **client@gmail.com** → `/client/upload` → submit the same JD → expect success screen.
-2. Verify in DB that a row landed in `positions` with `client_id = 301c7b12-…`.
-3. Log out, log in as **admin@gmail.com** → `/positions` (and `/dashboard`) → confirm the new requirement is visible.
-4. Open the position → assign **recruit@gmail.com** as the owning recruiter (whichever assign UI the position detail exposes — `positions.$positionId`).
-5. Log out, log in as **recruit@gmail.com** → `/positions` (or `/dashboard`) → confirm the recruiter sees the assigned position.
-
-### Step 3 — Report findings
-
-After step 2, I'll summarise: which steps passed, which UI looked broken, and any further RLS / assignment gaps I hit while testing (recruiter assignment may need its own follow-up — I'll know once I reach that screen).
-
-## Notes / scope
-
-- Only one DB migration; no app code changes needed to unblock the test.
-- I'll keep the rest of the test purely interactive — no other edits unless we hit another blocker, in which case I'll stop and report before touching code.
+Want me to proceed exactly as above?
