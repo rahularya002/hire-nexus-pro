@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          actor_id: string | null
+          application_id: string | null
+          candidate_id: string | null
+          client_id: string | null
+          client_visible: boolean
+          created_at: string
+          detail: string | null
+          id: string
+          kind: Database["public"]["Enums"]["activity_kind"]
+          occurred_at: string
+          position_id: string | null
+          title: string
+        }
+        Insert: {
+          actor_id?: string | null
+          application_id?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          client_visible?: boolean
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["activity_kind"]
+          occurred_at?: string
+          position_id?: string | null
+          title: string
+        }
+        Update: {
+          actor_id?: string | null
+          application_id?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          client_visible?: boolean
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["activity_kind"]
+          occurred_at?: string
+          position_id?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           candidate_id: string
@@ -457,6 +502,63 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          application_id: string | null
+          assigned_to: string | null
+          candidate_id: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string | null
+          due_label: string | null
+          id: string
+          kind: string
+          notes: string | null
+          position_id: string | null
+          sla: Database["public"]["Enums"]["task_sla"]
+          state: Database["public"]["Enums"]["task_state"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          application_id?: string | null
+          assigned_to?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          due_label?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          position_id?: string | null
+          sla?: Database["public"]["Enums"]["task_sla"]
+          state?: Database["public"]["Enums"]["task_state"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string | null
+          assigned_to?: string | null
+          candidate_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          due_label?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          position_id?: string | null
+          sla?: Database["public"]["Enums"]["task_sla"]
+          state?: Database["public"]["Enums"]["task_state"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -496,6 +598,19 @@ export type Database = {
       }
     }
     Enums: {
+      activity_kind:
+        | "call"
+        | "shortlist"
+        | "share"
+        | "interview_scheduled"
+        | "interview_completed"
+        | "offer"
+        | "closure"
+        | "note"
+        | "submission"
+        | "document"
+        | "message"
+        | "stage_change"
       app_role:
         | "admin"
         | "recruiter"
@@ -538,6 +653,14 @@ export type Database = {
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
+      task_sla: "ok" | "warning" | "breach"
+      task_state:
+        | "Pending"
+        | "Ongoing"
+        | "Interview Pending"
+        | "Closed"
+        | "Reopened"
+        | "No-show"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -665,6 +788,20 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_kind: [
+        "call",
+        "shortlist",
+        "share",
+        "interview_scheduled",
+        "interview_completed",
+        "offer",
+        "closure",
+        "note",
+        "submission",
+        "document",
+        "message",
+        "stage_change",
+      ],
       app_role: [
         "admin",
         "recruiter",
@@ -712,6 +849,15 @@ export const Constants = {
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
+      task_sla: ["ok", "warning", "breach"],
+      task_state: [
+        "Pending",
+        "Ongoing",
+        "Interview Pending",
+        "Closed",
+        "Reopened",
+        "No-show",
+      ],
     },
   },
 } as const
