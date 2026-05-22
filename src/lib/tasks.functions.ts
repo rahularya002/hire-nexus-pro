@@ -77,23 +77,10 @@ export const listTasks = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("tasks")
-      .select(
-        "*, client:clients(id,name,color), position:positions(id,title), candidate:candidates(id,name), assignee:profiles!tasks_assigned_to_fkey(id,full_name,email)",
-      )
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(500);
-    if (error) {
-      // Fallback without the optional FK join (no FK constraint yet)
-      const { data: d2, error: e2 } = await supabase
-        .from("tasks")
-        .select(
-          "*, client:clients(id,name,color), position:positions(id,title), candidate:candidates(id,name)",
-        )
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (e2) throw new Error(e2.message);
-      return (d2 ?? []) as TaskRow[];
-    }
+    if (error) throw new Error(error.message);
     return (data ?? []) as TaskRow[];
   });
 
