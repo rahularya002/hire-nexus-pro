@@ -8,16 +8,18 @@ import {
   PhoneCall, Mail, CheckCircle2, RotateCcw, UserX, Activity, Coffee, Circle,
   Send, Phone, Clock,
 } from "lucide-react";
-import { clients, todaysInterviews, positions, isClientInactive, INACTIVITY_MANDATE_DAYS, INACTIVITY_CLOSURE_DAYS } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth/auth-context";
-import {
-  opsTasks, tasksByState, pendingConfirmations, slaWarnings, dailyDigest,
-  recruiters, type TaskState, type RecruiterStatus,
-} from "@/lib/ops/store";
-import { Avatar, PriorityBadge, StatusBadge } from "@/components/ui-bits";
+import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { AppShell } from "@/components/app-shell";
 import { cn } from "@/lib/utils";
 import { listActivities, formatRelative, type ActivityRow } from "@/lib/activities.functions";
+import { listPositions, type PositionRow } from "@/lib/positions.functions";
+import { listClients, type ClientRow } from "@/lib/clients.functions";
+import { listTasks, TASK_STATES, type TaskRow, type TaskState } from "@/lib/tasks.functions";
+import { listInterviews, formatInterviewWhen, type InterviewRow } from "@/lib/interviews.functions";
+import { colorFor, initialsOf } from "@/lib/display";
+
+type RecruiterStatus = "Active" | "Available" | "Break" | "Offline";
 
 export const Route = createFileRoute("/dashboard")({
   component: IndexPage,
@@ -31,22 +33,54 @@ function IndexPage() {
   );
 }
 
-const myOpenPositions = positions.filter((p) => p.status !== "closed").slice(0, 6);
-const inactiveClientsAll = clients.filter(isClientInactive);
-
 function statusDot(s: RecruiterStatus) {
   return s === "Active" ? "bg-success" : s === "Available" ? "bg-info" : s === "Break" ? "bg-warning" : "bg-muted-foreground";
 }
 
-const taskTabs: TaskState[] = ["Pending", "Ongoing", "Interview Pending", "Closed", "Reopened", "No-show"];
+const taskTabs: TaskState[] = [...TASK_STATES];
+
+function isSameDay(iso: string | null | undefined, today: Date) {
+  if (!iso) return false;
+  const d = new Date(iso);
+  return d.toDateString() === today.toDateString();
+}
 
 function Cockpit() {
   const [myStatus, setMyStatus] = useState<RecruiterStatus>("Active");
   const [taskTab, setTaskTab] = useState<TaskState>("Pending");
-  const myTasks = tasksByState(taskTab);
   const { roles, profile, user } = useAuth();
   const isAdmin = roles.includes("admin");
-  const inactiveClients = isAdmin ? inactiveClientsAll : [];
+
+  const fetchPositions = useServerFn(listPositions);
+  const fetchClients = useServerFn(listClients);
+  const fetchTasks = useServerFn(listTasks);
+  const fetchInterviews = useServerFn(listInterviews);
+  const fetchActivities = useServerFn(listActivities);
+
+  const { data: positions = [] } = useQuery<PositionRow[]>({ queryKey: ["positions"], queryFn: () => fetchPositions({ data: {} }) });
+  const { data: clientRows = [] } = useQuery<ClientRow[]>({ queryKey: ["clients"], queryFn: () => fetchClients() });
+  const { data: tasks = [] } = useQuery<TaskRow[]>({ queryKey: ["tasks"], queryFn: () => fetchTasks() });
+  const { data: todayInterviews = [] } = useQuery<InterviewRow[]>({ queryKey: ["interviews", "today"], queryFn: () => fetchInterviews({ data: { scope: "today" } }) });
+  const { data: activitiesAll = [] } = useQuery<ActivityRow[]>({ queryKey: ["activities", "digest"], queryFn: () => fetchActivities({ data: { limit: 200 } }) });
+
+  const today = new Date();
+  const todayShares    = activitiesAll.filter((a) => a.kind === "share"               && isSameDay(a.occurred_at, today)).length;
+  const todayOffers    = activitiesAll.filter((a) => a.kind === "offer"               && isSameDay(a.occurred_at, today)).length;
+  const todayClosures  = activitiesAll.filter((a) => a.kind === "closure"             && isSameDay(a.occurred_at, today)).length;
+  const todayInterviewCount = todayInterviews.length;
+
+  const myOpenPositions = positions.filter((p) => p.status !== "closed").slice(0, 6);
+  const myTasks = tasks.filter((t) => t.state === taskTab);
+  const pendingTasks = tasks.filter((t) => t.state === "Pending");
+  const interviewPending = tasks.filter((t) => t.state === "Interview Pending");
+  const slaBreaches = tasks.filter((t) => t.sla === "breach" || t.sla === "warning").slice(0, 5);
+  const recentInactive = clientRows
+    .filter((c) => {
+      if (!c.last_activity_at) return true;
+      const days = (Date.now() - new Date(c.last_activity_at).getTime()) / (1000 * 60 * 60 * 24);
+      return days > 14;
+    })
+    .slice(0, 4);
 
   const now = new Date();
   const dateLabel = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -58,10 +92,10 @@ function Cockpit() {
     || "there";
 
   const digest = [
-    { label: "Profiles shared", ...dailyDigest.shares },
-    { label: "Interviews", ...dailyDigest.interviews },
-    { label: "Offers", ...dailyDigest.offers },
-    { label: "Closures", ...dailyDigest.closures },
+    { label: "Profiles shared", value: todayShares,         delta: `${activitiesAll.filter((a) => a.kind === "share").length} all-time` },
+    { label: "Interviews",      value: todayInterviewCount, delta: `${todayInterviews.filter((i) => i.status === "pending_confirmation").length} pending` },
+    { label: "Offers",          value: todayOffers,         delta: `${activitiesAll.filter((a) => a.kind === "offer").length} all-time` },
+    { label: "Closures",        value: todayClosures,       delta: `${activitiesAll.filter((a) => a.kind === "closure").length} all-time` },
   ];
 
   return (
@@ -119,78 +153,81 @@ function Cockpit() {
       {/* Top row: My Active Clients, My Open Positions, Today's Interviews */}
       <div className="grid lg:grid-cols-3 gap-4">
         {isAdmin ? (
-        <CockpitCard title="Inactive clients" count={inactiveClients.length} icon={UserX} link="/admin/clients" tone="warning">
+        <CockpitCard title="Inactive / quiet clients" count={recentInactive.length} icon={UserX} link="/admin/clients" tone="warning">
           <div className="space-y-2">
-            {inactiveClients.length === 0 && (
-              <div className="text-xs text-muted-foreground p-2">No inactive clients — all accounts within {INACTIVITY_MANDATE_DAYS}d mandate / {INACTIVITY_CLOSURE_DAYS}d closure window.</div>
+            {recentInactive.length === 0 && (
+              <div className="text-xs text-muted-foreground p-2">All clients are active.</div>
             )}
-            {inactiveClients.map((c) => (
+            {recentInactive.map((c) => (
               <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/60 transition">
-                <Avatar initials={c.initials} color={c.color} />
+                <div className="size-9 rounded-md grid place-items-center text-[11px] font-semibold text-primary-foreground shrink-0"
+                     style={{ background: colorFor(c.id, c.color) }}>
+                  {initialsOf(c.name)}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{c.name}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">Last mandate {c.lastMandateDays}d · last closure {c.lastClosureDays}d</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{c.industry ?? "—"} · {c.open_positions ?? 0} open</div>
                 </div>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Inactive</span>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Quiet</span>
               </Link>
             ))}
-            <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60 mt-1">
-              Auto-marked inactive after {INACTIVITY_MANDATE_DAYS}d without a mandate or {INACTIVITY_CLOSURE_DAYS}d without a closure.
-            </div>
           </div>
         </CockpitCard>
         ) : (
-        <CockpitCard title="My active clients" count={clients.filter((c) => !isClientInactive(c)).length} icon={Building2} link="/admin/clients">
+        <CockpitCard title="Active clients" count={clientRows.length} icon={Building2} link="/admin/clients">
           <div className="space-y-2">
-            {clients.filter((c) => !isClientInactive(c)).slice(0, 4).map((c) => (
+            {clientRows.slice(0, 4).map((c) => (
               <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/60 transition">
-                <Avatar initials={c.initials} color={c.color} />
+                <div className="size-9 rounded-md grid place-items-center text-[11px] font-semibold text-primary-foreground shrink-0"
+                     style={{ background: colorFor(c.id, c.color) }}>
+                  {initialsOf(c.name)}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{c.name}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{c.openPositions} open · {c.activeCandidates} candidates</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{c.industry ?? "—"} · {c.open_positions ?? 0} open</div>
                 </div>
               </Link>
             ))}
+            {clientRows.length === 0 && <div className="text-xs text-muted-foreground p-2">No clients yet.</div>}
           </div>
         </CockpitCard>
         )}
 
         <CockpitCard title="My open positions" count={myOpenPositions.length} icon={Briefcase} link="/positions">
           <div className="space-y-2">
-            {myOpenPositions.slice(0, 4).map((p) => {
-              const c = clients.find((x) => x.id === p.clientId)!;
-              return (
+            {myOpenPositions.slice(0, 4).map((p) => (
                 <Link key={p.id} to="/positions/$positionId" params={{ positionId: p.id }} className="flex items-start gap-2 p-2 rounded-md hover:bg-secondary/60 transition">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium truncate">{p.title}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">{c.name} · {p.location}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{p.client?.name ?? "—"} · {p.location ?? "—"}</div>
                     <div className="mt-1 flex items-center gap-1.5">
                       <PriorityBadge priority={p.priority} />
                       <StatusBadge status={p.status} />
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold tabular-nums">{p.candidates.length}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase">cands</div>
+                    <div className="text-sm font-semibold tabular-nums">{p.openings}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">openings</div>
                   </div>
                 </Link>
-              );
-            })}
+            ))}
+            {myOpenPositions.length === 0 && <div className="text-xs text-muted-foreground p-2">No open positions.</div>}
           </div>
         </CockpitCard>
 
-        <CockpitCard title="Today's interviews" count={todaysInterviews.length} icon={CalendarClock} link="/interviews">
+        <CockpitCard title="Today's interviews" count={todayInterviews.length} icon={CalendarClock} link="/interviews">
           <div className="space-y-2">
-            {todaysInterviews.map((i) => (
+            {todayInterviews.map((i) => (
               <div key={i.id} className="flex items-start gap-3 p-2 rounded-md border border-border/60 hover:border-primary/30 transition">
-                <div className="text-xs font-semibold text-primary tabular-nums w-14 pt-0.5">{i.time}</div>
+                <div className="text-xs font-semibold text-primary tabular-nums w-20 pt-0.5">{formatInterviewWhen(i.scheduled_at).replace("Today · ", "")}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{i.candidate}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{i.round} · {i.client}</div>
+                  <div className="text-sm font-medium truncate">{i.candidate?.name ?? "Candidate"}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{i.kind.replace(/_/g, " ")} · {i.position?.client?.name ?? "—"}</div>
                 </div>
-                <button className="text-[11px] font-medium text-primary hover:underline shrink-0">Confirm</button>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0">{i.status.replace(/_/g, " ")}</span>
               </div>
             ))}
+            {todayInterviews.length === 0 && <div className="text-xs text-muted-foreground p-2">No interviews scheduled today.</div>}
           </div>
         </CockpitCard>
       </div>
@@ -201,7 +238,7 @@ function Cockpit() {
           <div className="flex items-center gap-2">
             <ClipboardList className="size-4 text-primary" />
             <h3 className="font-semibold tracking-tight">Tasks</h3>
-            <span className="text-[11px] text-muted-foreground">· {opsTasks.length} total</span>
+            <span className="text-[11px] text-muted-foreground">· {tasks.length} total</span>
           </div>
           <Link to="/tasks" className="text-xs text-primary font-medium inline-flex items-center gap-1">
             Open task board <ArrowUpRight className="size-3" />
@@ -209,7 +246,7 @@ function Cockpit() {
         </div>
         <div className="px-4 pt-3 flex flex-wrap gap-1 border-b border-border">
           {taskTabs.map((s) => {
-            const count = tasksByState(s).length;
+            const count = tasks.filter((t) => t.state === s).length;
             const active = taskTab === s;
             return (
               <button
@@ -239,14 +276,14 @@ function Cockpit() {
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium truncate">{t.title}</div>
                 <div className="text-[11px] text-muted-foreground truncate">
-                  {t.client && <>{t.client} · </>}{t.position}{t.candidate && <> · {t.candidate}</>}
+                  {t.notes ?? t.kind}
                 </div>
               </div>
               <div className={cn(
                 "text-[11px] font-medium px-2 py-0.5 rounded-md",
                 t.sla === "breach" ? "bg-destructive/10 text-destructive" : t.sla === "warning" ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"
               )}>
-                <Clock className="size-3 inline -mt-0.5 mr-1" />{t.due}
+                <Clock className="size-3 inline -mt-0.5 mr-1" />{t.due_label ?? (t.due_at ? new Date(t.due_at).toLocaleDateString() : "—")}
               </div>
               <div className="hidden sm:flex items-center gap-1">
                 <QuickAction icon={Phone} label="Call" />
@@ -260,48 +297,52 @@ function Cockpit() {
 
       {/* Confirmations + Follow-ups + SLA */}
       <div className="grid lg:grid-cols-3 gap-4">
-        <CockpitCard title="Candidate confirmations pending" count={pendingConfirmations.filter(c => c.state === "Awaiting response").length} icon={MessageSquare}>
+        <CockpitCard title="Interview confirmations pending" count={interviewPending.length} icon={MessageSquare}>
           <div className="space-y-2">
-            {pendingConfirmations.map((c) => (
-              <div key={c.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-secondary/60 transition">
-                <ChannelIcon channel={c.channel} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{c.candidate}</div>
-                  <div className="text-[11px] text-muted-foreground">{c.state} · {c.when}</div>
+            {interviewPending.slice(0, 5).map((c) => (
+              <div key={c.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-secondary/60 transition">
+                <div className="size-7 rounded-md bg-purple/15 text-purple grid place-items-center shrink-0">
+                  <CalendarClock className="size-3.5" />
                 </div>
-                <button className="text-[11px] font-medium text-primary hover:underline">Nudge</button>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{c.title}</div>
+                  <div className="text-[11px] text-muted-foreground">{c.due_label ?? "—"}</div>
+                </div>
               </div>
             ))}
+            {interviewPending.length === 0 && <div className="text-xs text-muted-foreground p-2">Nothing pending.</div>}
           </div>
         </CockpitCard>
 
-        <CockpitCard title="Follow-ups pending" count={tasksByState("Pending").length} icon={PhoneCall}>
+        <CockpitCard title="Follow-ups pending" count={pendingTasks.length} icon={PhoneCall}>
           <div className="space-y-2">
-            {tasksByState("Pending").slice(0, 4).map((t) => (
+            {pendingTasks.slice(0, 4).map((t) => (
               <div key={t.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-secondary/60 transition">
                 <div className="size-7 rounded-md bg-info/15 text-info grid place-items-center shrink-0">
                   <PhoneCall className="size-3.5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{t.title}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{t.client} · due {t.due}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">due {t.due_label ?? "—"}</div>
                 </div>
               </div>
             ))}
+            {pendingTasks.length === 0 && <div className="text-xs text-muted-foreground p-2">All clear.</div>}
           </div>
         </CockpitCard>
 
-        <CockpitCard title="SLA warnings" count={slaWarnings.length} icon={AlertTriangle} tone="warning">
+        <CockpitCard title="SLA warnings" count={slaBreaches.length} icon={AlertTriangle} tone="warning">
           <div className="space-y-2">
-            {slaWarnings.map((s) => (
+            {slaBreaches.map((s) => (
               <div key={s.id} className={cn(
                 "p-2.5 rounded-md border",
-                s.severity === "breach" ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/5"
+                s.sla === "breach" ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/5"
               )}>
                 <div className="text-sm font-medium leading-snug">{s.title}</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">{s.detail}</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">{s.due_label ?? (s.due_at ? new Date(s.due_at).toLocaleString() : "—")}</div>
               </div>
             ))}
+            {slaBreaches.length === 0 && <div className="text-xs text-muted-foreground p-2">No SLA risks.</div>}
           </div>
         </CockpitCard>
       </div>
@@ -310,45 +351,6 @@ function Cockpit() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <DashboardActivityFeed />
       </div>
-
-      {/* Recruiter activity status */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Activity className="size-4 text-primary" />
-            <h3 className="font-semibold tracking-tight">Recruiter activity</h3>
-            <span className="text-[11px] text-muted-foreground">Live · Manager view</span>
-          </div>
-          <Link to="/team" className="text-xs text-primary font-medium inline-flex items-center gap-1">
-            Open roster <ArrowUpRight className="size-3" />
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-[11px] uppercase tracking-wider text-muted-foreground bg-secondary/40">
-              <tr>
-                <th className="text-left font-medium px-4 py-2">Recruiter</th>
-                <th className="text-left font-medium px-2 py-2">Status</th>
-                <th className="text-right font-medium px-2 py-2">Login</th>
-                <th className="text-right font-medium px-2 py-2">Clients</th>
-                <th className="text-right font-medium px-2 py-2">Positions</th>
-                <th className="text-right font-medium px-2 py-2">Shares today</th>
-                <th className="text-right font-medium px-2 py-2">Closures</th>
-                <th className="text-right font-medium px-4 py-2">Conv %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {recruiters.map((r) => (
-                <tr key={r.id} className="hover:bg-secondary/30 transition">
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="size-7 rounded-full bg-gradient-to-br from-primary/30 to-purple/30 grid place-items-center text-[10px] font-semibold">{r.initials}</div>
-                      <div className="leading-tight">
-                        <div className="font-medium">{r.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{r.role}</div>
-                      </div>
-                    </div>
-                  </td>
                   <td className="px-2 py-2.5">
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium">
                       <span className={cn("size-1.5 rounded-full", statusDot(r.status), r.status === "Active" && "animate-pulse")} />
