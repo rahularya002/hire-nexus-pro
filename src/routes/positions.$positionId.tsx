@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, MapPin, Calendar, Users, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
-import { getPositionById } from "@/lib/positions.functions";
+import { getPositionById, assignPositionRecruiter, listAssignableRecruiters } from "@/lib/positions.functions";
 import { daysSince } from "@/lib/display";
+import { useAuth } from "@/lib/auth/auth-context";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/positions/$positionId")({
   component: () => <AppShell><PositionDetail /></AppShell>,
@@ -14,6 +16,8 @@ export const Route = createFileRoute("/positions/$positionId")({
 function PositionDetail() {
   const { positionId } = Route.useParams();
   const fetchPosition = useServerFn(getPositionById);
+  const { roles } = useAuth();
+  const canAssign = roles.includes("admin") || roles.includes("lead_recruiter");
   const { data: position, isLoading } = useQuery({
     queryKey: ["position", positionId],
     queryFn: () => fetchPosition({ data: { id: positionId } }),
@@ -83,11 +87,60 @@ function PositionDetail() {
         </div>
       </div>
 
+      <AssignmentCard positionId={positionId} assignedId={position.assigned_recruiter_id ?? null} canEdit={canAssign} />
+
       <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
         <h3 className="font-semibold tracking-tight">Candidate pipeline</h3>
         <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
           The candidate pipeline, AI scout, and resume review will be wired to the database in Phase 2 (Candidates & Pipeline).
         </p>
+      </div>
+    </div>
+  );
+}
+
+function AssignmentCard({ positionId, assignedId, canEdit }: { positionId: string; assignedId: string | null; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const fetchRecruiters = useServerFn(listAssignableRecruiters);
+  const assignFn = useServerFn(assignPositionRecruiter);
+  const { data: recruiters = [] } = useQuery({
+    queryKey: ["assignable-recruiters"],
+    queryFn: () => fetchRecruiters(),
+  });
+  const current = recruiters.find((r) => r.id === assignedId);
+
+  async function onChange(value: string) {
+    try {
+      await assignFn({ data: { id: positionId, assigned_recruiter_id: value === "" ? null : value } });
+      toast.success(value === "" ? "Recruiter unassigned" : "Recruiter assigned");
+      qc.invalidateQueries({ queryKey: ["position", positionId] });
+      qc.invalidateQueries({ queryKey: ["positions"] });
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to assign recruiter");
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold">Assigned recruiter</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {current ? `${current.name} · ${current.role.replace(/_/g, " ")}` : "No recruiter assigned yet."}
+          </p>
+        </div>
+        {canEdit && (
+          <select
+            value={assignedId ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[220px]"
+          >
+            <option value="">— Unassigned —</option>
+            {recruiters.map((r) => (
+              <option key={r.id} value={r.id}>{r.name} ({r.role.replace(/_/g, " ")})</option>
+            ))}
+          </select>
+        )}
       </div>
     </div>
   );
