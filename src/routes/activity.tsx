@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -41,6 +41,21 @@ function Page() {
     queryFn: () => fetchActivities({ data: { limit: 200 } }),
   });
 
+  const [kindFilter, setKindFilter] = useState<ActivityKind | "all">("all");
+  const [query, setQuery] = useState("");
+  const [days, setDays] = useState<number>(30);
+
+  const filtered = useMemo(() => {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const q = query.trim().toLowerCase();
+    return events.filter((e) => {
+      if (kindFilter !== "all" && e.kind !== kindFilter) return false;
+      if (new Date(e.occurred_at).getTime() < cutoff) return false;
+      if (q && !`${e.title} ${e.detail ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [events, kindFilter, query, days]);
+
   const summary = useMemo(() => {
     const cut = Date.now() - 24 * 60 * 60 * 1000;
     const recent = events.filter((e) => new Date(e.occurred_at).getTime() >= cut);
@@ -60,7 +75,7 @@ function Page() {
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Transparency</div>
           <h1 className="text-2xl font-semibold tracking-tight mt-1 inline-flex items-center gap-2">
-            <ActivityIcon className="size-5 text-primary" /> Recruiter activity
+            <ActivityIcon className="size-5 text-primary" /> Audit log
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Every recruiter action — recorded automatically as the team operates.
@@ -79,18 +94,46 @@ function Page() {
 
       {/* Activity feed */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold tracking-tight text-sm">All recruiter activity</h2>
-          <span className="text-xs text-muted-foreground">{events.length} events</span>
+        <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-wrap">
+          <h2 className="font-semibold tracking-tight text-sm mr-2">All recruiter activity</h2>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search title / detail"
+            className="h-8 px-2 text-xs rounded-md border border-input bg-secondary/40 outline-none focus:ring-1 focus:ring-ring w-56"
+          />
+          <select
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value as any)}
+            className="h-8 px-2 text-xs rounded-md border border-input bg-secondary/40 outline-none"
+          >
+            <option value="all">All kinds</option>
+            {Object.entries(KIND_META).map(([k, m]) => (
+              <option key={k} value={k}>{m.label}</option>
+            ))}
+          </select>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="h-8 px-2 text-xs rounded-md border border-input bg-secondary/40 outline-none"
+          >
+            <option value={1}>Last 24h</option>
+            <option value={7}>Last 7d</option>
+            <option value={30}>Last 30d</option>
+            <option value={365}>Last year</option>
+          </select>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filtered.length} of {events.length}
+          </span>
         </div>
         <div className="divide-y divide-border">
           {isLoading && (
             <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>
           )}
-          {events.length === 0 && (
-            !isLoading && <div className="p-10 text-sm text-muted-foreground text-center">No activity recorded yet.</div>
+          {filtered.length === 0 && (
+            !isLoading && <div className="p-10 text-sm text-muted-foreground text-center">No activity matches the current filters.</div>
           )}
-          {events.map((e) => {
+          {filtered.map((e) => {
             const meta = KIND_META[e.kind];
             const Icon = meta.icon;
             return (
