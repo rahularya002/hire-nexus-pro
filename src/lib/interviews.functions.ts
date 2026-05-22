@@ -1,0 +1,349 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+export const INTERVIEW_STATUSES = [
+  "pending_confirmation",
+  "confirmed",
+  "reschedule_requested",
+  "completed",
+  "no_show",
+  "cancelled",
+] as const;
+export type InterviewStatus = (typeof INTERVIEW_STATUSES)[number];
+
+export const INTERVIEW_STATUS_LABEL: Record<InterviewStatus, string> = {
+  pending_confirmation: "Pending confirmation",
+  confirmed: "Confirmed",
+  reschedule_requested: "Reschedule requested",
+  completed: "Completed",
+  no_show: "No-show",
+  cancelled: "Cancelled",
+};
+
+export const INTERVIEW_PROVIDERS = [
+  "google_meet",
+  "microsoft_teams",
+  "zoom",
+  "on_site",
+  "phone",
+] as const;
+export type InterviewProvider = (typeof INTERVIEW_PROVIDERS)[number];
+
+export const INTERVIEW_PROVIDER_LABEL: Record<InterviewProvider, string> = {
+  google_meet: "Google Meet",
+  microsoft_teams: "Microsoft Teams",
+  zoom: "Zoom",
+  on_site: "On-site",
+  phone: "Phone",
+};
+
+export const INTERVIEW_KINDS = [
+  "hr_screen",
+  "technical",
+  "hiring_manager",
+  "panel",
+  "ceo",
+  "culture_fit",
+  "case_study",
+] as const;
+export type InterviewKind = (typeof INTERVIEW_KINDS)[number];
+
+export const INTERVIEW_KIND_LABEL: Record<InterviewKind, string> = {
+  hr_screen: "HR Screen",
+  technical: "Technical",
+  hiring_manager: "Hiring Manager",
+  panel: "Panel",
+  ceo: "CEO",
+  culture_fit: "Culture Fit",
+  case_study: "Case Study",
+};
+
+export const INVOICE_STATUSES = ["draft", "sent", "paid", "overdue"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export type InterviewRow = {
+  id: string;
+  application_id: string;
+  candidate_id: string;
+  position_id: string;
+  round_index: number;
+  kind: InterviewKind;
+  interviewer: string | null;
+  scheduled_at: string | null;
+  duration_minutes: number | null;
+  status: InterviewStatus;
+  provider: InterviewProvider;
+  meeting_link: string | null;
+  location: string | null;
+  notes: string | null;
+  cv_attached: boolean;
+  recruiter_reminder: boolean;
+  candidate_reminder: boolean;
+  created_at: string;
+  updated_at: string;
+  candidate?: { id: string; name: string; role: string | null } | null;
+  position?: {
+    id: string;
+    title: string;
+    client_id: string;
+    client?: { id: string; name: string; color: string | null } | null;
+  } | null;
+};
+
+export type PlacementRow = {
+  id: string;
+  application_id: string;
+  candidate_id: string;
+  position_id: string;
+  client_id: string;
+  ctc_inr: number | null;
+  ctc_display: string | null;
+  offer_date: string | null;
+  joining_date: string | null;
+  guarantee_window_days: number;
+  invoice_status: InvoiceStatus;
+  invoice_amount_inr: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  candidate?: { id: string; name: string } | null;
+  position?: { id: string; title: string; client_id: string } | null;
+  client?: { id: string; name: string } | null;
+};
+
+function clean<T extends Record<string, any>>(o: T): T {
+  const out: any = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v === "" || v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+const INTERVIEW_SELECT =
+  "*, candidate:candidates(id,name,role), position:positions(id,title,client_id, client:clients(id,name,color))";
+
+/* ---------------- Interviews ---------------- */
+
+export const listInterviews = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        applicationId: z.string().uuid().optional(),
+        positionId: z.string().uuid().optional(),
+        scope: z.enum(["today", "upcoming", "past", "all"]).optional(),
+      })
+      .optional()
+      .parse(d) ?? {},
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    let q = supabase
+      .from("interviews")
+      .select(INTERVIEW_SELECT)
+      .order("scheduled_at", { ascending: true, nullsFirst: false })
+      .limit(1000);
+    if (data?.applicationId) q = q.eq("application_id", data.applicationId);
+    if (data?.positionId) q = q.eq("position_id", data.positionId);
+    if (data?.scope && data.scope !== "all") {
+      const now = new Date();
+      const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+      const endToday = new Date(now); endToday.setHours(23, 59, 59, 999);
+      if (data.scope === "today") {
+        q = q.gte("scheduled_at", startToday.toISOString()).lte("scheduled_at", endToday.toISOString());
+      } else if (data.scope === "upcoming") {
+        q = q.gt("scheduled_at", endToday.toISOString());
+      } else if (data.scope === "past") {
+        q = q.lt("scheduled_at", startToday.toISOString());
+      }
+    }
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as InterviewRow[];
+  });
+
+export const getInterviewProcess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { applicationId: string }) =>
+    z.object({ applicationId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .select(
+        "id, stage, candidate:candidates(id,name,role,email,location), position:positions(id,title,client_id, client:clients(id,name,color))",
+      )
+      .eq("id", data.applicationId)
+      .maybeSingle();
+    if (appErr) throw new Error(appErr.message);
+    if (!app) return null;
+    const { data: rounds, error: rErr } = await supabase
+      .from("interviews")
+      .select(INTERVIEW_SELECT)
+      .eq("application_id", data.applicationId)
+      .order("round_index", { ascending: true });
+    if (rErr) throw new Error(rErr.message);
+    return { application: app, rounds: (rounds ?? []) as InterviewRow[] };
+  });
+
+const interviewSchema = z.object({
+  application_id: z.string().uuid(),
+  candidate_id: z.string().uuid(),
+  position_id: z.string().uuid(),
+  round_index: z.number().int().min(1).max(20).optional(),
+  kind: z.enum(INTERVIEW_KINDS).optional(),
+  interviewer: z.string().max(200).optional().nullable(),
+  scheduled_at: z.string().datetime().optional().nullable(),
+  duration_minutes: z.number().int().min(5).max(600).optional().nullable(),
+  status: z.enum(INTERVIEW_STATUSES).optional(),
+  provider: z.enum(INTERVIEW_PROVIDERS).optional(),
+  meeting_link: z.string().max(500).optional().nullable(),
+  location: z.string().max(300).optional().nullable(),
+  notes: z.string().max(10_000).optional().nullable(),
+  cv_attached: z.boolean().optional(),
+  recruiter_reminder: z.boolean().optional(),
+  candidate_reminder: z.boolean().optional(),
+});
+
+export const createInterview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => interviewSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await supabase
+      .from("interviews")
+      .insert(clean({ ...data, created_by: userId }))
+      .select(INTERVIEW_SELECT)
+      .single();
+    if (error) throw new Error(error.message);
+    return row as InterviewRow;
+  });
+
+export const updateInterview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid() }).merge(interviewSchema.partial()).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { id, ...rest } = data;
+    const { data: row, error } = await supabase
+      .from("interviews")
+      .update(clean(rest))
+      .eq("id", id)
+      .select(INTERVIEW_SELECT)
+      .single();
+    if (error) throw new Error(error.message);
+    return row as InterviewRow;
+  });
+
+export const deleteInterview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { error } = await supabase.from("interviews").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ---------------- Placements ---------------- */
+
+const PLACEMENT_SELECT =
+  "*, candidate:candidates(id,name), position:positions(id,title,client_id), client:clients(id,name)";
+
+export const listPlacements = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({ clientId: z.string().uuid().optional() })
+      .optional()
+      .parse(d) ?? {},
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    let q = supabase
+      .from("placements")
+      .select(PLACEMENT_SELECT)
+      .order("joining_date", { ascending: false, nullsFirst: false })
+      .limit(500);
+    if (data?.clientId) q = q.eq("client_id", data.clientId);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as PlacementRow[];
+  });
+
+const placementSchema = z.object({
+  application_id: z.string().uuid(),
+  candidate_id: z.string().uuid(),
+  position_id: z.string().uuid(),
+  client_id: z.string().uuid(),
+  ctc_inr: z.number().min(0).max(1e12).optional().nullable(),
+  ctc_display: z.string().max(50).optional().nullable(),
+  offer_date: z.string().date().optional().nullable(),
+  joining_date: z.string().date().optional().nullable(),
+  guarantee_window_days: z.number().int().min(0).max(365).optional(),
+  invoice_status: z.enum(INVOICE_STATUSES).optional(),
+  invoice_amount_inr: z.number().min(0).max(1e12).optional().nullable(),
+  notes: z.string().max(10_000).optional().nullable(),
+});
+
+export const createPlacement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => placementSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await supabase
+      .from("placements")
+      .insert(clean({ ...data, created_by: userId }))
+      .select(PLACEMENT_SELECT)
+      .single();
+    if (error) throw new Error(error.message);
+    return row as PlacementRow;
+  });
+
+export const updatePlacement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid() }).merge(placementSchema.partial()).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { id, ...rest } = data;
+    const { data: row, error } = await supabase
+      .from("placements")
+      .update(clean(rest))
+      .eq("id", id)
+      .select(PLACEMENT_SELECT)
+      .single();
+    if (error) throw new Error(error.message);
+    return row as PlacementRow;
+  });
+
+export const deletePlacement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { error } = await supabase.from("placements").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ---------------- Helpers ---------------- */
+
+export function formatInterviewWhen(iso: string | null): string {
+  if (!iso) return "TBD";
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const isTomorrow = d.toDateString() === tomorrow.toDateString();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (sameDay) return `Today · ${time}`;
+  if (isTomorrow) return `Tomorrow · ${time}`;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
+}
