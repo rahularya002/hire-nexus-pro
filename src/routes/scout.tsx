@@ -187,9 +187,65 @@ function Scout() {
         <div className="size-10 rounded-lg bg-gradient-to-br from-primary to-purple grid place-items-center text-primary-foreground shadow-sm">
           <Sparkles className="size-5" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">AI Talent Scout</h1>
           <p className="text-xs text-muted-foreground">Source, evaluate and shortlist candidates faster.</p>
+        </div>
+        <div className="relative" ref={clientMenuRef}>
+          <button
+            type="button"
+            onClick={() => setClientMenuOpen((o) => !o)}
+            className="inline-flex items-center gap-2 rounded-lg border border-input bg-card hover:bg-secondary/60 hover:border-primary/40 px-3 h-10 text-sm transition min-w-[180px]"
+          >
+            {selectedClient?.color ? (
+              <span className="size-2.5 rounded-full" style={{ backgroundColor: selectedClient.color }} />
+            ) : (
+              <Building2 className="size-4 text-muted-foreground" />
+            )}
+            <span className={cn("flex-1 text-left truncate", !selectedClient && "text-muted-foreground")}>
+              {selectedClient ? selectedClient.name : clientsLoading ? "Loading clients..." : "All clients"}
+            </span>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </button>
+          {clientMenuOpen && (
+            <div className="absolute right-0 mt-1 z-20 w-72 max-h-80 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-1">
+              <button
+                type="button"
+                onClick={() => { setClientId(null); setClientMenuOpen(false); }}
+                className={cn(
+                  "w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-secondary/60",
+                  !clientId && "bg-secondary/60"
+                )}
+              >
+                <Building2 className="size-4 text-muted-foreground" />
+                <span className="flex-1 text-left">All clients</span>
+                {!clientId && <Check className="size-4 text-primary" />}
+              </button>
+              {clients.length === 0 && !clientsLoading && (
+                <div className="px-2.5 py-3 text-xs text-muted-foreground">
+                  No clients assigned to you yet.
+                </div>
+              )}
+              {clients.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { setClientId(c.id); setClientMenuOpen(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-secondary/60",
+                    clientId === c.id && "bg-secondary/60"
+                  )}
+                >
+                  <span
+                    className="size-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: c.color ?? "hsl(var(--muted-foreground))" }}
+                  />
+                  <span className="flex-1 text-left truncate">{c.name}</span>
+                  {clientId === c.id && <Check className="size-4 text-primary" />}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
