@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { MapPin, Plus, Loader2 } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { listClients } from "@/lib/clients.functions";
 import { listPositions, createPosition } from "@/lib/positions.functions";
 import { colorFor, initialsOf } from "@/lib/display";
+import { ListRowSkeleton } from "@/components/skeletons";
 
 export const Route = createFileRoute("/positions")({
   component: () => <AppShell><PositionsShell /></AppShell>,
@@ -61,9 +62,7 @@ function PositionsPage() {
           <div className="col-span-2">Status</div>
         </div>
         <div className="divide-y divide-border">
-          {isLoading && (
-            <div className="p-10 text-center text-sm text-muted-foreground inline-flex items-center justify-center gap-2 w-full"><Loader2 className="size-4 animate-spin" /> Loading positions…</div>
-          )}
+          {isLoading && <ListRowSkeleton rows={5} />}
           {!isLoading && positions.length === 0 && (
             <div className="p-10 text-center text-sm text-muted-foreground">
               {clients.length === 0 ? "Add a client first, then create positions for them." : "No positions yet. Click \"New position\" to add one."}

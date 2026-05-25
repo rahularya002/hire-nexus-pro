@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -69,7 +70,17 @@ function Detail() {
   });
 
   if (isLoading) {
-    return <div className="p-12 text-center text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="space-y-4 p-6">
+        <Skeleton className="h-8 w-1/3" />
+        <Skeleton className="h-4 w-2/3" />
+        <div className="space-y-3 mt-6">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+        </div>
+      </div>
+    );
   }
 
   if (!data || !data.application) {

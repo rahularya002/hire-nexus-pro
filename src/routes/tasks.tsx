@@ -17,6 +17,7 @@ import {
 import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { ClipboardList, Plus, Clock, CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { KanbanCardSkeleton } from "@/components/skeletons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,7 +149,7 @@ function TasksPage() {
                   <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{items.length}</span>
                 </div>
                 <div className="p-2 space-y-2 flex-1">
-                  {isLoading && col === COLUMNS[0] && <div className="text-xs text-muted-foreground text-center py-6">Loading…</div>}
+                  {isLoading && <KanbanCardSkeleton rows={2} />}
                   {!isLoading && items.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No tasks</div>}
                   {items.map((t: TaskRow) => {
                     const c = t.client_id ? clientById.get(t.client_id) : null;

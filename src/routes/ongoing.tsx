@@ -6,6 +6,7 @@ import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { listPositions } from "@/lib/positions.functions";
 import { listApplications } from "@/lib/candidates.functions";
 import { colorFor, initialsOf } from "@/lib/display";
+import { ListRowSkeleton } from "@/components/skeletons";
 
 export const Route = createFileRoute("/ongoing")({
   component: () => <AppShell><Page /></AppShell>,
@@ -31,10 +32,15 @@ function Page() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Ongoing mandates</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : `${list.length} positions in active execution`}
+          {isLoading ? "\u00A0" : `${list.length} positions in active execution`}
         </p>
       </div>
       <div className="grid gap-3">
+        {isLoading && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <ListRowSkeleton rows={4} />
+          </div>
+        )}
         {list.length === 0 && !isLoading && (
           <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-10 text-center text-sm text-muted-foreground">
             No ongoing mandates yet.

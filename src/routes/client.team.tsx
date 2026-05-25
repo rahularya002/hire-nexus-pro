@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { UsersRound, Mail, Briefcase, MessageSquare, Loader2 } from "lucide-react";
+import { UsersRound, Mail, Briefcase, MessageSquare } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import { getClientAccountTeam } from "@/lib/team.functions";
+import { MemberCardGridSkeleton } from "@/components/skeletons";
 
 export const Route = createFileRoute("/client/team")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -24,11 +25,7 @@ function Page() {
         <p className="text-sm text-muted-foreground mt-1">Recruiters and sourcers staffed on your account.</p>
       </div>
 
-      {isLoading && (
-        <div className="rounded-xl border border-border bg-card p-8 inline-flex items-center gap-2 justify-center text-sm text-muted-foreground w-full">
-          <Loader2 className="size-4 animate-spin" /> Loading…
-        </div>
-      )}
+      {isLoading && <MemberCardGridSkeleton rows={4} />}
 
       {!isLoading && members.length === 0 && (
         <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">

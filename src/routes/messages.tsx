@@ -1,4 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { ListRowSkeleton } from "@/components/skeletons";
 import { useEffect, useMemo, useState } from "react";
 import { MessageSquare, Search, Pin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -109,7 +110,7 @@ function MessagesPage() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {threadsQ.isLoading ? (
-              <div className="text-xs text-muted-foreground text-center py-10 px-4">Loading…</div>
+              <ListRowSkeleton rows={5} />
             ) : filtered.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-10 px-4">
                 No conversations match.

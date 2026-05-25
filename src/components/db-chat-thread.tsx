@@ -10,6 +10,7 @@ import {
   Download,
   Loader2,
 } from "lucide-react";
+import { ChatMessagesSkeleton } from "@/components/skeletons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
@@ -216,7 +217,7 @@ export function DbChatThread({
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-secondary/20">
         {messagesQ.isLoading ? (
-          <div className="text-sm text-muted-foreground text-center py-12">Loading…</div>
+          <ChatMessagesSkeleton rows={5} />
         ) : messages.length === 0 ? (
           <div className="text-sm text-muted-foreground text-center py-12">
             No messages yet — say hello.

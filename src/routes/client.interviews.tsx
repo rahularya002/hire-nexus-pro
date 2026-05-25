@@ -52,7 +52,7 @@ function Page() {
           <CalendarClock className="size-5 text-primary" /> Interviews
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : "All scheduled candidate interviews across your requirements."}
+          {isLoading ? "\u00A0" : "All scheduled candidate interviews across your requirements."}
         </p>
       </div>
 

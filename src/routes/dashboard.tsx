@@ -18,6 +18,7 @@ import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { listTasks, TASK_STATES, type TaskRow, type TaskState } from "@/lib/tasks.functions";
 import { listInterviews, formatInterviewWhen, type InterviewRow } from "@/lib/interviews.functions";
 import { colorFor, initialsOf } from "@/lib/display";
+import { ActivityStreamSkeleton } from "@/components/skeletons";
 
 type RecruiterStatus = "Active" | "Available" | "Break" | "Offline";
 
@@ -449,7 +450,7 @@ function DashboardActivityFeed() {
         </Link>
       </div>
       <div className="divide-y divide-border">
-        {isLoading && <div className="p-6 text-sm text-muted-foreground text-center">Loading…</div>}
+        {isLoading && <ActivityStreamSkeleton rows={5} />}
         {!isLoading && events.length === 0 && (
           <div className="p-6 text-sm text-muted-foreground text-center">No activity recorded yet.</div>
         )}

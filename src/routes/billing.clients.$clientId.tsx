@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +40,13 @@ function Page() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["billing"] }),
   });
 
-  if (q.isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
+  if (q.isLoading) return (
+    <div className="space-y-3">
+      <Skeleton className="h-8 w-1/3" />
+      <Skeleton className="h-4 w-2/3" />
+      <Skeleton className="h-40 w-full rounded-xl mt-4" />
+    </div>
+  );
   if (q.data === null) throw notFound();
   const d = q.data!;
   const { client, terms, cycle, invoices, guarantees } = d;

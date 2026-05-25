@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { CardListSkeleton } from "@/components/skeletons";
 import { listPositions } from "@/lib/positions.functions";
 import { listApplications } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
@@ -33,7 +34,7 @@ function Page() {
         <h1 className="text-2xl font-semibold tracking-tight">Closed positions</h1>
         <p className="text-sm text-muted-foreground mt-1">Successful placements and historical mandates</p>
       </div>
-      {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
+      {isLoading && <CardListSkeleton rows={4} className="sm:grid-cols-2" />}
       {!isLoading && list.length === 0 && (
         <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-10 text-center text-sm text-muted-foreground">
           No closed positions yet.

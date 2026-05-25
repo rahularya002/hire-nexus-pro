@@ -39,7 +39,7 @@ function Page() {
           <Workflow className="size-5 text-primary" /> Pipeline
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : `${apps.length} candidates shared with you, grouped by stage.`}
+          {isLoading ? "\u00A0" : `${apps.length} candidates shared with you, grouped by stage.`}
         </p>
       </div>
 

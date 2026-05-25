@@ -70,7 +70,7 @@ function Page() {
           <CalendarClock className="size-5 text-primary" /> Interviews
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : "Multi-round pipeline · slot negotiation · provider integration · reminders."}
+          {isLoading ? "\u00A0" : "Multi-round pipeline · slot negotiation · provider integration · reminders."}
         </p>
       </div>
 

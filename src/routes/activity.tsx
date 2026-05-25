@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ActivityStreamSkeleton } from "@/components/skeletons";
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -127,9 +128,7 @@ function Page() {
           </span>
         </div>
         <div className="divide-y divide-border">
-          {isLoading && (
-            <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>
-          )}
+          {isLoading && <ActivityStreamSkeleton rows={8} />}
           {filtered.length === 0 && (
             !isLoading && <div className="p-10 text-sm text-muted-foreground text-center">No activity matches the current filters.</div>
           )}

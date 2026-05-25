@@ -45,7 +45,7 @@ function Page() {
           <CheckCircle2 className="size-5 text-success" /> Placements
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : "Joined candidates with replacement guarantee status."}
+          {isLoading ? "\u00A0" : "Joined candidates with replacement guarantee status."}
         </p>
       </div>
 

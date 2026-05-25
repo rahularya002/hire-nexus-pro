@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { APPLICATION_STAGES, STAGE_LABEL, listApplications } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
+import { KanbanCardSkeleton } from "@/components/skeletons";
 
 export const Route = createFileRoute("/pipeline")({
   component: () => <AppShell><Page /></AppShell>,
@@ -23,7 +24,7 @@ function Page() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "Loading…" : `${apps.length} candidates across ${positionIds.size} mandates`}
+          {isLoading ? "\u00A0" : `${apps.length} candidates across ${positionIds.size} mandates`}
         </p>
       </div>
       <div className="grid grid-flow-col auto-cols-[260px] gap-3 overflow-x-auto pb-4">
@@ -36,12 +37,14 @@ function Page() {
                 <div className="text-xs text-muted-foreground tabular-nums">{list.length}</div>
               </div>
               <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
-                {list.length === 0 && (
+                {isLoading ? (
+                  <KanbanCardSkeleton rows={3} />
+                ) : list.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border bg-card/30 px-3 py-6 text-center text-[11px] text-muted-foreground">
                     Empty
                   </div>
-                )}
-                {list.slice(0, 20).map((a) => (
+                ) : null}
+                {!isLoading && list.slice(0, 20).map((a) => (
                   <Link
                     key={a.id}
                     to="/positions/$positionId"

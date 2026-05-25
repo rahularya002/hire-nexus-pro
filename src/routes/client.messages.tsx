@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MessageSquare, Loader2 } from "lucide-react";
+import { MessageSquare } from "lucide-react";
+import { ChatMessagesSkeleton } from "@/components/skeletons";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ClientShell } from "@/components/client-shell";
@@ -39,8 +40,8 @@ function ClientMessagesPage() {
       </div>
 
       {threadQ.isLoading ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center text-sm text-muted-foreground inline-flex items-center gap-2 justify-center w-full">
-          <Loader2 className="size-4 animate-spin" /> Loading conversation…
+        <div className="rounded-xl border border-border bg-card p-6">
+          <ChatMessagesSkeleton rows={5} />
         </div>
       ) : threadQ.error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 text-destructive p-6 text-sm">

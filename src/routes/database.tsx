@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2 } from "lucide-react";
+import { TableRowsSkeleton } from "@/components/skeletons";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -101,7 +102,7 @@ function Page() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">Loading…</td></tr>
+                <TableRowsSkeleton rows={6} cols={5} />
               )}
               {!isLoading && filtered.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">
