@@ -51,9 +51,7 @@ function Page() {
       </div>
 
       <div className="rounded-xl border border-border bg-card divide-y divide-border">
-        {isLoading && (
-          <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>
-        )}
+        {isLoading && <ActivityStreamSkeleton rows={6} />}
         {!isLoading && events.length === 0 && (
           <div className="p-10 text-sm text-muted-foreground text-center">No activity yet.</div>
         )}

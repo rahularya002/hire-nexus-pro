@@ -101,7 +101,7 @@ function Page() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">Loading…</td></tr>
+                <TableRowsSkeleton rows={6} cols={5} />
               )}
               {!isLoading && filtered.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">

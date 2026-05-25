@@ -109,7 +109,7 @@ function MessagesPage() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {threadsQ.isLoading ? (
-              <div className="text-xs text-muted-foreground text-center py-10 px-4">Loading…</div>
+              <ThreadListSkeleton />
             ) : filtered.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-10 px-4">
                 No conversations match.

@@ -127,9 +127,7 @@ function Page() {
           </span>
         </div>
         <div className="divide-y divide-border">
-          {isLoading && (
-            <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>
-          )}
+          {isLoading && <ActivityStreamSkeleton rows={8} />}
           {filtered.length === 0 && (
             !isLoading && <div className="p-10 text-sm text-muted-foreground text-center">No activity matches the current filters.</div>
           )}
