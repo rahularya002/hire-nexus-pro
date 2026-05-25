@@ -2,12 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, Plus, Clock, ArrowRight, Loader2 } from "lucide-react";
+import { MapPin, Plus, Clock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
 import { getClientAccountTeam, type ClientAccountMember } from "@/lib/team.functions";
+import { CardListSkeleton } from "@/components/skeletons";
 
 const VISIBLE_STEPS = [
   { id: "received",  label: "Received" },
@@ -109,11 +110,7 @@ function Page() {
       </div>
 
       <div className="grid gap-4">
-        {loading && (
-          <div className="rounded-xl border border-border bg-card p-8 inline-flex items-center gap-2 justify-center text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Loading…
-          </div>
-        )}
+        {loading && <CardListSkeleton rows={3} />}
         {!loading && filtered.length === 0 && (
           <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
             No requirements in this view.

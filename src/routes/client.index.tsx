@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin, Loader2 } from "lucide-react";
+import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin } from "lucide-react";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow } from "@/lib/candidates.functions";
 import { useAuth } from "@/lib/auth/auth-context";
+import { CardListSkeleton } from "@/components/skeletons";
 
 export const Route = createFileRoute("/client/")({
   component: () => <ClientShell><Dashboard /></ClientShell>,
@@ -112,9 +113,7 @@ function Dashboard() {
 
         <div className="grid gap-3">
           {loading && (
-            <div className="rounded-xl border border-border bg-card p-8 inline-flex items-center gap-2 justify-center text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Loading positions…
-            </div>
+            <CardListSkeleton rows={3} />
           )}
           {!loading && positions.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
