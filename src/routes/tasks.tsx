@@ -15,6 +15,7 @@ import {
   type TaskState,
 } from "@/lib/tasks.functions";
 import { listClients, type ClientRow } from "@/lib/clients.functions";
+import { getTeamMembers } from "@/lib/team.functions";
 import { ClipboardList, Plus, Clock, CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KanbanCardSkeleton } from "@/components/skeletons";
@@ -35,12 +36,15 @@ function TasksPage() {
   const qc = useQueryClient();
   const fetchTasks = useServerFn(listTasks);
   const fetchClients = useServerFn(listClients);
+  const fetchTeam = useServerFn(getTeamMembers);
   const addTask = useServerFn(createTaskFn);
   const moveTask = useServerFn(moveTaskState);
   const removeTask = useServerFn(deleteTask);
 
   const { data: tasks = [], isLoading } = useQuery({ queryKey: ["tasks"], queryFn: () => fetchTasks() });
   const { data: clientsList = [] } = useQuery<ClientRow[]>({ queryKey: ["clients"], queryFn: () => fetchClients() });
+  const { data: teamData } = useQuery({ queryKey: ["team-members"], queryFn: () => fetchTeam() });
+  const recruiters = teamData?.members ?? [];
 
   const [open, setOpen] = useState(false);
   const [kinds, setKinds] = useState<string[]>([...DEFAULT_TASK_KINDS]);
@@ -52,6 +56,7 @@ function TasksPage() {
     candidate: "",
     kind: DEFAULT_TASK_KINDS[0] as string,
     dueDate: undefined as Date | undefined,
+    assigned_to: "",
   });
 
   const moveMut = useMutation({
@@ -67,11 +72,12 @@ function TasksPage() {
       notes?: string | null;
       due_at?: string | null;
       due_label?: string | null;
+      assigned_to?: string | null;
     }) => addTask({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       setOpen(false);
-      setForm({ title: "", client_id: "", candidate: "", kind: kinds[0] ?? "Call candidate", dueDate: undefined });
+      setForm({ title: "", client_id: "", candidate: "", kind: kinds[0] ?? "Call candidate", dueDate: undefined, assigned_to: "" });
       toast.success("Task created");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -103,6 +109,7 @@ function TasksPage() {
       notes: form.candidate ? `Candidate: ${form.candidate}` : null,
       due_at: form.dueDate ? form.dueDate.toISOString() : null,
       due_label: dueLabel,
+      assigned_to: form.assigned_to || null,
     });
   };
 
@@ -213,6 +220,17 @@ function TasksPage() {
                 </Select>
               </div>
               <div className="space-y-1.5"><Label>Candidate / Note</Label><Input value={form.candidate} onChange={(e) => setForm({ ...form, candidate: e.target.value })} placeholder="Optional" /></div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assign to recruiter</Label>
+              <Select value={form.assigned_to} onValueChange={(v) => setForm({ ...form, assigned_to: v })}>
+                <SelectTrigger><SelectValue placeholder="Optional recruiter" /></SelectTrigger>
+                <SelectContent>
+                  {recruiters.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.name} · {r.role}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
