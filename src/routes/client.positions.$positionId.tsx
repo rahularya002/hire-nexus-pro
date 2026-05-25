@@ -2,10 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Loader2,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CardListSkeleton } from "@/components/skeletons";
 import { getPositionById } from "@/lib/positions.functions";
 import {
   listApplications, updateApplicationStage,
@@ -38,7 +40,17 @@ function Detail() {
   });
 
   if (posQ.isLoading) {
-    return <div className="p-10 text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" /> Loading…</div>;
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-4 w-32" />
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-3">
+          <Skeleton className="h-7 w-1/3" />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+        <CardListSkeleton rows={3} />
+      </div>
+    );
   }
   const initial = posQ.data;
   if (!initial) {
@@ -87,7 +99,7 @@ function Detail() {
       <div>
         <div className="text-sm font-semibold mb-3">Candidates shared with you ({apps.length})</div>
         {appsQ.isLoading ? (
-          <div className="p-8 text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" /> Loading…</div>
+          <CardListSkeleton rows={3} />
         ) : apps.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">No candidates have been shared with you yet.</div>
         ) : (

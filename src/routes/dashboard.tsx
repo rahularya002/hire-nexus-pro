@@ -449,7 +449,7 @@ function DashboardActivityFeed() {
         </Link>
       </div>
       <div className="divide-y divide-border">
-        {isLoading && <div className="p-6 text-sm text-muted-foreground text-center">Loading…</div>}
+        {isLoading && <ActivityStreamSkeleton rows={5} />}
         {!isLoading && events.length === 0 && (
           <div className="p-6 text-sm text-muted-foreground text-center">No activity recorded yet.</div>
         )}
