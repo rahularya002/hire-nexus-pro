@@ -36,13 +36,6 @@ const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: strin
   { id: "referrals", label: "Referrals",         icon: Users,     hint: "Internal employee referrals" },
 ];
 
-const STARTERS = [
-  "Source 5 senior React engineers in Bengaluru with fintech experience.",
-  "Draft an outreach message for a Staff Data Scientist role.",
-  "Evaluate this candidate: 8y backend, Go + Kafka, ex-Razorpay.",
-  "What interview questions for a Head of Design at a B2B SaaS?",
-];
-
 function ScoutPage() {
   return (
     <AppShell>
