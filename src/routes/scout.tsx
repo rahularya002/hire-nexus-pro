@@ -1,13 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
+import { z } from "zod";
 import ReactMarkdown from "react-markdown";
 import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { scoutChat } from "@/lib/scout.functions";
+import { getPositionById } from "@/lib/positions.functions";
+import { parseJdFile } from "@/lib/parse-jd";
 import { cn } from "@/lib/utils";
 
+const scoutSearchSchema = z.object({ positionId: z.string().uuid().optional() });
+
 export const Route = createFileRoute("/scout")({
+  validateSearch: (s) => scoutSearchSchema.parse(s),
   component: ScoutPage,
 });
 
@@ -45,6 +51,9 @@ function ScoutPage() {
 
 function Scout() {
   const ask = useServerFn(scoutChat);
+  const fetchPosition = useServerFn(getPositionById);
+  const navigate = useNavigate();
+  const { positionId } = Route.useSearch();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,6 +63,33 @@ function Scout() {
   const [parsingCv, setParsingCv] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const seededRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!positionId || seededRef.current === positionId) return;
+    seededRef.current = positionId;
+    (async () => {
+      try {
+        const p = await fetchPosition({ data: { id: positionId } });
+        if (!p) return;
+        const brief = [
+          `Role: ${p.title}`,
+          p.location ? `Location: ${p.location}` : null,
+          p.experience ? `Experience: ${p.experience}` : null,
+          p.salary ? `Compensation: ${p.salary}` : null,
+          `Openings: ${p.openings}`,
+          p.skills.length ? `Must-have skills: ${p.skills.join(", ")}` : null,
+          p.description ? `\nJob description:\n${p.description}` : null,
+        ].filter(Boolean).join("\n");
+        setCv({ name: `${p.title} — JD`, text: brief });
+        setInput(`Source 5 strong candidates for this ${p.title} role.`);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        navigate({ to: "/scout", search: {}, replace: true });
+      }
+    })();
+  }, [positionId, fetchPosition, navigate]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -101,40 +137,12 @@ function Scout() {
     setError(null);
     setParsingCv(true);
     try {
-      const name = file.name;
-      const lower = name.toLowerCase();
-      let text = "";
-      if (lower.endsWith(".pdf")) {
-        const pdfjs = await import("pdfjs-dist");
-        // Use a worker shipped with the package via Vite ?url import
-        const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-        const buf = await file.arrayBuffer();
-        const doc = await pdfjs.getDocument({ data: buf }).promise;
-        const parts: string[] = [];
-        for (let i = 1; i <= doc.numPages; i++) {
-          const page = await doc.getPage(i);
-          const content = await page.getTextContent();
-          parts.push(content.items.map((it) => ("str" in it ? it.str : "")).join(" "));
-        }
-        text = parts.join("\n\n");
-      } else if (lower.endsWith(".docx")) {
-        const mammoth = (await import("mammoth/mammoth.browser" as string)) as {
-          extractRawText: (i: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
-        };
-        const buf = await file.arrayBuffer();
-        const res = await mammoth.extractRawText({ arrayBuffer: buf });
-        text = res.value;
-      } else {
-        // txt, md, rtf, doc, csv — best-effort plain read
-        text = await file.text();
-      }
-      text = text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+      const text = await parseJdFile(file);
       if (!text) {
-        setError(`Couldn't extract text from ${name}. Try a PDF, DOCX, or TXT export.`);
+        setError(`Couldn't extract text from ${file.name}. Try a PDF, DOCX, or TXT export.`);
         return;
       }
-      setCv({ name, text });
+      setCv({ name: file.name, text });
     } catch (e) {
       console.error(e);
       setError("Failed to read CV. Try PDF, DOCX, or TXT.");
