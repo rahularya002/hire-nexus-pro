@@ -60,8 +60,15 @@ function SignupPage() {
               disabled={submitting}
               className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-md bg-gradient-to-b from-orange-400 to-orange-600 text-black font-semibold text-sm hover:brightness-110 transition disabled:opacity-50"
             >
-              {submitting ? <Loader2 className="size-4 animate-spin" /> : <>Create account <ArrowRight className="size-4" /></>}
+              {submitting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <>Create account <ArrowRight className="size-4" /></>
+              )}
             </button>
+            {submitting && (
+              <p className="text-[11px] text-white/50 text-center animate-pulse">Creating your account…</p>
+            )}
           </form>
           <div className="mt-4 text-xs text-white/60 text-center">
             Already have an account?{" "}

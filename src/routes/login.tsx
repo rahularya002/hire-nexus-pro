@@ -74,11 +74,18 @@ function LoginPage() {
             {error && <div className="text-xs text-rose-400">{error}</div>}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (session && !profileLoaded)}
               className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-md bg-gradient-to-b from-orange-400 to-orange-600 text-black font-semibold text-sm hover:brightness-110 transition disabled:opacity-50"
             >
-              {submitting ? <Loader2 className="size-4 animate-spin" /> : <>Sign in <ArrowRight className="size-4" /></>}
+              {submitting || (session && !profileLoaded) ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <>Sign in <ArrowRight className="size-4" /></>
+              )}
             </button>
+            {(session && !profileLoaded) && (
+              <p className="text-[11px] text-white/50 text-center animate-pulse">Signing you in…</p>
+            )}
           </form>
           <div className="mt-4 text-xs text-white/60 text-center">
             New here?{" "}
