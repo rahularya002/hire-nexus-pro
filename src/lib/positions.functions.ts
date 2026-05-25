@@ -127,6 +127,11 @@ export const assignPositionRecruiter = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    const { data: prev } = await supabase
+      .from("positions")
+      .select("assigned_recruiter_id, title, client:clients(name)")
+      .eq("id", data.id)
+      .maybeSingle();
     const { data: row, error } = await supabase
       .from("positions")
       .update({ assigned_recruiter_id: data.assigned_recruiter_id })
@@ -134,6 +139,20 @@ export const assignPositionRecruiter = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    if (
+      data.assigned_recruiter_id &&
+      data.assigned_recruiter_id !== prev?.assigned_recruiter_id
+    ) {
+      const clientName = (prev as any)?.client?.name as string | undefined;
+      const title = prev?.title ?? "a requirement";
+      await supabaseAdmin.from("notifications").insert({
+        user_id: data.assigned_recruiter_id,
+        kind: "system",
+        title: `Assigned: ${title}`,
+        body: clientName ? `New requirement from ${clientName}` : "You've been assigned a new requirement.",
+        link: `/positions/${data.id}`,
+      });
+    }
     return row as PositionRow;
   });
 
