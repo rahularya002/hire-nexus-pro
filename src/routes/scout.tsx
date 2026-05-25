@@ -288,18 +288,14 @@ function Scout() {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Try one of these to get started:</p>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {STARTERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="text-left text-sm rounded-lg border border-border bg-card hover:border-primary/40 hover:bg-secondary/40 transition p-3"
-                >
-                  {s}
-                </button>
-              ))}
+          <div className="h-full min-h-[200px] grid place-items-center text-center">
+            <div className="space-y-2">
+              <div className="mx-auto size-10 rounded-full bg-gradient-to-br from-primary to-purple grid place-items-center text-primary-foreground">
+                <Sparkles className="size-5" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ask AI Talent Scout anything about sourcing, screening, or outreach.
+              </p>
             </div>
           </div>
         )}
