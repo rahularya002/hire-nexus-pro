@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers } from "lucide-react";
+import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { scoutChat } from "@/lib/scout.functions";
 import { getPositionById } from "@/lib/positions.functions";
+import { listScoutClients } from "@/lib/clients.functions";
 import { parseJdFile } from "@/lib/parse-jd";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +54,7 @@ function ScoutPage() {
 function Scout() {
   const ask = useServerFn(scoutChat);
   const fetchPosition = useServerFn(getPositionById);
+  const fetchClients = useServerFn(listScoutClients);
   const navigate = useNavigate();
   const { positionId } = Route.useSearch();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -61,9 +64,28 @@ function Scout() {
   const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.map((s) => s.id));
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
   const [parsingCv, setParsingCv] = useState(false);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const clientMenuRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
+
+  const { data: clients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ["scout-clients"],
+    queryFn: () => fetchClients(),
+  });
+
+  const selectedClient = clients.find((c) => c.id === clientId) ?? null;
+
+  useEffect(() => {
+    if (!clientMenuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (!clientMenuRef.current?.contains(e.target as Node)) setClientMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [clientMenuOpen]);
 
   useEffect(() => {
     if (!positionId || seededRef.current === positionId) return;
@@ -72,6 +94,7 @@ function Scout() {
       try {
         const p = await fetchPosition({ data: { id: positionId } });
         if (!p) return;
+        if (p.client_id) setClientId(p.client_id);
         const brief = [
           `Role: ${p.title}`,
           p.location ? `Location: ${p.location}` : null,
@@ -111,7 +134,13 @@ function Scout() {
       const sourceLabels = SOURCES.filter((s) => selected.includes(s.id)).map((s) =>
         s.id === "internal" ? "Internal database" : s.label
       );
-      const res = await ask({ data: { messages: next, sources: sourceLabels } });
+      const res = await ask({
+        data: {
+          messages: next,
+          sources: sourceLabels,
+          clientName: selectedClient?.name ?? null,
+        },
+      });
       if (res.error) {
         setError(res.error);
       } else {
