@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2 } from "lucide-react";
+import { TableRowsSkeleton } from "@/components/skeletons";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import {
