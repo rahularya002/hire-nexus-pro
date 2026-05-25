@@ -63,6 +63,48 @@ export const listClients = createServerFn({ method: "GET" })
     })) as ClientRow[];
   });
 
+export type ScoutClientOption = { id: string; name: string; color: string | null };
+
+export const listScoutClients = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    const isPrivileged =
+      roleNames.includes("admin") ||
+      roleNames.includes("lead_recruiter") ||
+      roleNames.includes("senior_recruiter");
+
+    if (isPrivileged) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name, color")
+        .order("name", { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ScoutClientOption[];
+    }
+
+    // Recruiter: only clients with positions assigned to them
+    const { data: positions, error: posErr } = await supabase
+      .from("positions")
+      .select("client_id")
+      .eq("assigned_recruiter_id", userId);
+    if (posErr) throw new Error(posErr.message);
+    const clientIds = Array.from(new Set((positions ?? []).map((p) => p.client_id).filter(Boolean)));
+    if (clientIds.length === 0) return [] as ScoutClientOption[];
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, name, color")
+      .in("id", clientIds)
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as ScoutClientOption[];
+  });
+
 export const getClientById = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
