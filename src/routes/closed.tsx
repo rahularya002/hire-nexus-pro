@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { CardListSkeleton } from "@/components/skeletons";
 import { listPositions } from "@/lib/positions.functions";
 import { listApplications } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
