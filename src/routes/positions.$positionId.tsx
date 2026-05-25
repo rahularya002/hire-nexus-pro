@@ -130,6 +130,7 @@ function AssignmentCard({ positionId, assignedId, canEdit }: { positionId: strin
   const { data: recruiters = [] } = useQuery({
     queryKey: ["assignable-recruiters"],
     queryFn: () => fetchRecruiters(),
+    enabled: canEdit,
   });
   const current = recruiters.find((r) => r.id === assignedId);
   const [pending, setPending] = useState<string>(assignedId ?? "");
