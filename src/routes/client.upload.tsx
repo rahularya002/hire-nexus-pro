@@ -9,6 +9,8 @@ import { createDocument } from "@/lib/documents.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
+import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -19,6 +21,7 @@ function Page() {
   const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -40,6 +43,41 @@ function Page() {
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  async function handleFile(f: File | null) {
+    setFile(f);
+    if (!f) return;
+    setParsing(true);
+    setSaveError(null);
+    try {
+      const text = await parseJdFile(f);
+      if (!text) {
+        toast.error("Couldn't read this file. Please fill the form manually.");
+        return;
+      }
+      const extracted = extractFieldsFromJd(text);
+      setForm((prev) => {
+        const next = { ...prev };
+        if (!prev.jd.trim()) next.jd = text.slice(0, 15_000);
+        if (!prev.jobTitle.trim() && extracted.jobTitle) next.jobTitle = extracted.jobTitle;
+        if (!prev.location.trim() && extracted.location) next.location = extracted.location;
+        if (!prev.experience.trim() && extracted.experience) next.experience = extracted.experience;
+        if (!prev.salary.trim() && extracted.salary) next.salary = extracted.salary;
+        if (!prev.openings.trim() && extracted.openings) next.openings = extracted.openings;
+        if (!prev.skills.trim() && extracted.skills) next.skills = extracted.skills;
+        return next;
+      });
+      const filled = Object.keys(extracted).length;
+      toast.success(filled > 0
+        ? `Auto-filled ${filled} field${filled === 1 ? "" : "s"} from your JD — review and submit.`
+        : "JD attached. Review the form below before submitting.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't read this file. Please fill the form manually.");
+    } finally {
+      setParsing(false);
+    }
+  }
 
   async function handleRunScout() {
     if (!form.jobTitle.trim()) {
@@ -167,14 +205,24 @@ function Page() {
         <div className="rounded-xl border-2 border-dashed border-border bg-card p-6 hover:border-primary/40 transition">
           <label className="flex items-center gap-4 cursor-pointer">
             <div className="size-12 rounded-lg bg-primary/10 grid place-items-center text-primary">
-              <FileUp className="size-6" />
+              {parsing ? <Loader2 className="size-6 animate-spin" /> : <FileUp className="size-6" />}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium">{file?.name ?? "Drop your JD PDF here"}</div>
-              <div className="text-xs text-muted-foreground">or click to browse · PDF, DOCX up to 10MB</div>
+              <div className="font-medium truncate">
+                {parsing ? "Reading JD…" : (file?.name ?? "Drop your JD here")}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {parsing ? "Extracting role details — please wait" : "PDF, DOCX or TXT · we'll auto-fill the form for you"}
+              </div>
             </div>
-            <span className="text-xs text-primary font-medium">Browse</span>
-            <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <span className="text-xs text-primary font-medium">{file ? "Replace" : "Browse"}</span>
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt"
+              disabled={parsing}
+              onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+            />
           </label>
         </div>
 
