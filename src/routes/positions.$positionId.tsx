@@ -125,11 +125,13 @@ function PositionDetail() {
 
 function AssignmentCard({ positionId, assignedId, canEdit }: { positionId: string; assignedId: string | null; canEdit: boolean }) {
   const qc = useQueryClient();
+  const { session } = useAuth();
   const fetchRecruiters = useServerFn(listAssignableRecruiters);
   const assignFn = useServerFn(assignPositionRecruiter);
   const { data: recruiters = [] } = useQuery({
     queryKey: ["assignable-recruiters"],
     queryFn: () => fetchRecruiters(),
+    enabled: canEdit && !!session,
   });
   const current = recruiters.find((r) => r.id === assignedId);
   const [pending, setPending] = useState<string>(assignedId ?? "");
