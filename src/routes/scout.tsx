@@ -10,6 +10,8 @@ import { scoutChat } from "@/lib/scout.functions";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
 import { parseJdFile } from "@/lib/parse-jd";
+import { scoutCandidates, type ScoutCandidate } from "@/lib/scout-match.functions";
+import { ScoutResults } from "@/components/scout-results";
 import { cn } from "@/lib/utils";
 
 const scoutSearchSchema = z.object({ positionId: z.string().uuid().optional() });
@@ -59,6 +61,10 @@ function Scout() {
   const [parsingCv, setParsingCv] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<ScoutCandidate[] | null>(null);
+  const runScout = useServerFn(scoutCandidates);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientMenuRef = useRef<HTMLDivElement>(null);
@@ -171,6 +177,34 @@ function Scout() {
     } finally {
       setParsingCv(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleGenerateMatches() {
+    // Use the attached JD if present, otherwise the last user message as the brief.
+    const briefText = cv?.text ?? [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const titleGuess = (cv?.name?.replace(/\s*[—-].*$/, "").trim()) || briefText.split("\n")[0]?.slice(0, 120) || "";
+    if (!titleGuess.trim()) {
+      setMatchError("Attach a JD or send a role brief first so Scout knows what to match.");
+      return;
+    }
+    setMatching(true);
+    setMatchError(null);
+    setMatches(null);
+    try {
+      const res = await runScout({
+        data: {
+          jobTitle: titleGuess,
+          jd: briefText,
+          fileName: cv?.name ?? null,
+        },
+      });
+      if (res.error) setMatchError(res.error);
+      setMatches(res.candidates);
+    } catch (e) {
+      setMatchError(e instanceof Error ? e.message : "Talent Scout failed.");
+    } finally {
+      setMatching(false);
     }
   }
 
@@ -347,6 +381,10 @@ function Scout() {
             {error}
           </div>
         )}
+
+        {(matching || matchError || matches) && (
+          <ScoutResults loading={matching} error={matchError} candidates={matches} />
+        )}
       </div>
 
       <form
@@ -404,6 +442,16 @@ function Scout() {
           placeholder={cv ? "Add a question about the CV (optional)..." : "Describe the role, paste a JD, or ask anything..."}
           className="flex-1 resize-none rounded-lg border border-input bg-secondary/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 focus:bg-background min-h-[44px] max-h-40"
         />
+        <button
+          type="button"
+          onClick={handleGenerateMatches}
+          disabled={matching || loading}
+          title="Generate candidate matches from the attached JD or latest brief"
+          className="h-11 px-3 rounded-lg border border-primary/40 bg-gradient-to-br from-primary/10 via-purple/10 to-info/10 text-primary text-sm font-medium inline-flex items-center gap-1.5 hover:bg-primary/15 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {matching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          Match
+        </button>
         <button
           type="submit"
           disabled={loading || parsingCv || (!input.trim() && !cv)}
