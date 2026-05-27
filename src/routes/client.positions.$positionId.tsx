@@ -16,6 +16,20 @@ import {
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
+  errorComponent: ({ error, reset }) => (
+    <ClientShell>
+      <div className="space-y-4 max-w-xl">
+        <Link to="/client/positions" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> All positions
+        </Link>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6">
+          <div className="text-sm font-semibold text-destructive">Couldn't load this position</div>
+          <p className="text-xs text-destructive/80 mt-1">{error?.message ?? "Unknown error"}</p>
+          <button onClick={() => reset()} className="mt-4 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium">Try again</button>
+        </div>
+      </div>
+    </ClientShell>
+  ),
 });
 
 function Detail() {
@@ -30,6 +44,20 @@ function Detail() {
     queryKey: ["client-position-apps", positionId],
     queryFn: () => fetchApps({ data: { positionId, stages: CLIENT_VISIBLE_STAGES } }),
   });
+
+  if (posQ.error) {
+    return (
+      <div className="space-y-4 max-w-xl">
+        <Link to="/client/positions" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> All positions
+        </Link>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6">
+          <div className="text-sm font-semibold text-destructive">Couldn't load this position</div>
+          <p className="text-xs text-destructive/80 mt-1">{posQ.error instanceof Error ? posQ.error.message : "Unknown error"}</p>
+        </div>
+      </div>
+    );
+  }
 
   const m = useMutation({
     mutationFn: (vars: { id: string; stage: ApplicationStage }) => updateStage({ data: vars }),
