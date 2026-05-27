@@ -1,74 +1,61 @@
-## 1. Remove the starter prompts in AI Scout
 
-In `src/routes/scout.tsx`:
-- Delete the `STARTERS` array (lines 39–44).
-- Remove the empty-state block (lines 297–312) that renders "Try one of these to get started:" and the 4 sample-prompt cards.
-- Replace with a quieter empty state: small Sparkles icon + "Ask AI Talent Scout anything about sourcing, screening, or outreach." (no clickable examples).
+## Scope
 
-No other Scout behavior changes — sources selector, client dropdown, JD prefill from `?positionId=`, and chat input all stay.
+Changes are UI/frontend only — no schema or business-logic changes.
 
-## 2. End-to-end workflow audit + fixes
+### 1. Client JD Upload (`src/routes/client.upload.tsx`)
 
-I'll walk every primary flow in the app, list the issues I find, then fix them in the same turn. Targeted scope: navigation glitches, role-gating gaps, broken CTAs, missing toasts/loading states, and confusing dead-ends — not visual redesign or new features.
+- **Remove "Run Talent Scout" button** and the `ScoutResults` panel that renders below the form on the client side.
+- Keep the `ScoutResults` component code but lift it out — move the component definition + `ScoreBadge` into a shared file `src/components/scout-results.tsx` so the admin Scout can reuse it.
+- Delete the now-unused `useServerFn(scoutCandidates)`, `scouting`/`scoutError`/`candidates` state, and the `handleRunScout` handler from `client.upload.tsx`.
+- **Add a "JD Format Guide"** — a collapsible info card at the top of the upload form showing what a well-structured JD should contain, mapped to our form fields:
 
-### Flows to audit
+  ```text
+  • Job title — e.g. "Senior React Engineer"
+  • Location — city / remote
+  • Experience required — e.g. "5–8 years"
+  • Salary range — with currency
+  • No. of openings
+  • Required skills — comma separated
+  • Job description — responsibilities, must-haves, nice-to-haves
+  ```
 
-1. **Auth & onboarding**
-   - `/signup` → `/login` → role-based redirect (`AuthGate` → `/dashboard` vs `/client` vs `/pending`).
-   - Check: pending users see a clear "waiting for approval" screen, admin sees pending profiles in `/admin/clients`, approval actually flips `profiles.status` and unblocks the client.
+  Rendered as a dismissible/expandable card with a `FileText` icon so clients know exactly how to format their JD for best auto-fill results.
 
-2. **Client portal: JD upload → submit**
-   - `/client` → `/client/upload`: file picker auto-fills form (already working), submit creates `positions` row + `documents` row, redirects to `/client/positions/:id`.
-   - Check: success toast, disabled submit while saving, error surface, and that the new position actually appears in the admin `/positions` list.
+- **Salary input — multi-currency**: replace the single `salary` text field with a two-control row:
+  - a `currency` `<select>` (INR ₹, USD $, EUR €, GBP £, AED د.إ) — default INR
+  - a numeric/text amount input ("40-60 LPA", "120k-150k", etc.)
+  - The combined value is saved as `"<symbol> <amount>"` into the existing `salary` column so no DB change is needed.
+  - JD auto-fill (`extractFieldsFromJd`) keeps working — when it returns a salary string, we pre-set currency by detecting `₹/INR/$/€/£` and put the rest in the amount field.
 
-3. **Admin: Open requirements → assign recruiter**
-   - `/positions` (Open tab) → `/positions/:id` → AssignmentCard.
-   - Check: the recently-fixed double-AppShell bug stays fixed, Assign/Reassign/Unassign work, notification fires to recruiter, "Scout candidates with this JD" CTA navigates to `/scout?positionId=...` and prefills.
+- **Openings input — no negatives**: add `min={1}` and an `onChange` guard that clamps to `>=1`. Also set `inputMode="numeric"` and strip non-digits.
 
-4. **Recruiter: receives assignment**
-   - Notification bell → click → lands on `/positions/:id`.
-   - Check: recruiter sees assigned recruiter name in card (was broken, fixed last turn), can open Scout from the position, can move candidates through pipeline.
+### 2. Admin AI Scout (`src/routes/scout.tsx`)
 
-5. **Pipeline / Interviews / Placements / Billing**
-   - `/pipeline`, `/interviews`, `/interviews/:processId`, `/billing`, `/billing/clients/:id`, `/billing/invoices/:id`.
-   - Check: links between stages are wired both ways, no dead-end pages, role gates (admin vs recruiter vs client) match what's actually shown.
+- Add a **"Generate candidate matches"** action in the Scout page that calls `scoutCandidates` (the same server fn the client page used) using:
+  - the currently selected client + position context (already tracked via `clientId` / `positionId` in the page)
+  - or the current chat thread's last user message as the brief if no position is selected
+- Render results using the shared `<ScoutResults />` card list (the same exclusive-looking format the client page had) in a panel below the chat.
+- The existing streaming chat remains the primary interaction; the match panel is an additional capability so admins/recruiters get the structured card view that was previously client-only.
 
-6. **Client mirror**
-   - `/client/positions`, `/client/positions/:id`, `/client/pipeline`, `/client/interviews`, `/client/placements`, `/client/messages`, `/client/activity`, `/client/documents`, `/client/team`, `/client/reports`.
-   - Check: no admin-only data leaks, every sidebar item has a working page, clients can't see other clients' data.
+### 3. Client "View detail" link fix (`src/routes/client.positions.tsx` → `src/routes/client.positions.$positionId.tsx`)
 
-7. **Cross-cutting**
-   - Notification bell: link targets exist, mark-as-read works.
-   - Messages: thread routing.
-   - Activity feed: shows recent events from the right tables.
-   - Settings / Profile / Me / Team: role-gated correctly.
-   - 404 / error boundaries on every route with a loader.
+The `<Link to="/client/positions/$positionId">` looks correct and the route file exists, so the user-visible failure is most likely one of:
 
-### Likely fixes (will confirm during audit)
+- the detail route's `getPositionById` server fn rejecting because the client user doesn't pass the position-ownership check, returning an error that the page surfaces as a blank/error screen; or
+- `listApplications` not authorising the client role for that position.
 
-- Stale React Query cache after assign / approve / submit JD → add missing `invalidateQueries` keys.
-- Buttons that just `console.log` or `toast` without doing work.
-- Sidebar links pointing to routes that don't exist (or that exist but `<AuthGate>` bounces).
-- Missing loading skeletons on routes that fetch via server fns (causes blank flash → matches the dynamic-import runtime error currently in the preview).
-- Notification rows without a `link_to`, or pointing at a route the recipient role can't access.
-- Client-side routes that fetch admin data and silently 403.
-- Race conditions where `AuthGate` decides before `profileLoaded` (already partly fixed — verify the rest).
+Plan: open `client.positions.$positionId.tsx` plus `getPositionById` / `listApplications` in `positions.functions.ts` and `candidates.functions.ts`, confirm the failure (error boundary, network 401/403, or missing data), and patch the offending guard so a client viewing their own position succeeds. If it turns out to be a missing `errorComponent` swallowing a thrown error, add one so we can see the real cause and fix it.
 
-### Out of scope for this turn
+## Files touched
 
-- Visual redesign / new features.
-- Schema or RLS changes (unless an audit item is literally a security bug, in which case I'll call it out and ask before migrating).
-- Replacing mock data with real data where the app intentionally uses mock fixtures.
+- `src/routes/client.upload.tsx` — remove scout button + state, add JD format guide, swap salary input, clamp openings.
+- `src/components/scout-results.tsx` *(new)* — extracted `ScoutResults` + `ScoreBadge`.
+- `src/routes/scout.tsx` — import shared `ScoutResults`, add "Generate matches" action + panel.
+- `src/routes/client.positions.$positionId.tsx` and/or `src/lib/positions.functions.ts` / `src/lib/candidates.functions.ts` — fix whichever guard is blocking the client detail view (exact edit confirmed during build).
 
-## Technical details
+## Out of scope
 
-Files I expect to touch:
-- `src/routes/scout.tsx` — remove STARTERS + empty state.
-- `src/routes/positions.$positionId.tsx`, `src/routes/positions.tsx` — assignment + open-requirements polish.
-- `src/routes/client.upload.tsx`, `src/routes/client.positions.tsx`, `src/routes/client.positions.$positionId.tsx` — submit flow + cache invalidation.
-- `src/components/notification-bell.tsx`, `src/lib/notifications.functions.ts` — verify link targets.
-- `src/components/auth-gate.tsx`, `src/lib/auth/auth-context.tsx` — only if I find a remaining race.
-- `src/components/app-shell.tsx`, `src/components/client-shell.tsx` — only if sidebar items point to dead routes.
-- Any route file missing `errorComponent` / `notFoundComponent` that crashes during audit.
-
-No new dependencies, no DB migrations.
+- No DB migration (salary stays a single text column; we just compose currency + amount on the client).
+- No changes to `scoutCandidates` server fn itself.
+- No redesign of the Scout chat UX beyond adding the match panel.
