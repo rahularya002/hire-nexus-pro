@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -51,8 +51,14 @@ function daysAgo(iso: string): number {
 }
 
 export const Route = createFileRoute("/client/positions")({
-  component: () => <ClientShell><Page /></ClientShell>,
+  component: ClientPositionsRoute,
 });
+
+function ClientPositionsRoute() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname !== "/client/positions") return <Outlet />;
+  return <ClientShell><Page /></ClientShell>;
+}
 
 function Page() {
   const [filter, setFilter] = useState<"all" | "active" | "closed">("all");
