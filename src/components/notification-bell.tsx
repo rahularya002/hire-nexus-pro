@@ -34,8 +34,16 @@ export function NotificationBell({ viewAllHref = "/activity" }: { viewAllHref?: 
 
   const { data } = useQuery({
     queryKey: ["notifications"],
-    queryFn: () => fetchList({ data: { limit: 20 } }),
+    queryFn: async () => {
+      try {
+        return await fetchList({ data: { limit: 20 } });
+      } catch (e) {
+        // Session not yet hydrated or signed out — fail silently
+        return { rows: [], unread: 0 } as { rows: NotificationRow[]; unread: number };
+      }
+    },
     enabled: !!session,
+    retry: false,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
