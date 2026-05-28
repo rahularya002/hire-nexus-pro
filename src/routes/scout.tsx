@@ -41,11 +41,14 @@ function ScoutPage() {
 function Scout() {
   const fetchPosition = useServerFn(getPositionById);
   const fetchClients = useServerFn(listScoutClients);
+  const fetchSourceSettings = useServerFn(listSourceSettings);
   const navigate = useNavigate();
   const { positionId } = Route.useSearch();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.filter((s) => s.enabled).map((s) => s.id));
+  const [selected, setSelected] = useState<SourceId[]>(() =>
+    SCOUT_SOURCES.filter((s) => s.hasActor).map((s) => s.id),
+  );
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
   const [parsingCv, setParsingCv] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -72,6 +75,18 @@ function Scout() {
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["scout-clients"],
     queryFn: () => fetchClients(),
+  });
+  const { data: sourceSettings = [] } = useQuery({
+    queryKey: ["scout-source-settings"],
+    queryFn: () => fetchSourceSettings(),
+  });
+
+  const sources = SCOUT_SOURCES.map((s) => {
+    const override = sourceSettings.find((x) => x.source_id === s.id);
+    return {
+      ...s,
+      enabled: s.hasActor && (override?.enabled ?? true),
+    };
   });
 
   const selectedClient = clients.find((c) => c.id === clientId) ?? null;
