@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown, Search } from "lucide-react";
+import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown, Search, Lock } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
@@ -16,6 +16,8 @@ import {
   shortlistSourcedMatch,
   type SourcedMatchView,
 } from "@/lib/apify.functions";
+import { listSourceSettings } from "@/lib/admin-settings.functions";
+import { SCOUT_SOURCES, type ScoutSourceId } from "@/lib/scout-sources";
 import { ScoutResults } from "@/components/scout-results";
 import { cn } from "@/lib/utils";
 
@@ -26,20 +28,7 @@ export const Route = createFileRoute("/scout")({
   component: ScoutPage,
 });
 
-type SourceId = "internal" | "linkedin" | "github" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "angellist" | "cutshort" | "referrals";
-
-const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: string; enabled: boolean }[] = [
-  { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool",        enabled: true  },
-  { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Apify LinkedIn scraper",              enabled: true  },
-  { id: "github",    label: "GitHub",            icon: Github,    hint: "Apify GitHub scraper",                enabled: true  },
-  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "cutshort",  label: "Cutshort",          icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "angellist", label: "Wellfound",         icon: Globe,     hint: "Coming soon",                          enabled: false },
-  { id: "referrals", label: "Referrals",         icon: Users,     hint: "Coming soon",                          enabled: false },
-];
+type SourceId = ScoutSourceId;
 
 function ScoutPage() {
   return (
