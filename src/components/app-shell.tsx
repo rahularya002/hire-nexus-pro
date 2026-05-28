@@ -80,6 +80,13 @@ const agencyNav: NavSection[] = [
   },
 ];
 
+const adminNavSection: NavSection = {
+  label: "Admin",
+  items: [
+    { to: "/admin/settings", label: "Master Settings", icon: Settings },
+  ],
+};
+
 const recruiterNav: NavSection[] = [
   {
     label: "Overview",
