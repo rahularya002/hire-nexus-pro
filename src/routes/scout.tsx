@@ -3,10 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import ReactMarkdown from "react-markdown";
-import { Sparkles, Send, Loader2, User, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown } from "lucide-react";
+import { Sparkles, Loader2, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { scoutChat } from "@/lib/scout.functions";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
 import { parseJdFile } from "@/lib/parse-jd";
@@ -20,8 +18,6 @@ export const Route = createFileRoute("/scout")({
   validateSearch: (s) => scoutSearchSchema.parse(s),
   component: ScoutPage,
 });
-
-type Msg = { role: "user" | "assistant"; content: string };
 
 type SourceId = "internal" | "linkedin" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "github" | "angellist" | "cutshort" | "referrals";
 
@@ -47,14 +43,11 @@ function ScoutPage() {
 }
 
 function Scout() {
-  const ask = useServerFn(scoutChat);
   const fetchPosition = useServerFn(getPositionById);
   const fetchClients = useServerFn(listScoutClients);
   const navigate = useNavigate();
   const { positionId } = Route.useSearch();
-  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.map((s) => s.id));
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
@@ -65,7 +58,6 @@ function Scout() {
   const [matchError, setMatchError] = useState<string | null>(null);
   const [matches, setMatches] = useState<ScoutCandidate[] | null>(null);
   const runScout = useServerFn(scoutCandidates);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientMenuRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
@@ -113,45 +105,6 @@ function Scout() {
     })();
   }, [positionId, fetchPosition, navigate]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, loading]);
-
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if ((!trimmed && !cv) || loading) return;
-    setError(null);
-    const userContent = cv
-      ? `${trimmed || "Please review the attached CV."}\n\n--- Attached CV: ${cv.name} ---\n${cv.text.slice(0, 18000)}`
-      : trimmed;
-    const next: Msg[] = [...messages, { role: "user", content: userContent }];
-    setMessages(next);
-    setInput("");
-    setCv(null);
-    setLoading(true);
-    try {
-      const sourceLabels = SOURCES.filter((s) => selected.includes(s.id)).map((s) =>
-        s.id === "internal" ? "Internal database" : s.label
-      );
-      const res = await ask({
-        data: {
-          messages: next,
-          sources: sourceLabels,
-          clientName: selectedClient?.name ?? null,
-        },
-      });
-      if (res.error) {
-        setError(res.error);
-      } else {
-        setMessages([...next, { role: "assistant", content: res.content || "" }]);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function toggle(id: SourceId) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
@@ -181,9 +134,8 @@ function Scout() {
   }
 
   async function handleGenerateMatches() {
-    // Use the attached JD if present, otherwise the last user message as the brief.
-    const briefText = cv?.text ?? [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-    const titleGuess = (cv?.name?.replace(/\s*[—-].*$/, "").trim()) || briefText.split("\n")[0]?.slice(0, 120) || "";
+    const briefText = [input.trim(), cv?.text ?? ""].filter(Boolean).join("\n\n");
+    const titleGuess = (cv?.name?.replace(/\s*[—-].*$/, "").trim()) || input.trim().split("\n")[0]?.slice(0, 120) || briefText.split("\n")[0]?.slice(0, 120) || "";
     if (!titleGuess.trim()) {
       setMatchError("Attach a JD or send a role brief first so Scout knows what to match.");
       return;
@@ -320,58 +272,16 @@ function Scout() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-6 space-y-4">
-        {messages.length === 0 && (
+      <div className="flex-1 overflow-y-auto py-6 space-y-4">
+        {!matching && !matchError && !matches && (
           <div className="h-full min-h-[200px] grid place-items-center text-center">
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-md">
               <div className="mx-auto size-10 rounded-full bg-gradient-to-br from-primary to-purple grid place-items-center text-primary-foreground">
                 <Sparkles className="size-5" />
               </div>
               <p className="text-sm text-muted-foreground">
-                Ask AI Talent Scout anything about sourcing, screening, or outreach.
+                Attach a JD or describe the role below, then hit <span className="font-medium text-foreground">Match</span> to source candidates.
               </p>
-            </div>
-          </div>
-        )}
-
-        {messages.map((m, i) => (
-          <div key={i} className={cn("flex gap-3", m.role === "user" ? "justify-end" : "justify-start")}>
-            {m.role === "assistant" && (
-              <div className="size-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple grid place-items-center text-primary-foreground">
-                <Sparkles className="size-4" />
-              </div>
-            )}
-            <div
-              className={cn(
-                "rounded-2xl px-4 py-2.5 text-sm max-w-[80%]",
-                m.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card border border-border"
-              )}
-            >
-              {m.role === "assistant" ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&_*]:my-1 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_ul]:pl-5 [&_ol]:pl-5">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
-                </div>
-              ) : (
-                <span className="whitespace-pre-wrap">{m.content}</span>
-              )}
-            </div>
-            {m.role === "user" && (
-              <div className="size-8 shrink-0 rounded-full bg-secondary text-foreground grid place-items-center">
-                <User className="size-4" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex gap-3">
-            <div className="size-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple grid place-items-center text-primary-foreground">
-              <Sparkles className="size-4" />
-            </div>
-            <div className="rounded-2xl px-4 py-2.5 bg-card border border-border text-sm text-muted-foreground inline-flex items-center gap-2">
-              <Loader2 className="size-3.5 animate-spin" /> Scouting...
             </div>
           </div>
         )}
@@ -390,7 +300,7 @@ function Scout() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          send(input);
+          handleGenerateMatches();
         }}
         className="pt-3 border-t border-border space-y-2"
       >
@@ -423,7 +333,7 @@ function Scout() {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={parsingCv || loading}
+          disabled={parsingCv || matching}
           title="Upload CV (PDF, DOCX, TXT)"
           className="h-11 w-11 shrink-0 rounded-lg border border-input bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 inline-flex items-center justify-center disabled:opacity-50"
         >
@@ -435,29 +345,20 @@ function Scout() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              send(input);
+              handleGenerateMatches();
             }
           }}
           rows={1}
-          placeholder={cv ? "Add a question about the CV (optional)..." : "Describe the role, paste a JD, or ask anything..."}
+          placeholder={cv ? "Add extra context for the match (optional)..." : "Describe the role or paste a JD..."}
           className="flex-1 resize-none rounded-lg border border-input bg-secondary/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 focus:bg-background min-h-[44px] max-h-40"
         />
         <button
-          type="button"
-          onClick={handleGenerateMatches}
-          disabled={matching || loading}
-          title="Generate candidate matches from the attached JD or latest brief"
-          className="h-11 px-3 rounded-lg border border-primary/40 bg-gradient-to-br from-primary/10 via-purple/10 to-info/10 text-primary text-sm font-medium inline-flex items-center gap-1.5 hover:bg-primary/15 disabled:opacity-50 disabled:cursor-not-allowed"
+          type="submit"
+          disabled={matching || parsingCv || (!input.trim() && !cv)}
+          className="h-11 px-4 rounded-lg bg-primary text-primary-foreground font-medium text-sm inline-flex items-center gap-1.5 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {matching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           Match
-        </button>
-        <button
-          type="submit"
-          disabled={loading || parsingCv || (!input.trim() && !cv)}
-          className="h-11 px-4 rounded-lg bg-primary text-primary-foreground font-medium text-sm inline-flex items-center gap-1.5 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Send className="size-4" /> Send
         </button>
         </div>
       </form>
