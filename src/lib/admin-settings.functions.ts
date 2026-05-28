@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { INTEGRATIONS } from "@/lib/integrations";
 
 export type SourceSettingRow = {
   source_id: string;
@@ -55,4 +56,20 @@ export const getIntegrationStatus = createServerFn({ method: "GET" })
       apify: Boolean(process.env.APIFY_API_TOKEN),
       lovableAi: Boolean(process.env.LOVABLE_API_KEY),
     };
+  });
+
+/** Probe every integration's env vars server-side and return a map of id → connected. */
+export const getServiceIntegrationStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const out: Record<string, boolean> = {};
+    for (const i of INTEGRATIONS) {
+      if (!i.envVars || i.envVars.length === 0) {
+        out[i.id] = false;
+        continue;
+      }
+      // ANY env var present → considered connected. Never return the value.
+      out[i.id] = i.envVars.some((name) => Boolean(process.env[name]));
+    }
+    return out;
   });
