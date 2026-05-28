@@ -3,12 +3,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown } from "lucide-react";
+import { Sparkles, Loader2, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown, Search } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
 import { parseJdFile } from "@/lib/parse-jd";
-import { scoutCandidates, type ScoutCandidate } from "@/lib/scout-match.functions";
+import {
+  searchSourcedCandidates,
+  runApifyScout,
+  rankSourcedMatches,
+  rejectSourcedMatch,
+  shortlistSourcedMatch,
+  type SourcedMatchView,
+} from "@/lib/apify.functions";
 import { ScoutResults } from "@/components/scout-results";
 import { cn } from "@/lib/utils";
 
@@ -19,19 +26,19 @@ export const Route = createFileRoute("/scout")({
   component: ScoutPage,
 });
 
-type SourceId = "internal" | "linkedin" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "github" | "angellist" | "cutshort" | "referrals";
+type SourceId = "internal" | "linkedin" | "github" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "angellist" | "cutshort" | "referrals";
 
-const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: string }[] = [
-  { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool" },
-  { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Recruiter & Sales Navigator" },
-  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Naukri.com resdex" },
-  { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "Mid-senior roles" },
-  { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "Tech hiring" },
-  { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "Curated tech talent" },
-  { id: "cutshort",  label: "Cutshort",          icon: Briefcase, hint: "Startup talent" },
-  { id: "github",    label: "GitHub",            icon: Github,    hint: "Engineers & contributors" },
-  { id: "angellist", label: "Wellfound",         icon: Globe,     hint: "Startup ecosystem" },
-  { id: "referrals", label: "Referrals",         icon: Users,     hint: "Internal employee referrals" },
+const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: string; enabled: boolean }[] = [
+  { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool",        enabled: true  },
+  { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Apify LinkedIn scraper",              enabled: true  },
+  { id: "github",    label: "GitHub",            icon: Github,    hint: "Apify GitHub scraper",                enabled: true  },
+  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
+  { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "Coming soon",                          enabled: false },
+  { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
+  { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "Coming soon",                          enabled: false },
+  { id: "cutshort",  label: "Cutshort",          icon: Briefcase, hint: "Coming soon",                          enabled: false },
+  { id: "angellist", label: "Wellfound",         icon: Globe,     hint: "Coming soon",                          enabled: false },
+  { id: "referrals", label: "Referrals",         icon: Users,     hint: "Coming soon",                          enabled: false },
 ];
 
 function ScoutPage() {
@@ -49,15 +56,26 @@ function Scout() {
   const { positionId } = Route.useSearch();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.map((s) => s.id));
+  const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.filter((s) => s.enabled).map((s) => s.id));
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
   const [parsingCv, setParsingCv] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
-  const [matches, setMatches] = useState<ScoutCandidate[] | null>(null);
-  const runScout = useServerFn(scoutCandidates);
+  const [matches, setMatches] = useState<SourcedMatchView[] | null>(null);
+  const [matchLabel, setMatchLabel] = useState<string>("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [activePositionId, setActivePositionId] = useState<string | null>(null);
+  const [jdContext, setJdContext] = useState<string>("");
+  const [skillsContext, setSkillsContext] = useState<string[]>([]);
+  const [titleContext, setTitleContext] = useState<string>("");
+  const [locationContext, setLocationContext] = useState<string>("");
+  const searchInternal = useServerFn(searchSourcedCandidates);
+  const runApify = useServerFn(runApifyScout);
+  const rankMatches = useServerFn(rankSourcedMatches);
+  const rejectMatch = useServerFn(rejectSourcedMatch);
+  const shortlistMatch = useServerFn(shortlistSourcedMatch);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientMenuRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
@@ -86,6 +104,10 @@ function Scout() {
         const p = await fetchPosition({ data: { id: positionId } });
         if (!p) return;
         if (p.client_id) setClientId(p.client_id);
+        setActivePositionId(p.id);
+        setTitleContext(p.title);
+        setSkillsContext(p.skills ?? []);
+        setLocationContext(p.location ?? "");
         const brief = [
           `Role: ${p.title}`,
           p.location ? `Location: ${p.location}` : null,
@@ -95,6 +117,7 @@ function Scout() {
           p.skills.length ? `Must-have skills: ${p.skills.join(", ")}` : null,
           p.description ? `\nJob description:\n${p.description}` : null,
         ].filter(Boolean).join("\n");
+        setJdContext(brief);
         setCv({ name: `${p.title} — JD`, text: brief });
         setInput(`Source 5 strong candidates for this ${p.title} role.`);
       } catch (e) {
@@ -106,12 +129,15 @@ function Scout() {
   }, [positionId, fetchPosition, navigate]);
 
   function toggle(id: SourceId) {
+    const def = SOURCES.find((s) => s.id === id);
+    if (def && !def.enabled) return;
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  const allSelected = selected.length === SOURCES.length;
+  const enabledIds = SOURCES.filter((s) => s.enabled).map((s) => s.id);
+  const allSelected = selected.length === enabledIds.length && enabledIds.every((id) => selected.includes(id));
   function toggleAll() {
-    setSelected(allSelected ? [] : SOURCES.map((s) => s.id));
+    setSelected(allSelected ? [] : enabledIds);
   }
 
   async function handleFile(file: File) {
@@ -133,30 +159,162 @@ function Scout() {
     }
   }
 
-  async function handleGenerateMatches() {
+  function deriveContext() {
     const briefText = [input.trim(), cv?.text ?? ""].filter(Boolean).join("\n\n");
-    const titleGuess = (cv?.name?.replace(/\s*[—-].*$/, "").trim()) || input.trim().split("\n")[0]?.slice(0, 120) || briefText.split("\n")[0]?.slice(0, 120) || "";
+    const titleGuess =
+      titleContext ||
+      cv?.name?.replace(/\s*[—-].*$/, "").trim() ||
+      input.trim().split("\n")[0]?.slice(0, 120) ||
+      briefText.split("\n")[0]?.slice(0, 120) ||
+      "";
+    return { briefText, titleGuess };
+  }
+
+  async function handleMatch() {
+    const { briefText, titleGuess } = deriveContext();
     if (!titleGuess.trim()) {
-      setMatchError("Attach a JD or send a role brief first so Scout knows what to match.");
+      setMatchError("Attach a JD or describe the role first.");
       return;
     }
     setMatching(true);
     setMatchError(null);
     setMatches(null);
+    setMatchLabel("Searching your database...");
     try {
-      const res = await runScout({
+      const res = await searchInternal({
         data: {
+          positionId: activePositionId ?? undefined,
           jobTitle: titleGuess,
-          jd: briefText,
-          fileName: cv?.name ?? null,
+          skills: skillsContext,
+          location: locationContext || undefined,
+          limit: 25,
         },
       });
-      if (res.error) setMatchError(res.error);
-      setMatches(res.candidates);
+      setMatches(res.matches);
+      setMatchLabel(
+        res.matches.length
+          ? `${res.matches.length} from your database`
+          : "No matches in your database yet — try sourcing fresh from LinkedIn or GitHub.",
+      );
+      setJdContext(briefText);
     } catch (e) {
-      setMatchError(e instanceof Error ? e.message : "Talent Scout failed.");
+      setMatchError(e instanceof Error ? e.message : "Search failed.");
     } finally {
       setMatching(false);
+    }
+  }
+
+  async function handleSourceFresh() {
+    const { briefText, titleGuess } = deriveContext();
+    if (!titleGuess.trim()) {
+      setMatchError("Attach a JD or describe the role first.");
+      return;
+    }
+    const apifySources = selected.filter((s): s is "linkedin" | "github" =>
+      s === "linkedin" || s === "github",
+    );
+    if (!apifySources.length) {
+      setMatchError("Select LinkedIn or GitHub to source fresh candidates.");
+      return;
+    }
+    setMatching(true);
+    setMatchError(null);
+    setMatchLabel(`Sourcing from ${apifySources.join(" + ")}...`);
+    try {
+      const run = await runApify({
+        data: {
+          positionId: activePositionId ?? undefined,
+          sources: apifySources,
+          jobTitle: titleGuess,
+          skills: skillsContext,
+          location: locationContext || undefined,
+          jdText: briefText.slice(0, 18_000),
+          maxResults: 15,
+        },
+      });
+      if (run.errors.length && !run.resultCount) {
+        setMatchError(run.errors.join(" | "));
+      }
+
+      // AI rank if we have a position + JD + results
+      if (activePositionId && briefText.length > 20 && run.sourcedIds.length) {
+        setMatchLabel("Ranking candidates against the JD...");
+        try {
+          await rankMatches({
+            data: {
+              positionId: activePositionId,
+              jdText: briefText.slice(0, 18_000),
+              sourcedCandidateIds: run.sourcedIds.slice(0, 50),
+            },
+          });
+        } catch (e) {
+          console.warn("AI ranking failed:", e);
+        }
+      }
+
+      // Re-fetch (now includes scores)
+      const refreshed = await searchInternal({
+        data: {
+          positionId: activePositionId ?? undefined,
+          jobTitle: titleGuess,
+          skills: skillsContext,
+          location: locationContext || undefined,
+          limit: 25,
+        },
+      });
+      setMatches(refreshed.matches);
+      setMatchLabel(
+        `${refreshed.matches.length} candidates · ${run.resultCount} newly sourced`,
+      );
+    } catch (e) {
+      setMatchError(e instanceof Error ? e.message : "Apify sourcing failed.");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  async function handleShortlist(m: SourcedMatchView) {
+    if (!activePositionId || !m.matchId) {
+      setMatchError("Open Talent Scout from a specific position to shortlist.");
+      return;
+    }
+    setBusyId(m.sourcedCandidateId);
+    try {
+      await shortlistMatch({
+        data: {
+          matchId: m.matchId,
+          positionId: activePositionId,
+          sourcedCandidateId: m.sourcedCandidateId,
+        },
+      });
+      setMatches((prev) =>
+        prev ? prev.filter((x) => x.sourcedCandidateId !== m.sourcedCandidateId) : prev,
+      );
+    } catch (e) {
+      setMatchError(e instanceof Error ? e.message : "Shortlist failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleReject(m: SourcedMatchView) {
+    if (!m.matchId) {
+      // Just hide locally if there's no positionId
+      setMatches((prev) =>
+        prev ? prev.filter((x) => x.sourcedCandidateId !== m.sourcedCandidateId) : prev,
+      );
+      return;
+    }
+    setBusyId(m.sourcedCandidateId);
+    try {
+      await rejectMatch({ data: { matchId: m.matchId } });
+      setMatches((prev) =>
+        prev ? prev.filter((x) => x.sourcedCandidateId !== m.sourcedCandidateId) : prev,
+      );
+    } catch (e) {
+      setMatchError(e instanceof Error ? e.message : "Reject failed.");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -257,8 +415,10 @@ function Scout() {
                 type="button"
                 onClick={() => toggle(s.id)}
                 title={s.hint}
+                disabled={!s.enabled}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition",
+                  !s.enabled && "opacity-40 cursor-not-allowed",
                   active
                     ? "border-primary/40 bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30"
@@ -266,6 +426,7 @@ function Scout() {
               >
                 {active ? <Check className="size-3 text-primary" /> : <Icon className="size-3" />}
                 {s.label}
+                {!s.enabled && <span className="text-[9px] uppercase">soon</span>}
               </button>
             );
           })}
@@ -293,14 +454,37 @@ function Scout() {
         )}
 
         {(matching || matchError || matches) && (
-          <ScoutResults loading={matching} error={matchError} candidates={matches} />
+          <>
+            <ScoutResults
+              loading={matching}
+              error={matchError}
+              candidates={matches}
+              label={matchLabel}
+              onShortlist={handleShortlist}
+              onReject={handleReject}
+              busyId={busyId}
+            />
+            {!matching && matches && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={handleSourceFresh}
+                  disabled={matching}
+                  className="h-9 px-4 rounded-lg border border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium inline-flex items-center gap-2"
+                >
+                  <Sparkles className="size-3.5" />
+                  Source more from LinkedIn / GitHub
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          handleGenerateMatches();
+          handleMatch();
         }}
         className="pt-3 border-t border-border space-y-2"
       >
@@ -345,7 +529,7 @@ function Scout() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              handleGenerateMatches();
+              handleMatch();
             }
           }}
           rows={1}
@@ -357,7 +541,7 @@ function Scout() {
           disabled={matching || parsingCv || (!input.trim() && !cv)}
           className="h-11 px-4 rounded-lg bg-primary text-primary-foreground font-medium text-sm inline-flex items-center gap-1.5 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {matching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          {matching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
           Match
         </button>
         </div>
