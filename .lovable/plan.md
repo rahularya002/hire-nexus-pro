@@ -1,65 +1,50 @@
-# Apify candidate sourcing integration
+## Plan
 
-Sourcing flow becomes: **internal DB → (if not enough matches) Apify → store results back into DB → AI rank → show in Scout**.
+### 1. Lock icon on disabled chips (Talent Scout)
+In `src/routes/scout.tsx`, the `SOURCES` array marks Naukri, iimjobs, Hirist, Instahyre, Cutshort, Wellfound, Referrals as `enabled: false`. Currently they render with a `Briefcase`/`Globe` icon and the text `soon`.
 
-## 1. Setup
+- Swap the icon for a `Lock` icon (from lucide-react) when `!s.enabled`, so the chip clearly reads as "locked / no integration yet".
+- Keep the existing "soon" label + disabled styling + tooltip hint.
+- LinkedIn, GitHub, Internal stay as-is (they have actors / are wired).
 
-- Create Apify account, copy Personal API token.
-- Add runtime secret `APIFY_API_TOKEN` via Lovable Cloud (server-only).
-- Pick one combo actor to start (e.g. `harvestapi/linkedin-profile-scraper` or similar multi-source actor) + `apify/github-scraper` for tech roles. Store actor IDs in a server-side constant map keyed by source chip.
-- Limited chips enabled in v1: **LinkedIn** + **GitHub**. Others stay visible but disabled with a "coming soon" tooltip.
+### 2. Admin → Master Settings section
+Add an admin-only settings hub for managing integrations & actors. Two parts:
 
-## 2. Database changes (single migration)
+**a) New route `src/routes/admin.settings.tsx`** (gated to `admin` role via `useAuth` + `has_role` check, redirect non-admins to `/`).
 
-New tables, all with proper GRANTs + RLS (staff-only read/write, no client/anon access):
+Layout: tabbed/sectioned page with these cards (v1, mostly read-only + light editing):
 
-- **`sourced_candidates`** — cache of every profile Apify ever returned. Fields: `id`, `source` (linkedin/github/...), `source_profile_id` (unique per source), `name`, `headline`, `current_company`, `location`, `experience_years`, `skills text[]`, `email`, `phone`, `profile_url`, `avatar_url`, `raw jsonb` (full actor payload), `last_seen_at`, `created_at`. Unique index on `(source, source_profile_id)` for upsert.
-- **`position_sourcing_runs`** — one row per Match click. Fields: `id`, `position_id`, `triggered_by`, `sources text[]`, `apify_run_ids jsonb`, `status` (pending/running/succeeded/failed), `result_count`, `cost_credits`, `error`, `created_at`, `finished_at`.
-- **`position_sourced_matches`** — join table linking a run + sourced_candidate + position, with `match_score int`, `reasoning text`, `rejected boolean default false`, `rejected_reason text`. This is what powers the cache: next search for the same position skips anyone already in here unless rejected.
+- **Integrations**
+  - Apify — status pill (Connected if `APIFY_API_TOKEN` secret present, else Not configured), short description, "Manage secret" hint pointing to Lovable Cloud secrets.
+  - Lovable AI — status pill (always connected via `LOVABLE_API_KEY`), model used for ranking.
+  - Placeholder rows for future: Email finder, LinkedIn Sales Nav, etc. (greyed, "Coming soon").
 
-Existing `candidates` table stays for shortlisted/active pipeline candidates; on shortlist we copy a `sourced_candidates` row into `candidates`.
+- **Sourcing actors** (the master list that drives the Scout chips)
+  - Table of sources: name, channel (linkedin/github/…), actor slug, status (Enabled / Locked / Coming soon), est. cost per 1k.
+  - For v1, this is rendered from a config constant `src/lib/scout-sources.ts` (single source of truth). The Scout page imports the same constant so flipping `enabled` or changing actor slug in one place updates both the admin table and the chips.
+  - Admin can toggle Enable/Disable per source via a switch (persisted to a new tiny table `scout_source_settings(source_id text pk, enabled boolean, actor_slug text nullable, updated_at, updated_by)` — only `admin`/`lead_recruiter` can write; everyone authenticated can read so Scout reflects current state).
+  - Toggle is only meaningful for sources that have an actor wired; locked ones show the lock and are not toggleable.
 
-## 3. Server functions (`src/lib/apify.functions.ts` + `apify.server.ts`)
+- **AI ranking**
+  - Read-only summary: model = `google/gemini-2.5-flash`, max candidates ranked per run, rough cost note.
 
-All `createServerFn` with `requireSupabaseAuth`, staff role-gated.
+**b) Sidebar / nav**
+- Add an "Admin settings" link in the app sidebar (or under existing admin section) visible only when `has_role(admin)`.
 
-- **`searchInternalCandidates({ positionId, jobTitle, skills, location, limit })`** — queries `sourced_candidates` + `candidates` filtered by skills overlap / title fuzzy match, excluding anyone already rejected for this position. Returns ranked list.
-- **`runApifyScout({ positionId, sources, jobTitle, skills, location, maxResults })`**:
-  1. Insert `position_sourcing_runs` row (status `running`).
-  2. Per source, call Apify **run-sync-get-dataset-items** endpoint with mapped input schema.
-  3. Normalise each actor's output → common shape.
-  4. Upsert into `sourced_candidates` on `(source, source_profile_id)`.
-  5. Insert `position_sourced_matches` rows for this run.
-  6. Update run row (`succeeded`, counts).
-- **`rankSourcedCandidates({ runId, jdText })`** — batched Gemini 2.5 Flash call (20 candidates per request), writes `match_score` + `reasoning` back to `position_sourced_matches`.
-- **`rejectSourcedMatch({ matchId, reason })`** — so rejected profiles get filtered out next search.
+### 3. Wire Scout chips to the new settings
+- `src/routes/scout.tsx` reads the source list from `src/lib/scout-sources.ts` + a lightweight `useQuery` against `scout_source_settings` to apply admin overrides (enabled flag, actor slug).
+- Locked sources (no actor) always render with the Lock icon regardless of DB toggle.
 
-## 4. Frontend wiring (`src/routes/scout.tsx` + `ScoutResults`)
+### Technical bits
+- New file: `src/lib/scout-sources.ts` — exports the canonical source registry (id, label, icon, channel, default actor slug, hasActor).
+- New file: `src/routes/admin.settings.tsx`.
+- New server fns in `src/lib/admin-settings.functions.ts`: `listSourceSettings`, `upsertSourceSetting` (admin/lead only).
+- Migration: create `public.scout_source_settings` with GRANTs + RLS (read = authenticated; write = admin or lead_recruiter).
+- Scout page: refactor `SOURCES` → `useSources()` hook merging registry + DB overrides; render `Lock` icon when `!hasActor`.
 
-- Keep existing JD textarea + CV attach + source chips + Match button.
-- On **Match** click:
-  1. Call `searchInternalCandidates`. If ≥ N results (e.g. 10), show those immediately, label "From your database".
-  2. Otherwise (or via a "Source more" button), call `runApifyScout` with selected chips → spinner with run status → on success call `rankSourcedCandidates` → render results, label "Newly sourced".
-- Each result card shows source badge, contact info (email/phone where available), match score, reasoning, and a **Reject** button (writes to `position_sourced_matches.rejected`) + **Shortlist** button (creates `candidates` + `applications` row at `sourcing` stage tied to the position).
+### Out of scope (v1)
+- No editing of secret values from the UI (still done via Lovable Cloud secrets panel — we just surface status).
+- No per-actor input-schema editor; actor slug change is a single text field.
+- No usage/cost dashboard yet (just static estimates).
 
-## 5. Cost & safety guardrails
-
-- `maxResults` capped at 25 per source per run (configurable later). Stops accidental $$$ Apify bills.
-- Run-sync timeout: 5 min. If actor takes longer, fall back to async pattern in v2.
-- AI ranking batched 20 per call → ~$0.005 per 200 candidates.
-- Server-side rate limit: max 5 Apify runs per position per hour.
-
-## 6. Honest limitations
-
-- **GitHub**: only email when user made it public on their profile. No phone. We'll surface `null` clearly in the UI, never fake it.
-- **LinkedIn actors** are paid Apify actors (most cost ~$1–5 per 1000 profiles depending on actor). We display estimated cost before triggering a fresh run.
-- Apify combo actors vary in quality — final actor choice locked in once you confirm which one you want; the integration shape doesn't change.
-
-## Out of scope (v2)
-
-- Async run + webhook callback for big searches (>25 results / >5 min).
-- Auto-outreach (email/LinkedIn DM templates).
-- Naukri / Indeed / Hirist scrapers.
-- Candidate deduplication across sources (same person on LinkedIn + GitHub).
-
-Confirm the actor choice (any specific Apify actor you've already shortlisted?) and I'll start with the migration.
+Sound good? Once you approve I'll switch to build mode and ship it.
