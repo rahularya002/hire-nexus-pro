@@ -774,6 +774,105 @@ export type Database = {
           },
         ]
       }
+      position_sourced_matches: {
+        Row: {
+          created_at: string
+          id: string
+          match_score: number | null
+          position_id: string
+          reasoning: string | null
+          rejected: boolean
+          rejected_reason: string | null
+          run_id: string | null
+          shortlisted_candidate_id: string | null
+          sourced_candidate_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_score?: number | null
+          position_id: string
+          reasoning?: string | null
+          rejected?: boolean
+          rejected_reason?: string | null
+          run_id?: string | null
+          shortlisted_candidate_id?: string | null
+          sourced_candidate_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_score?: number | null
+          position_id?: string
+          reasoning?: string | null
+          rejected?: boolean
+          rejected_reason?: string | null
+          run_id?: string | null
+          shortlisted_candidate_id?: string | null
+          sourced_candidate_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "position_sourced_matches_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "position_sourcing_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "position_sourced_matches_sourced_candidate_id_fkey"
+            columns: ["sourced_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "sourced_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      position_sourcing_runs: {
+        Row: {
+          apify_run_ids: Json
+          cost_credits: number | null
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          position_id: string
+          result_count: number
+          sources: string[]
+          status: Database["public"]["Enums"]["sourcing_run_status"]
+          triggered_by: string | null
+        }
+        Insert: {
+          apify_run_ids?: Json
+          cost_credits?: number | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          position_id: string
+          result_count?: number
+          sources?: string[]
+          status?: Database["public"]["Enums"]["sourcing_run_status"]
+          triggered_by?: string | null
+        }
+        Update: {
+          apify_run_ids?: Json
+          cost_credits?: number | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          position_id?: string
+          result_count?: number
+          sources?: string[]
+          status?: Database["public"]["Enums"]["sourcing_run_status"]
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           assigned_recruiter_id: string | null
@@ -883,6 +982,66 @@ export type Database = {
         Update: {
           permissions?: string[]
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sourced_candidates: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          current_company: string | null
+          email: string | null
+          experience_years: number | null
+          headline: string | null
+          id: string
+          last_seen_at: string
+          location: string | null
+          name: string
+          phone: string | null
+          profile_url: string | null
+          raw: Json
+          skills: string[]
+          source: string
+          source_profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          current_company?: string | null
+          email?: string | null
+          experience_years?: number | null
+          headline?: string | null
+          id?: string
+          last_seen_at?: string
+          location?: string | null
+          name: string
+          phone?: string | null
+          profile_url?: string | null
+          raw?: Json
+          skills?: string[]
+          source: string
+          source_profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          current_company?: string | null
+          email?: string | null
+          experience_years?: number | null
+          headline?: string | null
+          id?: string
+          last_seen_at?: string
+          location?: string | null
+          name?: string
+          phone?: string | null
+          profile_url?: string | null
+          raw?: Json
+          skills?: string[]
+          source?: string
+          source_profile_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -1056,6 +1215,7 @@ export type Database = {
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
       replacement_policy: "free_replacement" | "pro_rata_credit" | "none"
+      sourcing_run_status: "pending" | "running" | "succeeded" | "failed"
       task_sla: "ok" | "warning" | "breach"
       task_state:
         | "Pending"
@@ -1268,6 +1428,7 @@ export const Constants = {
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
       replacement_policy: ["free_replacement", "pro_rata_credit", "none"],
+      sourcing_run_status: ["pending", "running", "succeeded", "failed"],
       task_sla: ["ok", "warning", "breach"],
       task_state: [
         "Pending",
