@@ -986,6 +986,30 @@ export type Database = {
         }
         Relationships: []
       }
+      scout_source_settings: {
+        Row: {
+          actor_slug: string | null
+          enabled: boolean
+          source_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          actor_slug?: string | null
+          enabled?: boolean
+          source_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          actor_slug?: string | null
+          enabled?: boolean
+          source_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       sourced_candidates: {
         Row: {
           avatar_url: string | null

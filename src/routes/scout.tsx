@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, Linkedin, Database, Github, Globe, Briefcase, Users, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown, Search } from "lucide-react";
+import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Building2, ChevronDown, Search, Lock } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
@@ -16,6 +16,8 @@ import {
   shortlistSourcedMatch,
   type SourcedMatchView,
 } from "@/lib/apify.functions";
+import { listSourceSettings } from "@/lib/admin-settings.functions";
+import { SCOUT_SOURCES, type ScoutSourceId } from "@/lib/scout-sources";
 import { ScoutResults } from "@/components/scout-results";
 import { cn } from "@/lib/utils";
 
@@ -26,20 +28,7 @@ export const Route = createFileRoute("/scout")({
   component: ScoutPage,
 });
 
-type SourceId = "internal" | "linkedin" | "github" | "naukri" | "iimjobs" | "hirist" | "instahyre" | "angellist" | "cutshort" | "referrals";
-
-const SOURCES: { id: SourceId; label: string; icon: typeof Linkedin; hint: string; enabled: boolean }[] = [
-  { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool",        enabled: true  },
-  { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Apify LinkedIn scraper",              enabled: true  },
-  { id: "github",    label: "GitHub",            icon: Github,    hint: "Apify GitHub scraper",                enabled: true  },
-  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "cutshort",  label: "Cutshort",          icon: Briefcase, hint: "Coming soon",                          enabled: false },
-  { id: "angellist", label: "Wellfound",         icon: Globe,     hint: "Coming soon",                          enabled: false },
-  { id: "referrals", label: "Referrals",         icon: Users,     hint: "Coming soon",                          enabled: false },
-];
+type SourceId = ScoutSourceId;
 
 function ScoutPage() {
   return (
@@ -52,11 +41,14 @@ function ScoutPage() {
 function Scout() {
   const fetchPosition = useServerFn(getPositionById);
   const fetchClients = useServerFn(listScoutClients);
+  const fetchSourceSettings = useServerFn(listSourceSettings);
   const navigate = useNavigate();
   const { positionId } = Route.useSearch();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SourceId[]>(() => SOURCES.filter((s) => s.enabled).map((s) => s.id));
+  const [selected, setSelected] = useState<SourceId[]>(() =>
+    SCOUT_SOURCES.filter((s) => s.hasActor).map((s) => s.id),
+  );
   const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
   const [parsingCv, setParsingCv] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -83,6 +75,18 @@ function Scout() {
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["scout-clients"],
     queryFn: () => fetchClients(),
+  });
+  const { data: sourceSettings = [] } = useQuery({
+    queryKey: ["scout-source-settings"],
+    queryFn: () => fetchSourceSettings(),
+  });
+
+  const sources = SCOUT_SOURCES.map((s) => {
+    const override = sourceSettings.find((x) => x.source_id === s.id);
+    return {
+      ...s,
+      enabled: s.hasActor && (override?.enabled ?? true),
+    };
   });
 
   const selectedClient = clients.find((c) => c.id === clientId) ?? null;
@@ -129,12 +133,12 @@ function Scout() {
   }, [positionId, fetchPosition, navigate]);
 
   function toggle(id: SourceId) {
-    const def = SOURCES.find((s) => s.id === id);
+    const def = sources.find((s) => s.id === id);
     if (def && !def.enabled) return;
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  const enabledIds = SOURCES.filter((s) => s.enabled).map((s) => s.id);
+  const enabledIds = sources.filter((s) => s.enabled).map((s) => s.id);
   const allSelected = selected.length === enabledIds.length && enabledIds.every((id) => selected.includes(id));
   function toggleAll() {
     setSelected(allSelected ? [] : enabledIds);
@@ -406,9 +410,9 @@ function Scout() {
             {allSelected ? <Check className="size-3" /> : <Layers className="size-3" />}
             All channels
           </button>
-          {SOURCES.map((s) => {
+          {sources.map((s) => {
             const active = selected.includes(s.id);
-            const Icon = s.icon;
+            const Icon = s.hasActor ? s.icon : Lock;
             return (
               <button
                 key={s.id}
@@ -426,7 +430,7 @@ function Scout() {
               >
                 {active ? <Check className="size-3 text-primary" /> : <Icon className="size-3" />}
                 {s.label}
-                {!s.enabled && <span className="text-[9px] uppercase">soon</span>}
+                {!s.hasActor && <span className="text-[9px] uppercase">soon</span>}
               </button>
             );
           })}
