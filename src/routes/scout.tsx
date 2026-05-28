@@ -133,12 +133,12 @@ function Scout() {
   }, [positionId, fetchPosition, navigate]);
 
   function toggle(id: SourceId) {
-    const def = SOURCES.find((s) => s.id === id);
+    const def = sources.find((s) => s.id === id);
     if (def && !def.enabled) return;
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  const enabledIds = SOURCES.filter((s) => s.enabled).map((s) => s.id);
+  const enabledIds = sources.filter((s) => s.enabled).map((s) => s.id);
   const allSelected = selected.length === enabledIds.length && enabledIds.every((id) => selected.includes(id));
   function toggleAll() {
     setSelected(allSelected ? [] : enabledIds);
@@ -410,9 +410,9 @@ function Scout() {
             {allSelected ? <Check className="size-3" /> : <Layers className="size-3" />}
             All channels
           </button>
-          {SOURCES.map((s) => {
+          {sources.map((s) => {
             const active = selected.includes(s.id);
-            const Icon = s.icon;
+            const Icon = s.hasActor ? s.icon : Lock;
             return (
               <button
                 key={s.id}
@@ -430,7 +430,7 @@ function Scout() {
               >
                 {active ? <Check className="size-3 text-primary" /> : <Icon className="size-3" />}
                 {s.label}
-                {!s.enabled && <span className="text-[9px] uppercase">soon</span>}
+                {!s.hasActor && <span className="text-[9px] uppercase">soon</span>}
               </button>
             );
           })}
