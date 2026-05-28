@@ -1,50 +1,74 @@
-## Plan
+# Plan: Service integrations in Master Settings
 
-### 1. Lock icon on disabled chips (Talent Scout)
-In `src/routes/scout.tsx`, the `SOURCES` array marks Naukri, iimjobs, Hirist, Instahyre, Cutshort, Wellfound, Referrals as `enabled: false`. Currently they render with a `Briefcase`/`Globe` icon and the text `soon`.
+Split the Master Settings → Integrations area into **two distinct sections** so sourcing (Apify actors) and communication services (OAuth/REST APIs) are modelled correctly.
 
-- Swap the icon for a `Lock` icon (from lucide-react) when `!s.enabled`, so the chip clearly reads as "locked / no integration yet".
-- Keep the existing "soon" label + disabled styling + tooltip hint.
-- LinkedIn, GitHub, Internal stay as-is (they have actors / are wired).
+## New structure
 
-### 2. Admin → Master Settings section
-Add an admin-only settings hub for managing integrations & actors. Two parts:
+```
+Master Settings
+├── Integrations
+│   ├── Service integrations    ← NEW (Calendar, Zoom, WhatsApp, Email, Slack…)
+│   └── (existing Apify status row stays here as a backend dependency)
+├── Sourcing actors             ← unchanged (LinkedIn, Naukri, etc.)
+└── AI ranking                  ← unchanged
+```
 
-**a) New route `src/routes/admin.settings.tsx`** (gated to `admin` role via `useAuth` + `has_role` check, redirect non-admins to `/`).
+## Service integrations to add
 
-Layout: tabbed/sectioned page with these cards (v1, mostly read-only + light editing):
+| Integration | Auth pattern | App feature it powers | v1 state |
+|---|---|---|---|
+| **Google Calendar + Meet** | Lovable `google_calendar` connector | `/interviews` scheduling, auto Meet links | Connect button |
+| **Microsoft Outlook + Teams** | Lovable `microsoft_outlook` / `microsoft_teams` connector | Same for Outlook clients | Connect button |
+| **Zoom** | `add_secret` for ZOOM_ACCOUNT_ID / CLIENT_ID / CLIENT_SECRET (server-to-server OAuth) | Alt video link on interviews | Connect button |
+| **WhatsApp Business** | `add_secret` for WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN (Meta Cloud API) | Candidate outreach in `/messages` | Connect button |
+| **Email (sender)** | Lovable Emails (built-in) or Resend connector | Outbound to candidates/clients | Connect button |
+| **Twilio SMS** | Lovable `twilio` connector | Interview reminders / OTP nudges | Locked (soon) |
+| **Slack** | Lovable `slack` connector | Internal team notifications | Locked (soon) |
+| **Calendly / Cal.com** | API key via `add_secret` | Candidate self-booking | Locked (soon) |
+| **DocuSign** | OAuth via `add_secret` | Offer letters in `/billing` | Locked (soon) |
+| **Stripe** | Already wired in `/billing` | Surface status here too | Connected pill (read-only) |
+| **Resume parser** (Affinda/Rchilli) | `add_secret` | Parse uploads in `/client/upload` | Locked (soon) |
+| **ATS sync** (Greenhouse/Lever/Ashby) | API key via `add_secret` | One-way candidate push to clients | Locked (soon) |
 
-- **Integrations**
-  - Apify — status pill (Connected if `APIFY_API_TOKEN` secret present, else Not configured), short description, "Manage secret" hint pointing to Lovable Cloud secrets.
-  - Lovable AI — status pill (always connected via `LOVABLE_API_KEY`), model used for ranking.
-  - Placeholder rows for future: Email finder, LinkedIn Sales Nav, etc. (greyed, "Coming soon").
+## Files
 
-- **Sourcing actors** (the master list that drives the Scout chips)
-  - Table of sources: name, channel (linkedin/github/…), actor slug, status (Enabled / Locked / Coming soon), est. cost per 1k.
-  - For v1, this is rendered from a config constant `src/lib/scout-sources.ts` (single source of truth). The Scout page imports the same constant so flipping `enabled` or changing actor slug in one place updates both the admin table and the chips.
-  - Admin can toggle Enable/Disable per source via a switch (persisted to a new tiny table `scout_source_settings(source_id text pk, enabled boolean, actor_slug text nullable, updated_at, updated_by)` — only `admin`/`lead_recruiter` can write; everyone authenticated can read so Scout reflects current state).
-  - Toggle is only meaningful for sources that have an actor wired; locked ones show the lock and are not toggleable.
+### `src/lib/integrations.ts` (new)
+Registry, modelled after `SCOUT_SOURCES`:
+```ts
+type IntegrationKind = 'connector' | 'secret' | 'builtin';
+type IntegrationCategory = 'comms' | 'scheduling' | 'video' | 'docs' | 'billing' | 'ats' | 'enrichment';
+type IntegrationStatus = 'connected' | 'available' | 'locked';
 
-- **AI ranking**
-  - Read-only summary: model = `google/gemini-2.5-flash`, max candidates ranked per run, rough cost note.
+interface Integration {
+  id: string;
+  label: string;
+  description: string;
+  category: IntegrationCategory;
+  kind: IntegrationKind;
+  envVars?: string[];        // probed server-side
+  connectorId?: string;      // for kind='connector'
+  hasIntegration: boolean;   // false → render Lock + "soon"
+  docsHint?: string;
+}
+```
+No actor slug field on this side.
 
-**b) Sidebar / nav**
-- Add an "Admin settings" link in the app sidebar (or under existing admin section) visible only when `has_role(admin)`.
+### `src/lib/admin-settings.functions.ts` (edit)
+Add `getServiceIntegrationStatus()` server fn — loops the registry, returns `{ [id]: 'connected'|'available'|'locked' }` by probing `process.env[envVar]` for each.
 
-### 3. Wire Scout chips to the new settings
-- `src/routes/scout.tsx` reads the source list from `src/lib/scout-sources.ts` + a lightweight `useQuery` against `scout_source_settings` to apply admin overrides (enabled flag, actor slug).
-- Locked sources (no actor) always render with the Lock icon regardless of DB toggle.
+### `src/routes/admin.settings.tsx` (edit)
+- Add a **"Service integrations"** section above the existing Sourcing actors table.
+- Group rows by category (Communications, Scheduling, Video, Docs, Billing, ATS, Enrichment).
+- Each row: icon, name, description, status pill, CTA:
+  - `connected` → "Manage" (deep link to Lovable Cloud secrets/connectors panel)
+  - `available` → "Connect" (no-op stub in v1, just shows toast "Open Lovable Cloud → Connectors / Secrets to wire this up")
+  - `locked` → Lock icon, no CTA
+- Keep the existing Sourcing actors table untouched — that's where the actor-slug field still belongs.
 
-### Technical bits
-- New file: `src/lib/scout-sources.ts` — exports the canonical source registry (id, label, icon, channel, default actor slug, hasActor).
-- New file: `src/routes/admin.settings.tsx`.
-- New server fns in `src/lib/admin-settings.functions.ts`: `listSourceSettings`, `upsertSourceSetting` (admin/lead only).
-- Migration: create `public.scout_source_settings` with GRANTs + RLS (read = authenticated; write = admin or lead_recruiter).
-- Scout page: refactor `SOURCES` → `useSources()` hook merging registry + DB overrides; render `Lock` icon when `!hasActor`.
+## Out of scope (v1)
+- Actually wiring any service (sending a WhatsApp message, creating a Calendar event, etc.) — this is purely the **Master Settings panel + status visibility**. Each integration becomes its own follow-up task.
+- Per-recruiter OAuth (each user connects their own Google account) — still a separate bigger plan.
+- No DB migration. Status is read-only / derived from secrets + connectors.
 
-### Out of scope (v1)
-- No editing of secret values from the UI (still done via Lovable Cloud secrets panel — we just surface status).
-- No per-actor input-schema editor; actor slug change is a single text field.
-- No usage/cost dashboard yet (just static estimates).
-
-Sound good? Once you approve I'll switch to build mode and ship it.
+## Confirm before I build
+Build the registry with **all integrations from the table above** (locked ones included as "soon" rows)? Or only the four you originally named (Calendar/Meet, Zoom, WhatsApp, Email) and skip Twilio/Slack/Calendly/DocuSign/Stripe/Resume parser/ATS until you ask?
