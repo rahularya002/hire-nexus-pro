@@ -220,9 +220,9 @@ export const runApifyScout = createServerFn({ method: "POST" })
             phone: p.phone,
             profile_url: p.profile_url,
             avatar_url: p.avatar_url,
-            raw: p.raw,
+            raw: p.raw as unknown as Record<string, never>,
             last_seen_at: new Date().toISOString(),
-          })),
+          })) as never,
           { onConflict: "source,source_profile_id" },
         )
         .select("id, source, source_profile_id");
@@ -371,8 +371,6 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
     if (scErr || !sc) throw new Error(scErr?.message ?? "Sourced candidate not found");
 
     // Insert into candidates
-    const candSource =
-      sc.source === "linkedin" || sc.source === "github" ? sc.source : "manual";
     const { data: cand, error: candErr } = await supabase
       .from("candidates")
       .insert({
@@ -384,7 +382,7 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
         location: sc.location,
         experience: sc.experience_years ? `${sc.experience_years} years` : null,
         skills: sc.skills ?? [],
-        source: candSource,
+        source: "scout",
         resume_url: sc.profile_url,
         created_by: userId,
       })
