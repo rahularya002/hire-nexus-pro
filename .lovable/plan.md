@@ -1,61 +1,65 @@
+# Apify candidate sourcing integration
 
-## Scope
+Sourcing flow becomes: **internal DB → (if not enough matches) Apify → store results back into DB → AI rank → show in Scout**.
 
-Changes are UI/frontend only — no schema or business-logic changes.
+## 1. Setup
 
-### 1. Client JD Upload (`src/routes/client.upload.tsx`)
+- Create Apify account, copy Personal API token.
+- Add runtime secret `APIFY_API_TOKEN` via Lovable Cloud (server-only).
+- Pick one combo actor to start (e.g. `harvestapi/linkedin-profile-scraper` or similar multi-source actor) + `apify/github-scraper` for tech roles. Store actor IDs in a server-side constant map keyed by source chip.
+- Limited chips enabled in v1: **LinkedIn** + **GitHub**. Others stay visible but disabled with a "coming soon" tooltip.
 
-- **Remove "Run Talent Scout" button** and the `ScoutResults` panel that renders below the form on the client side.
-- Keep the `ScoutResults` component code but lift it out — move the component definition + `ScoreBadge` into a shared file `src/components/scout-results.tsx` so the admin Scout can reuse it.
-- Delete the now-unused `useServerFn(scoutCandidates)`, `scouting`/`scoutError`/`candidates` state, and the `handleRunScout` handler from `client.upload.tsx`.
-- **Add a "JD Format Guide"** — a collapsible info card at the top of the upload form showing what a well-structured JD should contain, mapped to our form fields:
+## 2. Database changes (single migration)
 
-  ```text
-  • Job title — e.g. "Senior React Engineer"
-  • Location — city / remote
-  • Experience required — e.g. "5–8 years"
-  • Salary range — with currency
-  • No. of openings
-  • Required skills — comma separated
-  • Job description — responsibilities, must-haves, nice-to-haves
-  ```
+New tables, all with proper GRANTs + RLS (staff-only read/write, no client/anon access):
 
-  Rendered as a dismissible/expandable card with a `FileText` icon so clients know exactly how to format their JD for best auto-fill results.
+- **`sourced_candidates`** — cache of every profile Apify ever returned. Fields: `id`, `source` (linkedin/github/...), `source_profile_id` (unique per source), `name`, `headline`, `current_company`, `location`, `experience_years`, `skills text[]`, `email`, `phone`, `profile_url`, `avatar_url`, `raw jsonb` (full actor payload), `last_seen_at`, `created_at`. Unique index on `(source, source_profile_id)` for upsert.
+- **`position_sourcing_runs`** — one row per Match click. Fields: `id`, `position_id`, `triggered_by`, `sources text[]`, `apify_run_ids jsonb`, `status` (pending/running/succeeded/failed), `result_count`, `cost_credits`, `error`, `created_at`, `finished_at`.
+- **`position_sourced_matches`** — join table linking a run + sourced_candidate + position, with `match_score int`, `reasoning text`, `rejected boolean default false`, `rejected_reason text`. This is what powers the cache: next search for the same position skips anyone already in here unless rejected.
 
-- **Salary input — multi-currency**: replace the single `salary` text field with a two-control row:
-  - a `currency` `<select>` (INR ₹, USD $, EUR €, GBP £, AED د.إ) — default INR
-  - a numeric/text amount input ("40-60 LPA", "120k-150k", etc.)
-  - The combined value is saved as `"<symbol> <amount>"` into the existing `salary` column so no DB change is needed.
-  - JD auto-fill (`extractFieldsFromJd`) keeps working — when it returns a salary string, we pre-set currency by detecting `₹/INR/$/€/£` and put the rest in the amount field.
+Existing `candidates` table stays for shortlisted/active pipeline candidates; on shortlist we copy a `sourced_candidates` row into `candidates`.
 
-- **Openings input — no negatives**: add `min={1}` and an `onChange` guard that clamps to `>=1`. Also set `inputMode="numeric"` and strip non-digits.
+## 3. Server functions (`src/lib/apify.functions.ts` + `apify.server.ts`)
 
-### 2. Admin AI Scout (`src/routes/scout.tsx`)
+All `createServerFn` with `requireSupabaseAuth`, staff role-gated.
 
-- Add a **"Generate candidate matches"** action in the Scout page that calls `scoutCandidates` (the same server fn the client page used) using:
-  - the currently selected client + position context (already tracked via `clientId` / `positionId` in the page)
-  - or the current chat thread's last user message as the brief if no position is selected
-- Render results using the shared `<ScoutResults />` card list (the same exclusive-looking format the client page had) in a panel below the chat.
-- The existing streaming chat remains the primary interaction; the match panel is an additional capability so admins/recruiters get the structured card view that was previously client-only.
+- **`searchInternalCandidates({ positionId, jobTitle, skills, location, limit })`** — queries `sourced_candidates` + `candidates` filtered by skills overlap / title fuzzy match, excluding anyone already rejected for this position. Returns ranked list.
+- **`runApifyScout({ positionId, sources, jobTitle, skills, location, maxResults })`**:
+  1. Insert `position_sourcing_runs` row (status `running`).
+  2. Per source, call Apify **run-sync-get-dataset-items** endpoint with mapped input schema.
+  3. Normalise each actor's output → common shape.
+  4. Upsert into `sourced_candidates` on `(source, source_profile_id)`.
+  5. Insert `position_sourced_matches` rows for this run.
+  6. Update run row (`succeeded`, counts).
+- **`rankSourcedCandidates({ runId, jdText })`** — batched Gemini 2.5 Flash call (20 candidates per request), writes `match_score` + `reasoning` back to `position_sourced_matches`.
+- **`rejectSourcedMatch({ matchId, reason })`** — so rejected profiles get filtered out next search.
 
-### 3. Client "View detail" link fix (`src/routes/client.positions.tsx` → `src/routes/client.positions.$positionId.tsx`)
+## 4. Frontend wiring (`src/routes/scout.tsx` + `ScoutResults`)
 
-The `<Link to="/client/positions/$positionId">` looks correct and the route file exists, so the user-visible failure is most likely one of:
+- Keep existing JD textarea + CV attach + source chips + Match button.
+- On **Match** click:
+  1. Call `searchInternalCandidates`. If ≥ N results (e.g. 10), show those immediately, label "From your database".
+  2. Otherwise (or via a "Source more" button), call `runApifyScout` with selected chips → spinner with run status → on success call `rankSourcedCandidates` → render results, label "Newly sourced".
+- Each result card shows source badge, contact info (email/phone where available), match score, reasoning, and a **Reject** button (writes to `position_sourced_matches.rejected`) + **Shortlist** button (creates `candidates` + `applications` row at `sourcing` stage tied to the position).
 
-- the detail route's `getPositionById` server fn rejecting because the client user doesn't pass the position-ownership check, returning an error that the page surfaces as a blank/error screen; or
-- `listApplications` not authorising the client role for that position.
+## 5. Cost & safety guardrails
 
-Plan: open `client.positions.$positionId.tsx` plus `getPositionById` / `listApplications` in `positions.functions.ts` and `candidates.functions.ts`, confirm the failure (error boundary, network 401/403, or missing data), and patch the offending guard so a client viewing their own position succeeds. If it turns out to be a missing `errorComponent` swallowing a thrown error, add one so we can see the real cause and fix it.
+- `maxResults` capped at 25 per source per run (configurable later). Stops accidental $$$ Apify bills.
+- Run-sync timeout: 5 min. If actor takes longer, fall back to async pattern in v2.
+- AI ranking batched 20 per call → ~$0.005 per 200 candidates.
+- Server-side rate limit: max 5 Apify runs per position per hour.
 
-## Files touched
+## 6. Honest limitations
 
-- `src/routes/client.upload.tsx` — remove scout button + state, add JD format guide, swap salary input, clamp openings.
-- `src/components/scout-results.tsx` *(new)* — extracted `ScoutResults` + `ScoreBadge`.
-- `src/routes/scout.tsx` — import shared `ScoutResults`, add "Generate matches" action + panel.
-- `src/routes/client.positions.$positionId.tsx` and/or `src/lib/positions.functions.ts` / `src/lib/candidates.functions.ts` — fix whichever guard is blocking the client detail view (exact edit confirmed during build).
+- **GitHub**: only email when user made it public on their profile. No phone. We'll surface `null` clearly in the UI, never fake it.
+- **LinkedIn actors** are paid Apify actors (most cost ~$1–5 per 1000 profiles depending on actor). We display estimated cost before triggering a fresh run.
+- Apify combo actors vary in quality — final actor choice locked in once you confirm which one you want; the integration shape doesn't change.
 
-## Out of scope
+## Out of scope (v2)
 
-- No DB migration (salary stays a single text column; we just compose currency + amount on the client).
-- No changes to `scoutCandidates` server fn itself.
-- No redesign of the Scout chat UX beyond adding the match panel.
+- Async run + webhook callback for big searches (>25 results / >5 min).
+- Auto-outreach (email/LinkedIn DM templates).
+- Naukri / Indeed / Hirist scrapers.
+- Candidate deduplication across sources (same person on LinkedIn + GitHub).
+
+Confirm the actor choice (any specific Apify actor you've already shortlisted?) and I'll start with the migration.
