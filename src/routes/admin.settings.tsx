@@ -19,8 +19,16 @@ import {
   listSourceSettings,
   upsertSourceSetting,
   getIntegrationStatus,
+  getServiceIntegrationStatus,
   type SourceSettingRow,
 } from "@/lib/admin-settings.functions";
+import {
+  INTEGRATIONS,
+  INTEGRATION_CATEGORY_ORDER,
+  CATEGORY_LABELS,
+  type Integration,
+  type IntegrationCategory,
+} from "@/lib/integrations";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/settings")({
@@ -47,6 +55,7 @@ function AdminSettingsInner() {
 
   const fetchSettings = useServerFn(listSourceSettings);
   const fetchStatus = useServerFn(getIntegrationStatus);
+  const fetchServiceStatus = useServerFn(getServiceIntegrationStatus);
 
   const { data: settings = [] } = useQuery({
     queryKey: ["scout-source-settings"],
@@ -56,6 +65,11 @@ function AdminSettingsInner() {
   const { data: status } = useQuery({
     queryKey: ["integration-status"],
     queryFn: () => fetchStatus(),
+    enabled: isAdmin,
+  });
+  const { data: serviceStatus = {} } = useQuery({
+    queryKey: ["service-integration-status"],
+    queryFn: () => fetchServiceStatus(),
     enabled: isAdmin,
   });
 
@@ -74,21 +88,25 @@ function AdminSettingsInner() {
         </div>
       </header>
 
-      <Section icon={Plug} title="Integrations" subtitle="External services this workspace can use.">
-        <IntegrationRow
-          name="Apify"
-          description="Powers candidate sourcing from LinkedIn, GitHub, and other actors."
-          connected={!!status?.apify}
-          configHint="Set APIFY_API_TOKEN in Lovable Cloud secrets."
-        />
-        <IntegrationRow
-          name="Lovable AI"
-          description="Ranks sourced candidates against the JD using Gemini."
-          connected={!!status?.lovableAi}
-          configHint="Managed by Lovable Cloud — no setup required."
-        />
-        <IntegrationRow name="Email finder" description="Resolve email addresses for sourced profiles." connected={false} configHint="Coming soon." disabled />
-        <IntegrationRow name="LinkedIn Sales Navigator" description="Richer search filters & boolean queries." connected={false} configHint="Coming soon." disabled />
+      <Section icon={Plug} title="Service integrations" subtitle="External services this workspace can use. Grouped by purpose.">
+        {INTEGRATION_CATEGORY_ORDER.map((cat) => {
+          const items = INTEGRATIONS.filter((i) => i.category === cat);
+          if (items.length === 0) return null;
+          return (
+            <div key={cat} className="space-y-2">
+              <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground pt-2">
+                {CATEGORY_LABELS[cat]}
+              </h3>
+              {items.map((i) => (
+                <IntegrationRow
+                  key={i.id}
+                  integration={i}
+                  connected={!!serviceStatus[i.id]}
+                />
+              ))}
+            </div>
+          );
+        })}
       </Section>
 
       <Section icon={Sparkles} title="Sourcing actors" subtitle="Channels available in Talent Scout. Toggle visibility per channel.">
@@ -142,35 +160,65 @@ function KV({ k, v }: { k: string; v: string }) {
 }
 
 function IntegrationRow({
-  name,
-  description,
+  integration,
   connected,
-  configHint,
-  disabled,
 }: {
-  name: string;
-  description: string;
+  integration: Integration;
   connected: boolean;
-  configHint: string;
-  disabled?: boolean;
 }) {
+  const locked = !integration.hasIntegration;
+  const Icon = integration.icon;
+  const state: "connected" | "available" | "locked" = locked
+    ? "locked"
+    : connected
+      ? "connected"
+      : "available";
+
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-4 flex items-start gap-3", disabled && "opacity-60")}>
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-card p-4 flex items-start gap-3",
+        locked && "opacity-60",
+      )}
+    >
+      <div className="size-9 rounded-lg bg-secondary/60 grid place-items-center shrink-0">
+        {locked ? (
+          <Lock className="size-4 text-muted-foreground" />
+        ) : (
+          <Icon className="size-4 text-foreground" />
+        )}
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{name}</span>
-          {connected ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{integration.label}</span>
+          {state === "connected" && (
             <span className="inline-flex items-center gap-1 text-[11px] text-success">
               <CheckCircle2 className="size-3" /> Connected
             </span>
-          ) : (
+          )}
+          {state === "available" && (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <XCircle className="size-3" /> {disabled ? "Coming soon" : "Not configured"}
+              <XCircle className="size-3" /> Not configured
+            </span>
+          )}
+          {state === "locked" && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Lock className="size-3" /> Coming soon
             </span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-        <p className="text-[11px] text-muted-foreground mt-1.5">{configHint}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{integration.description}</p>
+        {integration.docsHint && (
+          <p className="text-[11px] text-muted-foreground mt-1.5">{integration.docsHint}</p>
+        )}
+      </div>
+      <div className="shrink-0">
+        {state === "connected" && (
+          <span className="text-[11px] text-muted-foreground">Managed in Cloud → Secrets</span>
+        )}
+        {state === "available" && (
+          <span className="text-[11px] text-primary">Open Cloud → Secrets to connect</span>
+        )}
       </div>
     </div>
   );
