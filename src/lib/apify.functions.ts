@@ -476,5 +476,12 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
       .update({ shortlisted_candidate_id: cand.id })
       .eq("id", data.matchId);
 
+    // Promote the position to in_progress so it shows up in Ongoing mandates.
+    await supabase
+      .from("positions")
+      .update({ status: "in_progress" })
+      .eq("id", data.positionId)
+      .eq("status", "open");
+
     return { ok: true, candidateId: cand.id };
   });
