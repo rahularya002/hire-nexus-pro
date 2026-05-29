@@ -5,7 +5,7 @@ import {
   ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
@@ -308,15 +308,9 @@ function ScheduleInterviewDialog({
   const [time, setTime] = useState("10:00");
   const [rounds, setRounds] = useState("1");
 
-  // Reset whenever a new candidate is opened
-  const appId = app?.id ?? null;
-  const lastIdRef = (ScheduleInterviewDialog as any)._last as { current: string | null } | undefined;
-  if (!lastIdRef) (ScheduleInterviewDialog as any)._last = { current: null };
-  const ref = (ScheduleInterviewDialog as any)._last as { current: string | null };
-  if (ref.current !== appId) {
-    ref.current = appId;
-    if (appId) { setDate(undefined); setTime("10:00"); setRounds("1"); }
-  }
+  useEffect(() => {
+    if (app) { setDate(undefined); setTime("10:00"); setRounds("1"); }
+  }, [app?.id]);
 
   const canSubmit = !!date && !pending;
 
