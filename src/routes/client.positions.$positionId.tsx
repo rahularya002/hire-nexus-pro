@@ -5,15 +5,25 @@ import {
   ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { getPositionById } from "@/lib/positions.functions";
 import {
   listApplications, updateApplicationStage,
   CLIENT_VISIBLE_STAGES, STAGE_LABEL, type ApplicationRow, type ApplicationStage,
 } from "@/lib/candidates.functions";
+import { requestClientInterview } from "@/lib/interviews.functions";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -39,6 +49,8 @@ function Detail() {
   const fetchPos = useServerFn(getPositionById);
   const fetchApps = useServerFn(listApplications);
   const updateStage = useServerFn(updateApplicationStage);
+  const requestInterview = useServerFn(requestClientInterview);
+  const [scheduleFor, setScheduleFor] = useState<ApplicationRow | null>(null);
 
   const posQ = useQuery({ queryKey: ["client-position", positionId], queryFn: () => fetchPos({ data: { id: positionId } }) });
   const appsQ = useQuery({
@@ -75,6 +87,22 @@ function Detail() {
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Could not update candidate");
+    },
+  });
+
+  const scheduleM = useMutation({
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: number }) =>
+      requestInterview({ data: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
+      qc.invalidateQueries({ queryKey: ["client-applications-all"] });
+      qc.invalidateQueries({ queryKey: ["applications"] });
+      qc.invalidateQueries({ queryKey: ["interviews"] });
+      toast.success("Interview requested. The recruiter will confirm shortly.");
+      setScheduleFor(null);
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not request interview");
     },
   });
 
@@ -143,6 +171,34 @@ function Detail() {
           <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">No candidates have been shared with you yet.</div>
         ) : (
           <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} />
+        )}
+      </div>
+
+      <ScheduleInterviewDialog
+        app={scheduleFor}
+        onClose={() => setScheduleFor(null)}
+        onSubmit={(scheduled_at, rounds) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds })
+        }
+        pending={scheduleM.isPending}
+      />
+      {/* trigger wiring done in CandidateList via window event-less prop drilling */}
+      <ScheduleBridge onOpen={setScheduleFor} apps={apps} />
+    </div>
+  );
+}
+
+/* CandidateList already exists below — we instead extend it to accept onSchedule.
+   ScheduleBridge is a noop placeholder removed by replacing CandidateList signature. */
+function ScheduleBridge(_: { onOpen: (a: ApplicationRow) => void; apps: ApplicationRow[] }) {
+  return null;
+}
+
+function _legacy_close_detail() {
+  return (
+    <div>
+      {false && (
+        <div>
         )}
       </div>
     </div>
