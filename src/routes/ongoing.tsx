@@ -249,6 +249,7 @@ function PositionRow({
 function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare: () => void; sharing: boolean }) {
   const c = app.candidate;
   if (!c) return null;
+  const [skillsExpanded, setSkillsExpanded] = useState(false);
   const initials = (c.name.match(/\b\w/g) ?? ["?"]).slice(0, 2).join("").toUpperCase();
   const alreadyShared = app.stage !== "sourcing" && app.stage !== "recruiter_shortlist";
   const isRejected = app.stage === "client_rejected";
@@ -282,11 +283,17 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
         </div>
         {c.skills && c.skills.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {c.skills.slice(0, 6).map((s) => (
+            {(skillsExpanded ? c.skills : c.skills.slice(0, 6)).map((s) => (
               <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-foreground/80">{s}</span>
             ))}
             {c.skills.length > 6 && (
-              <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground">+{c.skills.length - 6}</span>
+              <button
+                type="button"
+                onClick={() => setSkillsExpanded((v) => !v)}
+                className="text-[10px] px-1.5 py-0.5 rounded text-primary hover:underline font-medium"
+              >
+                {skillsExpanded ? "Show less" : `+${c.skills.length - 6} more`}
+              </button>
             )}
           </div>
         )}
