@@ -7,6 +7,7 @@ export const APPLICATION_STAGES = [
   "recruiter_shortlist",
   "shared_with_client",
   "client_shortlist",
+  "client_rejected",
   "interview_scheduled",
   "rounds",
   "offered",
@@ -19,6 +20,7 @@ export const STAGE_LABEL: Record<ApplicationStage, string> = {
   recruiter_shortlist: "Recruiter Shortlist",
   shared_with_client: "Shared with Client",
   client_shortlist: "Client Shortlist",
+  client_rejected: "Rejected by Client",
   interview_scheduled: "Interview Scheduled",
   rounds: "Rounds",
   offered: "Offered",
@@ -28,6 +30,7 @@ export const STAGE_LABEL: Record<ApplicationStage, string> = {
 export const CLIENT_VISIBLE_STAGES: ApplicationStage[] = [
   "shared_with_client",
   "client_shortlist",
+  "client_rejected",
   "interview_scheduled",
   "rounds",
   "offered",
