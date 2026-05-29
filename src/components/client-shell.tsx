@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Bell, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare } from "lucide-react";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 function ClientShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, roles, signOut } = useAuth();
+  const canSwitchToAgency = roles.includes("admin") || roles.includes("recruiter") || roles.includes("lead_recruiter") || roles.includes("senior_recruiter");
 
   const companyName = profile?.company_name || profile?.full_name || profile?.email || "Client Portal";
   const companyInitials = (companyName.match(/\b\w/g) ?? ["C"]).slice(0, 2).join("").toUpperCase();
@@ -81,6 +82,7 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
   const [returnLabel, setReturnLabel] = useState<string>("Dashboard");
 
   useEffect(() => {
+    if (!canSwitchToAgency) return;
     const lastPath = getAgencyLastPath();
     let selectedId = getSelectedClientId();
     if (!selectedId && clients.length) {
@@ -93,7 +95,7 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
       : selectedId ? `/clients/${selectedId}` : "/dashboard";
     setReturnPath(target);
     setReturnLabel(describeAgencyPath(target));
-  }, [pathname]);
+  }, [pathname, canSwitchToAgency]);
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -111,9 +113,7 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
           {nav.map((item) => {
-            const active = item.exact
-              ? pathname === item.to
-              : pathname === item.to || pathname.startsWith(item.to + "/");
+            const active = pathname === item.to || (!item.exact && pathname.startsWith(item.to + "/"));
             const Icon = item.icon;
             return (
               <Link key={item.to} to={item.to}
@@ -126,21 +126,23 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border">
-          <button
-            type="button"
-            // returnPath is a runtime string (last visited agency route); cast to bypass route literal typing.
-            onClick={() => navigate({ to: returnPath as never })}
-            className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
-            title={`Return to ${returnPath}`}
-          >
-            <ArrowLeft className="size-3.5 shrink-0 group-hover:-translate-x-0.5 transition" />
-            <span className="leading-tight min-w-0">
-              <span className="block font-medium text-foreground/80">Switch to Agency view</span>
-              <span className="block truncate text-muted-foreground">Resume · {returnLabel}</span>
-            </span>
-          </button>
-        </div>
+        {canSwitchToAgency && (
+          <div className="p-3 border-t border-sidebar-border">
+            <button
+              type="button"
+              // returnPath is a runtime string (last visited agency route); cast to bypass route literal typing.
+              onClick={() => navigate({ to: returnPath as never })}
+              className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition group"
+              title={`Return to ${returnPath}`}
+            >
+              <ArrowLeft className="size-3.5 shrink-0 group-hover:-translate-x-0.5 transition" />
+              <span className="leading-tight min-w-0">
+                <span className="block font-medium text-foreground/80">Switch to Agency view</span>
+                <span className="block truncate text-muted-foreground">Resume · {returnLabel}</span>
+              </span>
+            </button>
+          </div>
+        )}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
