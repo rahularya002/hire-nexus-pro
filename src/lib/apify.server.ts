@@ -5,7 +5,7 @@ import { z } from "zod";
 export const APIFY_ACTORS = {
   linkedin:
     process.env.APIFY_LINKEDIN_ACTOR ?? "harvestapi~linkedin-profile-search",
-  github: process.env.APIFY_GITHUB_ACTOR ?? "apify~github-scraper",
+  github: process.env.APIFY_GITHUB_ACTOR ?? "kawsar~github-profile-scraper",
 } as const;
 
 export type ApifySourceId = keyof typeof APIFY_ACTORS;
