@@ -248,6 +248,41 @@ export const runApifyScout = createServerFn({ method: "POST" })
       sourcedIds.push(...(upserted ?? []).map((r) => r.id));
     }
 
+    // Mirror into candidates table so they show up in the candidate DB.
+    // Dedupe by resume_url (profile URL) — already-imported profiles are skipped.
+    if (allProfiles.length) {
+      const profileUrls = allProfiles.map((p) => p.profile_url).filter(Boolean) as string[];
+      const existing = new Set<string>();
+      if (profileUrls.length) {
+        const { data: existingRows } = await supabase
+          .from("candidates")
+          .select("resume_url")
+          .in("resume_url", profileUrls);
+        for (const r of existingRows ?? []) {
+          if (r.resume_url) existing.add(r.resume_url);
+        }
+      }
+      const toInsert = allProfiles
+        .filter((p) => p.profile_url && !existing.has(p.profile_url))
+        .map((p) => ({
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+          role: p.headline,
+          current_company: p.current_company,
+          location: p.location,
+          experience: p.experience_years ? `${p.experience_years} years` : null,
+          skills: p.skills ?? [],
+          source: "scout" as const,
+          resume_url: p.profile_url,
+          created_by: userId,
+        }));
+      if (toInsert.length) {
+        const { error: cErr } = await supabase.from("candidates").insert(toInsert);
+        if (cErr) console.warn("Mirror to candidates failed:", cErr.message);
+      }
+    }
+
     // Create position_sourced_matches rows if positionId
     let createdMatches: { id: string; sourced_candidate_id: string }[] = [];
     if (data.positionId && sourcedIds.length) {
