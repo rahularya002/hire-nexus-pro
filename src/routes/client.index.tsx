@@ -68,7 +68,13 @@ function Dashboard() {
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your hiring at a glance</div>
             <h1 className="text-3xl font-semibold tracking-tight mt-2">Welcome back, {companyName}</h1>
             <p className="text-sm text-muted-foreground mt-2 max-w-xl">
-              You have <span className="font-semibold text-foreground">{open} active mandates</span> and <span className="font-semibold text-foreground">{totals.shared} profiles</span> shared with you so far.
+              {loading ? (
+                <span className="opacity-70">Loading your hiring snapshot…</span>
+              ) : (
+                <>
+                  You have <span className="font-semibold text-foreground">{open} active mandates</span> and <span className="font-semibold text-foreground">{totals.shared} profiles</span> shared with you so far.
+                </>
+              )}
             </p>
           </div>
           <Link to="/client/upload"
