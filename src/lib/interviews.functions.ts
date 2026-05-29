@@ -431,3 +431,7 @@ export function formatInterviewWhen(iso: string | null): string {
   if (isTomorrow) return `Tomorrow · ${time}`;
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
 }
+
+export function interviewRoundLabel(r: Pick<InterviewRow, "kind" | "custom_kind_label">): string {
+  return (r.custom_kind_label && r.custom_kind_label.trim()) || INTERVIEW_KIND_LABEL[r.kind];
+}
