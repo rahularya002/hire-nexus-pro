@@ -170,7 +170,7 @@ function Detail() {
         ) : apps.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">No candidates have been shared with you yet.</div>
         ) : (
-          <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} />
+          <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} onSchedule={(a) => setScheduleFor(a)} />
         )}
       </div>
 
@@ -257,7 +257,7 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                       <Check className="size-4" /> Shortlist
                     </button>
                     <button
-                      onClick={() => onUpdate(a.id, "interview_scheduled")}
+                      onClick={() => onSchedule(a)}
                       disabled={pending || a.stage === "interview_scheduled"}
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
                       <Calendar className="size-4" /> Schedule interview
