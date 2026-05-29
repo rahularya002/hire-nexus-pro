@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const INTERVIEW_STATUSES = [
   "pending_confirmation",
@@ -321,6 +322,65 @@ export const deleteInterview = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { error } = await supabase.from("interviews").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ---------------- Client-facing interview request ---------------- */
+
+export const requestClientInterview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        application_id: z.string().uuid(),
+        scheduled_at: z.string().datetime(),
+        rounds: z.number().int().min(1).max(10),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    // Verify client owns the application's position (via RLS-scoped read)
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .select("id, candidate_id, position_id, position:positions(id,title,client_id)")
+      .eq("id", data.application_id)
+      .maybeSingle();
+    if (appErr) throw new Error(appErr.message);
+    if (!app) throw new Error("Application not found or not accessible");
+
+    // Admin-client writes (clients aren't in the staff insert RLS for interviews)
+    const rows = Array.from({ length: data.rounds }, (_, i) => ({
+      application_id: app.id,
+      candidate_id: app.candidate_id,
+      position_id: app.position_id,
+      round_index: i + 1,
+      kind: "hr_screen" as const,
+      conducted_by: "client" as const,
+      scheduled_at: i === 0 ? data.scheduled_at : null,
+      status: "pending_confirmation" as const,
+      provider: "google_meet" as const,
+      created_by: userId,
+    }));
+    const { error: insErr } = await supabaseAdmin.from("interviews").insert(rows);
+    if (insErr) throw new Error(insErr.message);
+
+    const { error: updErr } = await supabaseAdmin
+      .from("applications")
+      .update({ stage: "interview_scheduled" })
+      .eq("id", app.id);
+    if (updErr) throw new Error(updErr.message);
+
+    await logActivity(supabaseAdmin, userId, {
+      kind: "interview_scheduled",
+      title: `Client requested interview · ${data.rounds} round${data.rounds > 1 ? "s" : ""}`,
+      detail: app.position?.title ?? null,
+      application_id: app.id,
+      candidate_id: app.candidate_id,
+      position_id: app.position_id,
+      client_id: app.position?.client_id ?? null,
+      client_visible: true,
+    });
     return { ok: true };
   });
 

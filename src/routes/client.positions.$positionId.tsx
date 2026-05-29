@@ -5,15 +5,25 @@ import {
   ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { getPositionById } from "@/lib/positions.functions";
 import {
   listApplications, updateApplicationStage,
   CLIENT_VISIBLE_STAGES, STAGE_LABEL, type ApplicationRow, type ApplicationStage,
 } from "@/lib/candidates.functions";
+import { requestClientInterview } from "@/lib/interviews.functions";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -39,6 +49,8 @@ function Detail() {
   const fetchPos = useServerFn(getPositionById);
   const fetchApps = useServerFn(listApplications);
   const updateStage = useServerFn(updateApplicationStage);
+  const requestInterview = useServerFn(requestClientInterview);
+  const [scheduleFor, setScheduleFor] = useState<ApplicationRow | null>(null);
 
   const posQ = useQuery({ queryKey: ["client-position", positionId], queryFn: () => fetchPos({ data: { id: positionId } }) });
   const appsQ = useQuery({
@@ -75,6 +87,22 @@ function Detail() {
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Could not update candidate");
+    },
+  });
+
+  const scheduleM = useMutation({
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: number }) =>
+      requestInterview({ data: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
+      qc.invalidateQueries({ queryKey: ["client-applications-all"] });
+      qc.invalidateQueries({ queryKey: ["applications"] });
+      qc.invalidateQueries({ queryKey: ["interviews"] });
+      toast.success("Interview requested. The recruiter will confirm shortly.");
+      setScheduleFor(null);
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not request interview");
     },
   });
 
@@ -142,14 +170,23 @@ function Detail() {
         ) : apps.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">No candidates have been shared with you yet.</div>
         ) : (
-          <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} />
+          <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} onSchedule={(a) => setScheduleFor(a)} />
         )}
       </div>
+
+      <ScheduleInterviewDialog
+        app={scheduleFor}
+        onClose={() => setScheduleFor(null)}
+        onSubmit={(scheduled_at, rounds) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds })
+        }
+        pending={scheduleM.isPending}
+      />
     </div>
   );
 }
 
-function CandidateList({ apps, onUpdate, pending }: { apps: ApplicationRow[]; onUpdate: (id: string, stage: ApplicationStage) => void; pending: boolean }) {
+function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: ApplicationRow[]; onUpdate: (id: string, stage: ApplicationStage) => void; pending: boolean; onSchedule: (a: ApplicationRow) => void }) {
   return (
     <div className="grid gap-3">
       {apps.map(a => {
@@ -220,7 +257,7 @@ function CandidateList({ apps, onUpdate, pending }: { apps: ApplicationRow[]; on
                       <Check className="size-4" /> Shortlist
                     </button>
                     <button
-                      onClick={() => onUpdate(a.id, "interview_scheduled")}
+                      onClick={() => onSchedule(a)}
                       disabled={pending || a.stage === "interview_scheduled"}
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
                       <Calendar className="size-4" /> Schedule interview
@@ -256,6 +293,91 @@ function Mini({ label, value }: { label: string; value: string }) {
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="text-sm font-medium truncate" title={value}>{value}</div>
     </div>
+  );
+}
+
+function ScheduleInterviewDialog({
+  app, onClose, onSubmit, pending,
+}: {
+  app: ApplicationRow | null;
+  onClose: () => void;
+  onSubmit: (scheduled_at: string, rounds: number) => void;
+  pending: boolean;
+}) {
+  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [time, setTime] = useState("10:00");
+  const [rounds, setRounds] = useState("1");
+
+  useEffect(() => {
+    if (app) { setDate(undefined); setTime("10:00"); setRounds("1"); }
+  }, [app?.id]);
+
+  const canSubmit = !!date && !pending;
+
+  return (
+    <Dialog open={!!app} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Schedule interview</DialogTitle>
+          <DialogDescription>
+            {app?.candidate?.name ? `For ${app.candidate.name}.` : null} Pick a preferred date, time and number of rounds. The recruiter will confirm.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label>Preferred date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                  <Calendar className="mr-2 size-4" />
+                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarPicker
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid gap-2">
+            <Label>Preferred time</Label>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Number of rounds</Label>
+            <Select value={rounds} onValueChange={setRounds}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[1,2,3,4,5].map(n => (
+                  <SelectItem key={n} value={String(n)}>{n} round{n>1?"s":""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button
+            disabled={!canSubmit}
+            onClick={() => {
+              if (!date) return;
+              const [h, mi] = time.split(":").map(Number);
+              const dt = new Date(date);
+              dt.setHours(h || 10, mi || 0, 0, 0);
+              onSubmit(dt.toISOString(), Number(rounds));
+            }}
+          >
+            {pending ? "Requesting…" : "Request interview"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
