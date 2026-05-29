@@ -17,6 +17,13 @@ export const Route = createFileRoute("/ongoing")({
 
 // Stages where the candidate is in the recruiter's pre-share bucket
 const PRE_SHARE_STAGES = ["sourcing", "recruiter_shortlist"] as const;
+// All stages we want to surface in the Ongoing scout panel (pre-share + already shared)
+const VISIBLE_STAGES = [
+  "sourcing",
+  "recruiter_shortlist",
+  "shared_with_client",
+  "client_shortlist",
+] as const;
 
 function Page() {
   const fetchPositions = useServerFn(listPositions);
@@ -35,7 +42,17 @@ function Page() {
   const list = positions.filter((p) => p.status === "in_progress" || p.status === "interviews");
   const appsByPos = (pid: string) => apps.filter((a) => a.position_id === pid);
   const scoutAppsByPos = (pid: string) =>
-    apps.filter((a) => a.position_id === pid && PRE_SHARE_STAGES.includes(a.stage as typeof PRE_SHARE_STAGES[number]));
+    apps.filter(
+      (a) =>
+        a.position_id === pid &&
+        VISIBLE_STAGES.includes(a.stage as typeof VISIBLE_STAGES[number]),
+    );
+  const pendingCountByPos = (pid: string) =>
+    apps.filter(
+      (a) =>
+        a.position_id === pid &&
+        PRE_SHARE_STAGES.includes(a.stage as typeof PRE_SHARE_STAGES[number]),
+    ).length;
 
   // Group by client
   const grouped = list.reduce<Record<string, { client: typeof list[number]["client"]; positions: typeof list }>>((acc, p) => {
@@ -97,6 +114,7 @@ function Page() {
                   position={p}
                   totalCount={appsByPos(p.id).length}
                   scoutCandidates={scoutAppsByPos(p.id)}
+                  pendingCount={pendingCountByPos(p.id)}
                   onShare={(appId) => shareMut.mutate(appId)}
                   sharing={shareMut.isPending}
                 />
@@ -113,12 +131,14 @@ function PositionRow({
   position,
   totalCount,
   scoutCandidates,
+  pendingCount,
   onShare,
   sharing,
 }: {
   position: { id: string; title: string; location: string | null; priority: any; status: any };
   totalCount: number;
   scoutCandidates: ApplicationRow[];
+  pendingCount: number;
   onShare: (appId: string) => void;
   sharing: boolean;
 }) {
@@ -138,9 +158,9 @@ function PositionRow({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {scoutCandidates.length > 0 && (
+          {pendingCount > 0 && (
             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-              <Sparkles className="size-3" /> {scoutCandidates.length} from Scout
+              <Sparkles className="size-3" /> {pendingCount} pending review
             </span>
           )}
           <PriorityBadge priority={position.priority} />
@@ -155,7 +175,7 @@ function PositionRow({
         <div className="bg-secondary/20 border-t border-border px-4 py-4 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-              Scout shortlist · pending review
+              Scout candidates · {pendingCount} pending · {scoutCandidates.length - pendingCount} shared
             </div>
             <Link
               to="/positions/$positionId"
