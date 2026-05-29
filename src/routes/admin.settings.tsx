@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   Settings as SettingsIcon,
@@ -11,6 +11,9 @@ import {
   XCircle,
   Loader2,
   Save,
+  CalendarClock,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -29,6 +32,13 @@ import {
   type Integration,
   type IntegrationCategory,
 } from "@/lib/integrations";
+import {
+  listInterviewRoundTemplates,
+  createInterviewRoundTemplate,
+  updateInterviewRoundTemplate,
+  deleteInterviewRoundTemplate,
+  type InterviewRoundTemplate,
+} from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/settings")({
@@ -133,6 +143,173 @@ function AdminSettingsInner() {
           </p>
         </div>
       </Section>
+
+      <Section
+        icon={CalendarClock}
+        title="Interview rounds"
+        subtitle="Custom round types available when scheduling interviews. Each round can default to recruiter or client conducted."
+      >
+        <InterviewRoundTemplates />
+      </Section>
+    </div>
+  );
+}
+
+function InterviewRoundTemplates() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listInterviewRoundTemplates);
+  const createFn = useServerFn(createInterviewRoundTemplate);
+  const updateFn = useServerFn(updateInterviewRoundTemplate);
+  const deleteFn = useServerFn(deleteInterviewRoundTemplate);
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["interview-round-templates"],
+    queryFn: () => listFn(),
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["interview-round-templates"] });
+
+  const createMut = useMutation({
+    mutationFn: (vars: { name: string; default_conducted_by: "recruiter" | "client"; default_duration_minutes: number }) =>
+      createFn({ data: vars }),
+    onSuccess: invalidate,
+  });
+  const updateMut = useMutation({
+    mutationFn: (vars: { id: string } & Partial<InterviewRoundTemplate>) =>
+      updateFn({ data: vars as any }),
+    onSuccess: invalidate,
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: invalidate,
+  });
+
+  const [name, setName] = useState("");
+  const [conductor, setConductor] = useState<"recruiter" | "client">("recruiter");
+  const [duration, setDuration] = useState(60);
+
+  const onAdd = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    createMut.mutate(
+      { name: trimmed, default_conducted_by: conductor, default_duration_minutes: duration },
+      {
+        onSuccess: () => {
+          setName("");
+          setConductor("recruiter");
+          setDuration(60);
+        },
+      },
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-12 gap-3 px-4 py-2.5 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-secondary/30">
+        <div className="col-span-5">Round name</div>
+        <div className="col-span-3">Default conductor</div>
+        <div className="col-span-2">Duration</div>
+        <div className="col-span-2 text-right">Actions</div>
+      </div>
+
+      {isLoading && (
+        <div className="p-4 text-xs text-muted-foreground">Loading templates…</div>
+      )}
+
+      {!isLoading && rows.length === 0 && (
+        <div className="p-4 text-xs text-muted-foreground">
+          No custom rounds yet. Built-in rounds (HR Screen, Technical, Hiring Manager, Panel, CEO, Culture Fit, Case Study) are always available.
+        </div>
+      )}
+
+      {rows.map((t) => (
+        <div key={t.id} className="grid grid-cols-12 gap-3 px-4 py-3 items-center border-t border-border text-sm">
+          <div className="col-span-5 font-medium truncate">
+            {t.name}
+            {t.archived && <span className="ml-2 text-[10px] uppercase tracking-wider text-muted-foreground">Archived</span>}
+          </div>
+          <div className="col-span-3">
+            <select
+              value={t.default_conducted_by}
+              onChange={(e) =>
+                updateMut.mutate({ id: t.id, default_conducted_by: e.target.value as any })
+              }
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="recruiter">Recruiter</option>
+              <option value="client">Client</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <input
+              type="number"
+              min={5}
+              max={600}
+              defaultValue={t.default_duration_minutes}
+              onBlur={(e) => {
+                const v = Number(e.target.value);
+                if (v && v !== t.default_duration_minutes) updateMut.mutate({ id: t.id, default_duration_minutes: v });
+              }}
+              className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs"
+            />
+            <span className="text-[10px] text-muted-foreground ml-1">min</span>
+          </div>
+          <div className="col-span-2 flex justify-end gap-1">
+            <button
+              onClick={() => updateMut.mutate({ id: t.id, archived: !t.archived })}
+              className="h-7 px-2 rounded-md border border-border text-[11px] hover:bg-secondary"
+            >
+              {t.archived ? "Unarchive" : "Archive"}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm(`Delete round "${t.name}"? Existing interviews keep their label.`)) {
+                  deleteMut.mutate(t.id);
+                }
+              }}
+              className="size-7 grid place-items-center rounded-md hover:bg-destructive/10 hover:text-destructive"
+              title="Delete"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center border-t border-border bg-secondary/20">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Technical Round 2"
+          className="col-span-5 h-8 rounded-md border border-input bg-background px-2 text-sm"
+          onKeyDown={(e) => e.key === "Enter" && onAdd()}
+        />
+        <select
+          value={conductor}
+          onChange={(e) => setConductor(e.target.value as "recruiter" | "client")}
+          className="col-span-3 h-8 rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="recruiter">Recruiter</option>
+          <option value="client">Client</option>
+        </select>
+        <input
+          type="number"
+          min={5}
+          max={600}
+          value={duration}
+          onChange={(e) => setDuration(Number(e.target.value) || 60)}
+          className="col-span-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-xs"
+        />
+        <div className="col-span-2 flex justify-end">
+          <button
+            onClick={onAdd}
+            disabled={!name.trim() || createMut.isPending}
+            className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium inline-flex items-center gap-1 hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Plus className="size-3" /> Add
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
