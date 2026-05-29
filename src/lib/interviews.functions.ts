@@ -62,6 +62,14 @@ export const INTERVIEW_KIND_LABEL: Record<InterviewKind, string> = {
 export const INVOICE_STATUSES = ["draft", "sent", "paid", "overdue"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
+export const INTERVIEW_CONDUCTORS = ["recruiter", "client"] as const;
+export type InterviewConductor = (typeof INTERVIEW_CONDUCTORS)[number];
+
+export const INTERVIEW_CONDUCTOR_LABEL: Record<InterviewConductor, string> = {
+  recruiter: "Recruiter",
+  client: "Client",
+};
+
 export type InterviewRow = {
   id: string;
   application_id: string;
@@ -69,6 +77,8 @@ export type InterviewRow = {
   position_id: string;
   round_index: number;
   kind: InterviewKind;
+  custom_kind_label: string | null;
+  conducted_by: InterviewConductor;
   interviewer: string | null;
   scheduled_at: string | null;
   duration_minutes: number | null;
@@ -220,6 +230,8 @@ const interviewSchema = z.object({
   position_id: z.string().uuid(),
   round_index: z.number().int().min(1).max(20).optional(),
   kind: z.enum(INTERVIEW_KINDS).optional(),
+  custom_kind_label: z.string().max(120).optional().nullable(),
+  conducted_by: z.enum(INTERVIEW_CONDUCTORS).optional(),
   interviewer: z.string().max(200).optional().nullable(),
   scheduled_at: z.string().datetime().optional().nullable(),
   duration_minutes: z.number().int().min(5).max(600).optional().nullable(),
@@ -418,4 +430,8 @@ export function formatInterviewWhen(iso: string | null): string {
   if (sameDay) return `Today · ${time}`;
   if (isTomorrow) return `Tomorrow · ${time}`;
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
+}
+
+export function interviewRoundLabel(r: Pick<InterviewRow, "kind" | "custom_kind_label">): string {
+  return (r.custom_kind_label && r.custom_kind_label.trim()) || INTERVIEW_KIND_LABEL[r.kind];
 }

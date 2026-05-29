@@ -7,8 +7,9 @@ import {
   listInterviews,
   INTERVIEW_STATUS_LABEL,
   INTERVIEW_PROVIDER_LABEL,
-  INTERVIEW_KIND_LABEL,
   formatInterviewWhen,
+  interviewRoundLabel,
+  INTERVIEW_CONDUCTOR_LABEL,
   type InterviewRow,
   type InterviewStatus,
 } from "@/lib/interviews.functions";
@@ -131,7 +132,8 @@ function Page() {
                           statusTone(r.status)
                         )}>
                           <div className="text-[9px] uppercase tracking-wider opacity-80">R{r.round_index}</div>
-                          <div className="text-xs font-semibold truncate">{INTERVIEW_KIND_LABEL[r.kind]}</div>
+                          <div className="text-xs font-semibold truncate">{interviewRoundLabel(r)}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{INTERVIEW_CONDUCTOR_LABEL[r.conducted_by]}</div>
                           <div className="text-[10px] opacity-80 truncate mt-0.5">{formatInterviewWhen(r.scheduled_at)}</div>
                         </div>
                         {!isLast && (
@@ -179,7 +181,7 @@ function TodayByCompany({ rows }: { rows: InterviewRow[] }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{i.candidate?.name ?? "Unknown"} · <span className="text-muted-foreground font-normal">{i.position?.title ?? "—"}</span></div>
-                  <div className="text-[11px] text-muted-foreground truncate">R{i.round_index} · {INTERVIEW_KIND_LABEL[i.kind]} · {INTERVIEW_STATUS_LABEL[i.status]}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">R{i.round_index} · {interviewRoundLabel(i)} · {INTERVIEW_CONDUCTOR_LABEL[i.conducted_by]} · {INTERVIEW_STATUS_LABEL[i.status]}</div>
                 </div>
                 <span className="text-[11px] px-2 py-0.5 rounded-md bg-info/10 text-info inline-flex items-center gap-1">
                   <Video className="size-3" />{INTERVIEW_PROVIDER_LABEL[i.provider]}

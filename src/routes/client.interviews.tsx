@@ -8,6 +8,8 @@ import {
   listInterviews,
   INTERVIEW_PROVIDER_LABEL,
   formatInterviewWhen,
+  interviewRoundLabel,
+  INTERVIEW_CONDUCTOR_LABEL,
 } from "@/lib/interviews.functions";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +96,9 @@ function Page() {
                 className="text-xs text-muted-foreground hover:text-primary truncate block">
                 {r.position?.title ?? "—"}
               </Link>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                R{r.round_index} · {interviewRoundLabel(r)} · Conducted by {INTERVIEW_CONDUCTOR_LABEL[r.conducted_by]}
+              </div>
               <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground mt-1">
                 <span className="inline-flex items-center gap-1"><Users className="size-3" />{r.interviewer ?? "Panel TBD"}</span>
                 <span className="inline-flex items-center gap-1">

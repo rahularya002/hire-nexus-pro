@@ -343,13 +343,51 @@ export type Database = {
         }
         Relationships: []
       }
+      interview_round_templates: {
+        Row: {
+          archived: boolean
+          created_at: string
+          created_by: string | null
+          default_conducted_by: Database["public"]["Enums"]["interview_conductor"]
+          default_duration_minutes: number
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          created_by?: string | null
+          default_conducted_by?: Database["public"]["Enums"]["interview_conductor"]
+          default_duration_minutes?: number
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          created_by?: string | null
+          default_conducted_by?: Database["public"]["Enums"]["interview_conductor"]
+          default_duration_minutes?: number
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       interviews: {
         Row: {
           application_id: string
           candidate_id: string
           candidate_reminder: boolean
+          conducted_by: Database["public"]["Enums"]["interview_conductor"]
           created_at: string
           created_by: string | null
+          custom_kind_label: string | null
           cv_attached: boolean
           duration_minutes: number | null
           id: string
@@ -370,8 +408,10 @@ export type Database = {
           application_id: string
           candidate_id: string
           candidate_reminder?: boolean
+          conducted_by?: Database["public"]["Enums"]["interview_conductor"]
           created_at?: string
           created_by?: string | null
+          custom_kind_label?: string | null
           cv_attached?: boolean
           duration_minutes?: number | null
           id?: string
@@ -392,8 +432,10 @@ export type Database = {
           application_id?: string
           candidate_id?: string
           candidate_reminder?: boolean
+          conducted_by?: Database["public"]["Enums"]["interview_conductor"]
           created_at?: string
           created_by?: string | null
+          custom_kind_label?: string | null
           cv_attached?: boolean
           duration_minutes?: number | null
           id?: string
@@ -1203,6 +1245,7 @@ export type Database = {
       client_status: "active" | "inactive"
       document_kind: "jd" | "onboarding" | "offer" | "resume" | "other"
       fee_model: "percent_ctc" | "flat_per_hire" | "tiered"
+      interview_conductor: "recruiter" | "client"
       interview_kind:
         | "hr_screen"
         | "technical"
@@ -1411,6 +1454,7 @@ export const Constants = {
       client_status: ["active", "inactive"],
       document_kind: ["jd", "onboarding", "offer", "resume", "other"],
       fee_model: ["percent_ctc", "flat_per_hire", "tiered"],
+      interview_conductor: ["recruiter", "client"],
       interview_kind: [
         "hr_screen",
         "technical",

@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Plus, Check, RotateCcw, UserX, Trash2,
-  Video, Calendar, Bell, FileText, MessageSquare, Send, Mail,
+  Video, Calendar, Bell, FileText, MessageSquare, Send, Mail, Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -18,12 +18,17 @@ import {
   INTERVIEW_STATUS_LABEL,
   INTERVIEW_PROVIDER_LABEL,
   INTERVIEW_KIND_LABEL,
+  INTERVIEW_CONDUCTORS,
+  INTERVIEW_CONDUCTOR_LABEL,
+  interviewRoundLabel,
   formatInterviewWhen,
   type InterviewRow,
   type InterviewStatus,
   type InterviewProvider,
   type InterviewKind,
+  type InterviewConductor,
 } from "@/lib/interviews.functions";
+import { listInterviewRoundTemplates, type InterviewRoundTemplate } from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/interviews/$processId")({
@@ -43,12 +48,18 @@ function Detail() {
   const createFn = useServerFn(createInterview);
   const updateFn = useServerFn(updateInterview);
   const deleteFn = useServerFn(deleteInterview);
+  const fetchTemplates = useServerFn(listInterviewRoundTemplates);
 
   const queryKey = ["interview-process", processId];
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: () => fetchProcess({ data: { applicationId: processId } }),
   });
+  const { data: templates = [] } = useQuery({
+    queryKey: ["interview-round-templates"],
+    queryFn: () => fetchTemplates(),
+  });
+  const activeTemplates = templates.filter((t) => !t.archived);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey });
@@ -100,6 +111,7 @@ function Detail() {
   const rounds = data.rounds;
   const completed = rounds.filter((r) => r.status === "completed").length;
   const candidateName = app.candidate?.name ?? "Unknown";
+  const clientName = app.position?.client?.name ?? "Client";
 
   const addRound = () => {
     if (!app.candidate || !app.position) return;
@@ -159,7 +171,8 @@ function Detail() {
                   "border-border bg-secondary/40"
                 )}>
                   <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Round {r.round_index}</div>
-                  <div className="text-sm font-semibold truncate">{INTERVIEW_KIND_LABEL[r.kind]}</div>
+                  <div className="text-sm font-semibold truncate">{interviewRoundLabel(r)}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{INTERVIEW_CONDUCTOR_LABEL[r.conducted_by]}</div>
                   <div className="text-[10px] text-muted-foreground truncate mt-0.5">{formatInterviewWhen(r.scheduled_at)}</div>
                   <div className="text-[10px] mt-1 truncate font-medium">{INTERVIEW_STATUS_LABEL[r.status]}</div>
                 </div>
@@ -174,6 +187,8 @@ function Detail() {
           <RoundCard
             key={r.id}
             r={r}
+            templates={activeTemplates}
+            clientName={clientName}
             onUpdate={(patch) => updateMutation.mutate({ id: r.id, ...patch })}
             onDelete={() => deleteMutation.mutate(r.id)}
           />
@@ -188,25 +203,69 @@ function Detail() {
 }
 
 function RoundCard({
-  r, onUpdate, onDelete,
+  r, templates, clientName, onUpdate, onDelete,
 }: {
   r: InterviewRow;
+  templates: InterviewRoundTemplate[];
+  clientName: string;
   onUpdate: (patch: Partial<InterviewRow>) => void;
   onDelete: () => void;
 }) {
   const dtLocal = r.scheduled_at ? new Date(r.scheduled_at).toISOString().slice(0, 16) : "";
+  // Selector value: "builtin:<kind>" or "custom:<templateName>"
+  const selectorValue = r.custom_kind_label
+    ? `custom:${r.custom_kind_label}`
+    : `builtin:${r.kind}`;
+  const onSelectRound = (value: string) => {
+    if (value.startsWith("builtin:")) {
+      const k = value.slice("builtin:".length) as InterviewKind;
+      onUpdate({ kind: k, custom_kind_label: null });
+    } else {
+      const name = value.slice("custom:".length);
+      const tpl = templates.find((t) => t.name === name);
+      const patch: Partial<InterviewRow> = { custom_kind_label: name };
+      if (tpl) {
+        (patch as any).conducted_by = tpl.default_conducted_by;
+        if (tpl.default_duration_minutes) (patch as any).duration_minutes = tpl.default_duration_minutes;
+      }
+      onUpdate(patch);
+    }
+  };
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <span className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center text-xs font-semibold tabular-nums">R{r.round_index}</span>
           <select
-            value={r.kind}
-            onChange={(e) => onUpdate({ kind: e.target.value as InterviewKind })}
+            value={selectorValue}
+            onChange={(e) => onSelectRound(e.target.value)}
             className="h-8 rounded-md border border-border bg-card px-2 text-sm font-medium"
           >
-            {INTERVIEW_KINDS.map((k) => <option key={k} value={k}>{INTERVIEW_KIND_LABEL[k]}</option>)}
+            <optgroup label="Built-in">
+              {INTERVIEW_KINDS.map((k) => (
+                <option key={k} value={`builtin:${k}`}>{INTERVIEW_KIND_LABEL[k]}</option>
+              ))}
+            </optgroup>
+            {templates.length > 0 && (
+              <optgroup label="Custom">
+                {templates.map((t) => (
+                  <option key={t.id} value={`custom:${t.name}`}>{t.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {r.custom_kind_label && !templates.some((t) => t.name === r.custom_kind_label) && (
+              <option value={`custom:${r.custom_kind_label}`}>{r.custom_kind_label} (archived)</option>
+            )}
           </select>
+          <span className={cn(
+            "text-[11px] px-2 py-0.5 rounded-md font-medium border inline-flex items-center gap-1",
+            r.conducted_by === "client"
+              ? "bg-purple/10 text-purple border-purple/25"
+              : "bg-primary/10 text-primary border-primary/25"
+          )}>
+            <Users className="size-3" />
+            {r.conducted_by === "client" ? `Client · ${clientName}` : "Recruiter"}
+          </span>
           <span className={cn(
             "text-[11px] px-2 py-0.5 rounded-md font-medium border",
             r.status === "completed" ? "bg-success/15 text-success border-success/25" :
@@ -223,6 +282,23 @@ function RoundCard({
 
       <div className="p-4 grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
+          <Field label="Conducted by">
+            <div className="flex flex-wrap gap-1">
+              {INTERVIEW_CONDUCTORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onUpdate({ conducted_by: c as InterviewConductor })}
+                  className={cn(
+                    "h-8 px-2.5 rounded-md text-xs font-medium border inline-flex items-center gap-1 transition",
+                    r.conducted_by === c ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-secondary"
+                  )}
+                >
+                  <Users className="size-3" />
+                  {c === "client" ? `Client · ${clientName}` : INTERVIEW_CONDUCTOR_LABEL[c]}
+                </button>
+              ))}
+            </div>
+          </Field>
           <Field label="Interviewer">
             <input
               defaultValue={r.interviewer ?? ""}
