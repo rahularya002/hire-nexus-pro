@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,9 +62,19 @@ function Detail() {
 
   const m = useMutation({
     mutationFn: (vars: { id: string; stage: ApplicationStage }) => updateStage({ data: vars }),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
       qc.invalidateQueries({ queryKey: ["client-applications-all"] });
+      qc.invalidateQueries({ queryKey: ["applications"] });
+      const msg =
+        vars.stage === "client_rejected" ? "Candidate rejected. The recruiter has been notified."
+        : vars.stage === "client_shortlist" ? "Candidate shortlisted."
+        : vars.stage === "interview_scheduled" ? "Interview requested. The recruiter will reach out to confirm a time."
+        : "Updated.";
+      toast.success(msg);
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not update candidate");
     },
   });
 
@@ -191,20 +202,20 @@ function CandidateList({ apps, onUpdate, pending }: { apps: ApplicationRow[]; on
                 )}
                 <div className="flex-1" />
                 <button
-                  onClick={() => onUpdate(a.id, "closed")}
-                  disabled={pending || a.stage === "closed"}
+                  onClick={() => onUpdate(a.id, "client_rejected")}
+                  disabled={pending || a.stage === "client_rejected" || a.stage === "closed"}
                   className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 disabled:opacity-50">
                   <X className="size-4" /> Reject
                 </button>
                 <button
                   onClick={() => onUpdate(a.id, "client_shortlist")}
-                  disabled={pending || a.stage === "client_shortlist" || a.stage === "interview_scheduled" || a.stage === "rounds" || a.stage === "offered"}
+                  disabled={pending || a.stage === "client_shortlist" || a.stage === "interview_scheduled" || a.stage === "rounds" || a.stage === "offered" || a.stage === "client_rejected"}
                   className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
                   <Check className="size-4" /> Shortlist
                 </button>
                 <button
                   onClick={() => onUpdate(a.id, "interview_scheduled")}
-                  disabled={pending}
+                  disabled={pending || a.stage === "client_rejected" || a.stage === "interview_scheduled"}
                   className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
                   <Calendar className="size-4" /> Schedule interview
                 </button>
@@ -222,6 +233,7 @@ function StageBadge({ stage }: { stage: ApplicationStage }) {
   const tone: Record<string, string> = {
     shared_with_client: "bg-warning/15 text-warning",
     client_shortlist: "bg-purple/15 text-purple",
+    client_rejected: "bg-destructive/15 text-destructive",
     interview_scheduled: "bg-info/15 text-info",
     rounds: "bg-info/15 text-info",
     offered: "bg-success/15 text-success",
