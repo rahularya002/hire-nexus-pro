@@ -1,43 +1,48 @@
 ## Goal
 
-1. Admin can create/edit/delete a **global library of custom interview round types** (e.g. "Technical Round 2", "Founder Chat") on top of the existing built-in kinds.
-2. Every interview round has a **"Conducted by"** dropdown — defaults to **Recruiter** (the position's assigned recruiter) and can be switched to **Client** (the client linked to the position, shown automatically).
+1. When a client rejects a candidate, the recruiter/admin sees a clear "needs attention" signal on that requirement, with a one-click "Replace" button that opens AI Talent Scout pre-loaded with the JD.
+2. Fix the client-side **Reject**, **Shortlist**, and **Schedule interview** buttons so they actually transition state and surface to the admin.
 
-## Database (one migration)
+## 1. New "client_rejected" stage
 
-1. New table `public.interview_round_templates`
-   - `id uuid pk`, `name text unique not null`, `default_conducted_by` (new enum, see below), `default_duration_minutes int default 60`, `sort_order int default 0`, `archived bool default false`, `created_by`, `created_at`, `updated_at`
-   - GRANTs: `authenticated` SELECT, admin/lead INSERT/UPDATE/DELETE via RLS; `service_role` ALL
-   - RLS: all authenticated can SELECT; only `admin` / `lead_recruiter` can write
-2. New enum `interview_conductor` = `('recruiter','client')`
-3. `ALTER TABLE public.interviews`
-   - `ADD COLUMN conducted_by interview_conductor NOT NULL DEFAULT 'recruiter'`
-   - `ADD COLUMN custom_kind_label text` (used when admin picks a custom template instead of a built-in `kind`; built-in `kind` stays for backward compat — default `hr_screen`)
+Today, the client's "Reject" button maps to the generic `closed` stage — which also means "placement closed / filled", so the admin can't tell the two apart.
 
-Note: keeps existing data valid (default values), no destructive change.
+- Add a new value `client_rejected` to the `application_stage` enum (DB migration).
+- Add it to `CLIENT_VISIBLE_STAGES` and `STAGE_LABEL` in `candidates.functions.ts`.
+- Client portal **Reject** button → sets stage to `client_rejected` (not `closed`).
+- Show a red "Rejected by client" badge on the candidate card in the client portal so they see their own decision.
 
-## Server functions
+## 2. Admin/recruiter "needs replacement" signal
 
-`src/lib/interview-templates.functions.ts` (new):
-- `listInterviewRoundTemplates`, `createInterviewRoundTemplate`, `updateInterviewRoundTemplate`, `deleteInterviewRoundTemplate` — admin/lead only via RLS.
+In `src/routes/ongoing.tsx`:
 
-`src/lib/interviews.functions.ts`:
-- Extend `interviewSchema` with `conducted_by: z.enum(['recruiter','client']).optional()` and `custom_kind_label: z.string().max(120).nullable().optional()`.
-- Extend `InterviewRow` type with the two fields.
+- For each position row, compute `rejectedCount = apps where stage === 'client_rejected'`.
+- If `rejectedCount > 0`, show an amber `AlertCircle` exclamation badge next to the position title: "N rejected · needs replacement".
+- Inside the expanded row, render rejected candidates in a separate "Rejected by client" group with the rejection visible.
+- Add a **Replace** button (next to the existing "Open full position" link) that navigates to `/scout?positionId={position.id}`. The Scout page already accepts a `positionId` search param and uses the JD/skills from that position to seed sourcing — no change needed there.
 
-## UI
+Same exclamation/Replace affordance also added to the position detail page header (`positions.$positionId.tsx`) for parity.
 
-1. **Admin Settings** (`src/routes/admin.settings.tsx`) — add a new "Interview Rounds" card:
-   - Table of templates with inline add/edit (name, default conductor dropdown, default duration, archive toggle).
-2. **Interview round dialog** in `src/routes/interviews.$processId.tsx` (create + edit):
-   - Replace the current "Kind" select with a single **Round type** select that lists built-in kinds + active custom templates (custom ones write to `custom_kind_label`, built-in ones to `kind`). Selecting a template prefills `conducted_by` + `duration_minutes`.
-   - Add a **Conducted by** dropdown: `Recruiter` (default) | `Client (<client name>)` — client name resolved from `process.application.position.client.name`.
-3. **Interview list rows** (`src/routes/interviews.tsx`, `src/routes/client.interviews.tsx`, process detail rows):
-   - Render the round label as `custom_kind_label ?? INTERVIEW_KIND_LABEL[kind]`.
-   - Show a small badge: `Recruiter` or `Client` next to the interviewer line.
+## 3. Fix the three client buttons
 
-## Out of scope
+Root cause review for `client.positions.$positionId.tsx`:
 
-- Per-client templates (we chose global library).
-- Picking a specific named person beyond Recruiter/Client.
-- Notifications/calendar logic changes — only the label + badge change in this pass.
+- **Shortlist** and **Schedule interview** call `updateApplicationStage` correctly, but the UI only invalidates `client-position-apps` + `client-applications-all`. The staff `applications` cache key isn't touched, so on the recruiter side the change doesn't appear until refresh. We'll also invalidate the shared `applications` key.
+- **Schedule interview** currently only flips the stage — it does NOT create an `interviews` row, so nothing shows up under `/interviews`. We'll change this button to navigate the client to a lightweight request flow: stage moves to `interview_scheduled` AND a record is inserted (via a new `requestClientInterview` server fn) with status `pending_confirmation`, so the recruiter sees it in the interviews list and can confirm/finalize the time. This matches the existing `pending_confirmation` enum value.
+- **Reject** — fix per §1 (was writing `closed` which got filtered as "filled").
+
+We'll also verify by triggering the mutation in the browser after the build and watching the network response.
+
+## 4. Files touched
+
+- `supabase/migrations/<new>.sql` — add `client_rejected` to `application_stage` enum.
+- `src/lib/candidates.functions.ts` — include new stage in arrays + label map; widen `CLIENT_VISIBLE_STAGES`.
+- `src/lib/interviews.functions.ts` — add `requestClientInterview` server fn (client-callable, inserts pending interview + flips stage).
+- `src/routes/client.positions.$positionId.tsx` — wire Reject → `client_rejected`; wire Schedule interview → `requestClientInterview`; invalidate `applications` key; add "Rejected" badge.
+- `src/routes/ongoing.tsx` — exclamation badge + "Replace" button per position; rejected candidates section in expanded row.
+- `src/routes/positions.$positionId.tsx` — same exclamation + Replace button in the header.
+
+## 5. Out of scope
+
+- No changes to AI Talent Scout itself (it already reads `positionId` from the URL).
+- No notification/email — only in-app visual signal for now. (Can add later if needed.)
