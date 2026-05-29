@@ -1240,6 +1240,7 @@ export type Database = {
         | "rounds"
         | "offered"
         | "closed"
+        | "client_rejected"
       billing_cycle: "monthly" | "per_joining"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
       client_status: "active" | "inactive"
@@ -1448,6 +1449,7 @@ export const Constants = {
         "rounds",
         "offered",
         "closed",
+        "client_rejected",
       ],
       billing_cycle: ["monthly", "per_joining"],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronRight, MapPin, Eye, Send, Sparkles, Users } from "lucide-react";
+import { ChevronRight, MapPin, Eye, Send, Sparkles, Users, AlertCircle, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { listPositions } from "@/lib/positions.functions";
@@ -23,6 +23,7 @@ const VISIBLE_STAGES = [
   "recruiter_shortlist",
   "shared_with_client",
   "client_shortlist",
+  "client_rejected",
 ] as const;
 
 function Page() {
@@ -53,6 +54,8 @@ function Page() {
         a.position_id === pid &&
         PRE_SHARE_STAGES.includes(a.stage as typeof PRE_SHARE_STAGES[number]),
     ).length;
+  const rejectedCountByPos = (pid: string) =>
+    apps.filter((a) => a.position_id === pid && a.stage === "client_rejected").length;
 
   // Group by client
   const grouped = list.reduce<Record<string, { client: typeof list[number]["client"]; positions: typeof list }>>((acc, p) => {
@@ -115,6 +118,7 @@ function Page() {
                   totalCount={appsByPos(p.id).length}
                   scoutCandidates={scoutAppsByPos(p.id)}
                   pendingCount={pendingCountByPos(p.id)}
+                  rejectedCount={rejectedCountByPos(p.id)}
                   onShare={(appId) => shareMut.mutate(appId)}
                   sharing={shareMut.isPending}
                 />
@@ -132,6 +136,7 @@ function PositionRow({
   totalCount,
   scoutCandidates,
   pendingCount,
+  rejectedCount,
   onShare,
   sharing,
 }: {
@@ -139,10 +144,13 @@ function PositionRow({
   totalCount: number;
   scoutCandidates: ApplicationRow[];
   pendingCount: number;
+  rejectedCount: number;
   onShare: (appId: string) => void;
   sharing: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const rejected = scoutCandidates.filter((a) => a.stage === "client_rejected");
+  const active = scoutCandidates.filter((a) => a.stage !== "client_rejected");
   return (
     <div>
       <button
@@ -158,6 +166,11 @@ function PositionRow({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          {rejectedCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold">
+              <AlertCircle className="size-3" /> {rejectedCount} rejected · needs replacement
+            </span>
+          )}
           {pendingCount > 0 && (
             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
               <Sparkles className="size-3" /> {pendingCount} pending review
@@ -175,15 +188,26 @@ function PositionRow({
         <div className="bg-secondary/20 border-t border-border px-4 py-4 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-              Scout candidates · {pendingCount} pending · {scoutCandidates.length - pendingCount} shared
+              Scout candidates · {pendingCount} pending · {active.length - pendingCount} shared · {rejected.length} rejected
             </div>
-            <Link
-              to="/positions/$positionId"
-              params={{ positionId: position.id }}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Open full position →
-            </Link>
+            <div className="flex items-center gap-3">
+              {rejectedCount > 0 && (
+                <Link
+                  to="/scout"
+                  search={{ positionId: position.id }}
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 h-7 rounded-md bg-destructive text-destructive-foreground hover:opacity-90"
+                >
+                  <RefreshCw className="size-3" /> Find replacement
+                </Link>
+              )}
+              <Link
+                to="/positions/$positionId"
+                params={{ positionId: position.id }}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Open full position →
+              </Link>
+            </div>
           </div>
 
           {scoutCandidates.length === 0 ? (
@@ -194,10 +218,26 @@ function PositionRow({
               </Link>
             </div>
           ) : (
-            <div className="grid gap-2">
-              {scoutCandidates.map((a) => (
-                <CandidateRow key={a.id} app={a} onShare={() => onShare(a.id)} sharing={sharing} />
-              ))}
+            <div className="space-y-4">
+              {active.length > 0 && (
+                <div className="grid gap-2">
+                  {active.map((a) => (
+                    <CandidateRow key={a.id} app={a} onShare={() => onShare(a.id)} sharing={sharing} />
+                  ))}
+                </div>
+              )}
+              {rejected.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider font-semibold text-destructive flex items-center gap-1.5">
+                    <AlertCircle className="size-3" /> Rejected by client
+                  </div>
+                  <div className="grid gap-2">
+                    {rejected.map((a) => (
+                      <CandidateRow key={a.id} app={a} onShare={() => onShare(a.id)} sharing={sharing} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -211,14 +251,23 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
   if (!c) return null;
   const initials = (c.name.match(/\b\w/g) ?? ["?"]).slice(0, 2).join("").toUpperCase();
   const alreadyShared = app.stage !== "sourcing" && app.stage !== "recruiter_shortlist";
+  const isRejected = app.stage === "client_rejected";
   return (
-    <div className="rounded-lg border border-border bg-card p-3 flex items-start gap-3">
+    <div className={cn(
+      "rounded-lg border bg-card p-3 flex items-start gap-3",
+      isRejected ? "border-destructive/40 bg-destructive/5" : "border-border",
+    )}>
       <div className="size-9 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
         {initials}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="font-medium text-sm truncate">{c.name}</div>
+          {isRejected && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold uppercase tracking-wide">
+              Rejected
+            </span>
+          )}
           {app.match_score != null && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold tabular-nums">
               {app.match_score}% match
@@ -257,14 +306,16 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             No CV
           </span>
         )}
-        <button
-          type="button"
-          onClick={onShare}
-          disabled={sharing || alreadyShared}
-          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share with client"}
-        </button>
+        {!isRejected && (
+          <button
+            type="button"
+            onClick={onShare}
+            disabled={sharing || alreadyShared}
+            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share with client"}
+          </button>
+        )}
       </div>
     </div>
   );
