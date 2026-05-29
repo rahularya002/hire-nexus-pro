@@ -298,18 +298,18 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
           </div>
         )}
       </div>
-      <div className="flex flex-col sm:flex-row gap-1.5 shrink-0">
+      <div className="flex flex-col gap-1.5 shrink-0 w-28">
         {c.resume_url ? (
           <a
             href={c.resume_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary"
           >
             <Eye className="size-3.5" /> CV
           </a>
         ) : (
-          <span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground">
+          <span className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground">
             No CV
           </span>
         )}
@@ -318,9 +318,9 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             type="button"
             onClick={onShare}
             disabled={sharing || alreadyShared}
-            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
           >
-            <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share with client"}
+            <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share"}
           </button>
         )}
       </div>
