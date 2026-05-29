@@ -201,24 +201,32 @@ function CandidateList({ apps, onUpdate, pending }: { apps: ApplicationRow[]; on
                   </a>
                 )}
                 <div className="flex-1" />
-                <button
-                  onClick={() => onUpdate(a.id, "client_rejected")}
-                  disabled={pending || a.stage === "client_rejected" || a.stage === "closed"}
-                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 disabled:opacity-50">
-                  <X className="size-4" /> Reject
-                </button>
-                <button
-                  onClick={() => onUpdate(a.id, "client_shortlist")}
-                  disabled={pending || a.stage === "client_shortlist" || a.stage === "interview_scheduled" || a.stage === "rounds" || a.stage === "offered" || a.stage === "client_rejected"}
-                  className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                  <Check className="size-4" /> Shortlist
-                </button>
-                <button
-                  onClick={() => onUpdate(a.id, "interview_scheduled")}
-                  disabled={pending || a.stage === "client_rejected" || a.stage === "interview_scheduled"}
-                  className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
-                  <Calendar className="size-4" /> Schedule interview
-                </button>
+                {a.stage === "client_rejected" ? (
+                  <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-destructive/10 text-destructive text-sm font-medium">
+                    <X className="size-4" /> Rejected
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_rejected")}
+                      disabled={pending || a.stage === "closed"}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 disabled:opacity-50">
+                      <X className="size-4" /> Reject
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_shortlist")}
+                      disabled={pending || a.stage === "client_shortlist" || a.stage === "interview_scheduled" || a.stage === "rounds" || a.stage === "offered"}
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                      <Check className="size-4" /> Shortlist
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "interview_scheduled")}
+                      disabled={pending || a.stage === "interview_scheduled"}
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                      <Calendar className="size-4" /> Schedule interview
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
