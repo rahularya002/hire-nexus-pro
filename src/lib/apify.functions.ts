@@ -52,6 +52,50 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     const { supabase } = context;
     const skills = data.skills.map((s) => s.toLowerCase().trim()).filter(Boolean);
 
+    // If we have a positionId, return ALL matches for that position
+    // (ranked by score, excluding rejects) — regardless of skill overlap.
+    if (data.positionId) {
+      const { data: matchRows, error: mErr } = await supabase
+        .from("position_sourced_matches")
+        .select(
+          "id, match_score, reasoning, rejected, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url)",
+        )
+        .eq("position_id", data.positionId)
+        .eq("rejected", false)
+        .order("match_score", { ascending: false, nullsFirst: false })
+        .limit(data.limit);
+      if (mErr) throw new Error(mErr.message);
+      const matches: SourcedMatchView[] = (matchRows ?? []).map((m) => {
+        const c = m.sourced_candidates as unknown as {
+          id: string; source: string; name: string; headline: string | null;
+          current_company: string | null; location: string | null;
+          experience_years: number | string | null; skills: string[] | null;
+          email: string | null; phone: string | null;
+          profile_url: string | null; avatar_url: string | null;
+        };
+        return {
+          matchId: m.id,
+          sourcedCandidateId: c.id,
+          source: c.source,
+          name: c.name,
+          headline: c.headline,
+          currentCompany: c.current_company,
+          location: c.location,
+          experienceYears: c.experience_years ? Number(c.experience_years) : null,
+          skills: c.skills ?? [],
+          email: c.email,
+          phone: c.phone,
+          profileUrl: c.profile_url,
+          avatarUrl: c.avatar_url,
+          matchScore: m.match_score,
+          reasoning: m.reasoning,
+          rejected: m.rejected,
+          origin: "internal" as const,
+        };
+      });
+      return { matches };
+    }
+
     let query = supabase
       .from("sourced_candidates")
       .select(
@@ -72,35 +116,10 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     if (!candidates.length)
       return { matches: [] as SourcedMatchView[] };
 
-    // Pull existing matches for this position so we can show score & exclude rejects
-    let matchMap = new Map<
-      string,
-      { id: string; match_score: number | null; reasoning: string | null; rejected: boolean }
-    >();
-    if (data.positionId) {
-      const { data: matches } = await supabase
-        .from("position_sourced_matches")
-        .select("id, sourced_candidate_id, match_score, reasoning, rejected")
-        .eq("position_id", data.positionId)
-        .in(
-          "sourced_candidate_id",
-          candidates.map((c) => c.id),
-        );
-      for (const m of matches ?? []) {
-        matchMap.set(m.sourced_candidate_id, {
-          id: m.id,
-          match_score: m.match_score,
-          reasoning: m.reasoning,
-          rejected: m.rejected,
-        });
-      }
-    }
-
     const matches: SourcedMatchView[] = candidates
       .map((c) => {
-        const m = matchMap.get(c.id);
         return {
-          matchId: m?.id ?? null,
+          matchId: null,
           sourcedCandidateId: c.id,
           source: c.source,
           name: c.name,
@@ -115,13 +134,12 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           phone: c.phone,
           profileUrl: c.profile_url,
           avatarUrl: c.avatar_url,
-          matchScore: m?.match_score ?? null,
-          reasoning: m?.reasoning ?? null,
-          rejected: m?.rejected ?? false,
+          matchScore: null,
+          reasoning: null,
+          rejected: false,
           origin: "internal" as const,
         };
       })
-      .filter((m) => !m.rejected)
       .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
 
     return { matches };
@@ -228,6 +246,59 @@ export const runApifyScout = createServerFn({ method: "POST" })
         .select("id, source, source_profile_id");
       if (upErr) throw new Error(upErr.message);
       sourcedIds.push(...(upserted ?? []).map((r) => r.id));
+    }
+
+    // Mirror into candidates table so they show up in the candidate DB.
+    // Dedupe by resume_url (profile URL) — already-imported profiles are skipped.
+    if (allProfiles.length) {
+      const profileUrls = allProfiles.map((p) => p.profile_url).filter(Boolean) as string[];
+      const existing = new Set<string>();
+      if (profileUrls.length) {
+        const { data: existingRows } = await supabase
+          .from("candidates")
+          .select("resume_url")
+          .in("resume_url", profileUrls);
+        for (const r of existingRows ?? []) {
+          if (r.resume_url) existing.add(r.resume_url);
+        }
+      }
+      const emails = allProfiles.map((p) => p.email).filter(Boolean) as string[];
+      const existingEmails = new Set<string>();
+      if (emails.length) {
+        const { data: emRows } = await supabase
+          .from("candidates")
+          .select("email")
+          .in("email", emails);
+        for (const r of emRows ?? []) {
+          if (r.email) existingEmails.add(r.email);
+        }
+      }
+      const seenEmails = new Set<string>();
+      const toInsert = allProfiles
+        .filter((p) => p.profile_url && !existing.has(p.profile_url))
+        .filter((p) => {
+          if (!p.email) return true;
+          if (existingEmails.has(p.email) || seenEmails.has(p.email)) return false;
+          seenEmails.add(p.email);
+          return true;
+        })
+        .map((p) => ({
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+          role: p.headline,
+          current_company: p.current_company,
+          location: p.location,
+          experience: p.experience_years ? `${p.experience_years} years` : null,
+          skills: p.skills ?? [],
+          source: "scout" as const,
+          resume_url: p.profile_url,
+          created_by: userId,
+        }));
+      if (toInsert.length) {
+        const { error: cErr } = await supabase.from("candidates").insert(toInsert);
+        if (cErr) console.warn("Mirror to candidates failed:", cErr.message);
+      }
     }
 
     // Create position_sourced_matches rows if positionId
