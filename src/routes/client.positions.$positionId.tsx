@@ -182,30 +182,11 @@ function Detail() {
         }
         pending={scheduleM.isPending}
       />
-      {/* trigger wiring done in CandidateList via window event-less prop drilling */}
-      <ScheduleBridge onOpen={setScheduleFor} apps={apps} />
     </div>
   );
 }
 
-/* CandidateList already exists below — we instead extend it to accept onSchedule.
-   ScheduleBridge is a noop placeholder removed by replacing CandidateList signature. */
-function ScheduleBridge(_: { onOpen: (a: ApplicationRow) => void; apps: ApplicationRow[] }) {
-  return null;
-}
-
-function _legacy_close_detail() {
-  return (
-    <div>
-      {false && (
-        <div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CandidateList({ apps, onUpdate, pending }: { apps: ApplicationRow[]; onUpdate: (id: string, stage: ApplicationStage) => void; pending: boolean }) {
+function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: ApplicationRow[]; onUpdate: (id: string, stage: ApplicationStage) => void; pending: boolean; onSchedule: (a: ApplicationRow) => void }) {
   return (
     <div className="grid gap-3">
       {apps.map(a => {
