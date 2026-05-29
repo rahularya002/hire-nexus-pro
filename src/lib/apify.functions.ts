@@ -52,6 +52,50 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     const { supabase } = context;
     const skills = data.skills.map((s) => s.toLowerCase().trim()).filter(Boolean);
 
+    // If we have a positionId, return ALL matches for that position
+    // (ranked by score, excluding rejects) — regardless of skill overlap.
+    if (data.positionId) {
+      const { data: matchRows, error: mErr } = await supabase
+        .from("position_sourced_matches")
+        .select(
+          "id, match_score, reasoning, rejected, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url)",
+        )
+        .eq("position_id", data.positionId)
+        .eq("rejected", false)
+        .order("match_score", { ascending: false, nullsFirst: false })
+        .limit(data.limit);
+      if (mErr) throw new Error(mErr.message);
+      const matches: SourcedMatchView[] = (matchRows ?? []).map((m) => {
+        const c = m.sourced_candidates as unknown as {
+          id: string; source: string; name: string; headline: string | null;
+          current_company: string | null; location: string | null;
+          experience_years: number | string | null; skills: string[] | null;
+          email: string | null; phone: string | null;
+          profile_url: string | null; avatar_url: string | null;
+        };
+        return {
+          matchId: m.id,
+          sourcedCandidateId: c.id,
+          source: c.source,
+          name: c.name,
+          headline: c.headline,
+          currentCompany: c.current_company,
+          location: c.location,
+          experienceYears: c.experience_years ? Number(c.experience_years) : null,
+          skills: c.skills ?? [],
+          email: c.email,
+          phone: c.phone,
+          profileUrl: c.profile_url,
+          avatarUrl: c.avatar_url,
+          matchScore: m.match_score,
+          reasoning: m.reasoning,
+          rejected: m.rejected,
+          origin: "internal" as const,
+        };
+      });
+      return { matches };
+    }
+
     let query = supabase
       .from("sourced_candidates")
       .select(
@@ -72,35 +116,10 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     if (!candidates.length)
       return { matches: [] as SourcedMatchView[] };
 
-    // Pull existing matches for this position so we can show score & exclude rejects
-    let matchMap = new Map<
-      string,
-      { id: string; match_score: number | null; reasoning: string | null; rejected: boolean }
-    >();
-    if (data.positionId) {
-      const { data: matches } = await supabase
-        .from("position_sourced_matches")
-        .select("id, sourced_candidate_id, match_score, reasoning, rejected")
-        .eq("position_id", data.positionId)
-        .in(
-          "sourced_candidate_id",
-          candidates.map((c) => c.id),
-        );
-      for (const m of matches ?? []) {
-        matchMap.set(m.sourced_candidate_id, {
-          id: m.id,
-          match_score: m.match_score,
-          reasoning: m.reasoning,
-          rejected: m.rejected,
-        });
-      }
-    }
-
     const matches: SourcedMatchView[] = candidates
       .map((c) => {
-        const m = matchMap.get(c.id);
         return {
-          matchId: m?.id ?? null,
+          matchId: null,
           sourcedCandidateId: c.id,
           source: c.source,
           name: c.name,
@@ -115,13 +134,12 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           phone: c.phone,
           profileUrl: c.profile_url,
           avatarUrl: c.avatar_url,
-          matchScore: m?.match_score ?? null,
-          reasoning: m?.reasoning ?? null,
-          rejected: m?.rejected ?? false,
+          matchScore: null,
+          reasoning: null,
+          rejected: false,
           origin: "internal" as const,
         };
       })
-      .filter((m) => !m.rejected)
       .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
 
     return { matches };
