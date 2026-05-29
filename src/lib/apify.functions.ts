@@ -262,8 +262,26 @@ export const runApifyScout = createServerFn({ method: "POST" })
           if (r.resume_url) existing.add(r.resume_url);
         }
       }
+      const emails = allProfiles.map((p) => p.email).filter(Boolean) as string[];
+      const existingEmails = new Set<string>();
+      if (emails.length) {
+        const { data: emRows } = await supabase
+          .from("candidates")
+          .select("email")
+          .in("email", emails);
+        for (const r of emRows ?? []) {
+          if (r.email) existingEmails.add(r.email);
+        }
+      }
+      const seenEmails = new Set<string>();
       const toInsert = allProfiles
         .filter((p) => p.profile_url && !existing.has(p.profile_url))
+        .filter((p) => {
+          if (!p.email) return true;
+          if (existingEmails.has(p.email) || seenEmails.has(p.email)) return false;
+          seenEmails.add(p.email);
+          return true;
+        })
         .map((p) => ({
           name: p.name,
           email: p.email,
