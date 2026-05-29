@@ -296,3 +296,94 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ScheduleInterviewDialog({
+  app, onClose, onSubmit, pending,
+}: {
+  app: ApplicationRow | null;
+  onClose: () => void;
+  onSubmit: (scheduled_at: string, rounds: number) => void;
+  pending: boolean;
+}) {
+  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [time, setTime] = useState("10:00");
+  const [rounds, setRounds] = useState("1");
+
+  // Reset whenever a new candidate is opened
+  const appId = app?.id ?? null;
+  const lastIdRef = (ScheduleInterviewDialog as any)._last as { current: string | null } | undefined;
+  if (!lastIdRef) (ScheduleInterviewDialog as any)._last = { current: null };
+  const ref = (ScheduleInterviewDialog as any)._last as { current: string | null };
+  if (ref.current !== appId) {
+    ref.current = appId;
+    if (appId) { setDate(undefined); setTime("10:00"); setRounds("1"); }
+  }
+
+  const canSubmit = !!date && !pending;
+
+  return (
+    <Dialog open={!!app} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Schedule interview</DialogTitle>
+          <DialogDescription>
+            {app?.candidate?.name ? `For ${app.candidate.name}.` : null} Pick a preferred date, time and number of rounds. The recruiter will confirm.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label>Preferred date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                  <Calendar className="mr-2 size-4" />
+                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarPicker
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid gap-2">
+            <Label>Preferred time</Label>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Number of rounds</Label>
+            <Select value={rounds} onValueChange={setRounds}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[1,2,3,4,5].map(n => (
+                  <SelectItem key={n} value={String(n)}>{n} round{n>1?"s":""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button
+            disabled={!canSubmit}
+            onClick={() => {
+              if (!date) return;
+              const [h, mi] = time.split(":").map(Number);
+              const dt = new Date(date);
+              dt.setHours(h || 10, mi || 0, 0, 0);
+              onSubmit(dt.toISOString(), Number(rounds));
+            }}
+          >
+            {pending ? "Requesting…" : "Request interview"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
