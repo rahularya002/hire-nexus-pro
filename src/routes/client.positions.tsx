@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus, Clock, ArrowRight, SearchX } from "lucide-react";
@@ -53,6 +53,9 @@ function daysAgo(iso: string): number {
 
 export const Route = createFileRoute("/client/positions")({
   component: ClientPositionsRoute,
+  validateSearch: (s: Record<string, unknown>) => ({
+    status: (s.status === "active" || s.status === "closed" ? s.status : "all") as "all" | "active" | "closed",
+  }),
 });
 
 function ClientPositionsRoute() {
@@ -62,7 +65,10 @@ function ClientPositionsRoute() {
 }
 
 function Page() {
-  const [filter, setFilter] = useState<"all" | "active" | "closed">("all");
+  const { status: filter } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setFilter = (f: "all" | "active" | "closed") =>
+    navigate({ search: { status: f }, replace: false });
   const fetchPositions = useServerFn(listPositions);
   const fetchApps = useServerFn(listApplications);
   const fetchTeam = useServerFn(getClientAccountTeam);

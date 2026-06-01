@@ -11,6 +11,8 @@ import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/empty-state";
+import { Inbox } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -168,7 +170,11 @@ function Detail() {
         {appsQ.isLoading ? (
           <CardListSkeleton rows={3} />
         ) : apps.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">No candidates have been shared with you yet.</div>
+          <EmptyState
+            icon={Inbox}
+            title="No candidates yet"
+            description="Your recruiter is sourcing profiles. Shared candidates will appear here for your review."
+          />
         ) : (
           <CandidateList apps={apps} onUpdate={(id, stage) => m.mutate({ id, stage })} pending={m.isPending} onSchedule={(a) => setScheduleFor(a)} />
         )}
