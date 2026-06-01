@@ -14,6 +14,7 @@ import { listClients } from "@/lib/clients.functions";
 import { listPositions, createPosition } from "@/lib/positions.functions";
 import { colorFor, initialsOf } from "@/lib/display";
 import { ListRowSkeleton } from "@/components/skeletons";
+import { formatSalary } from "@/lib/utils";
 
 export const Route = createFileRoute("/positions")({
   component: () => <AppShell><PositionsShell /></AppShell>,
@@ -90,7 +91,7 @@ function PositionsPage() {
                     </>
                   )}
                 </div>
-                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{p.salary ?? "—"}</div>
+                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{formatSalary(p.salary)}</div>
                 <div className="md:col-span-2"><StatusBadge status={p.status} /></div>
               </Link>
             );
