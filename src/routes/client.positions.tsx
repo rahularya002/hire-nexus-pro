@@ -2,13 +2,14 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, Plus, Clock, ArrowRight } from "lucide-react";
+import { MapPin, Plus, Clock, ArrowRight, SearchX } from "lucide-react";
 import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
 import { getClientAccountTeam, type ClientAccountMember } from "@/lib/team.functions";
 import { CardListSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/empty-state";
 
 const VISIBLE_STEPS = [
   { id: "received",  label: "Received" },
@@ -118,9 +119,15 @@ function Page() {
       <div className="grid gap-4">
         {loading && <CardListSkeleton rows={3} />}
         {!loading && filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-            No requirements in this view.
-          </div>
+          <EmptyState
+            icon={SearchX}
+            title="No requirements in this view"
+            description={
+              filter === "closed"
+                ? "Closed roles will appear here once interviews are completed."
+                : "Switch tabs or upload a new JD to get started."
+            }
+          />
         )}
         {filtered.map((p) => (
           <RequirementCard
