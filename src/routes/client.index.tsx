@@ -7,6 +7,7 @@ import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow } from "@/lib/candidates.functions";
 import { useAuth } from "@/lib/auth/auth-context";
 import { CardListSkeleton } from "@/components/skeletons";
+import { formatSalary } from "@/lib/utils";
 
 export const Route = createFileRoute("/client/")({
   component: () => <ClientShell><Dashboard /></ClientShell>,
@@ -137,7 +138,7 @@ function Dashboard() {
                   </div>
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
                     <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location ?? "—"}</span>
-                    <span>{p.experience} · {p.salary}</span>
+                    <span>{[p.experience, formatSalary(p.salary)].filter((v) => v && v !== "—").join(" · ") || "—"}</span>
                     <span>{p.openings} opening{p.openings>1?"s":""}</span>
                     <span>Posted {daysAgo(p.posted_at)}d ago</span>
                   </div>
