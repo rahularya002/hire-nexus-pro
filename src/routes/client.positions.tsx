@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus, Clock, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
@@ -170,7 +170,7 @@ function RequirementCard({ p, funnel, recruiter }: { p: PositionRow; funnel: Fun
           </div>
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
             <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{p.location ?? "—"}</span>
-            <span>{p.experience} · {p.salary}</span>
+            <span>{[p.experience, formatSalary(p.salary)].filter((v) => v && v !== "—").join(" · ") || "—"}</span>
             <span>{p.openings} opening{p.openings > 1 ? "s" : ""}</span>
             <span className="inline-flex items-center gap-1"><Clock className="size-3" />Sent {days}d ago</span>
             <span>Recruiter · <span className="text-foreground font-medium">{recruiter?.name ?? "Account team"}</span></span>
