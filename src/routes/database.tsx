@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2 } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -54,7 +55,7 @@ function Page() {
     const needle = q.toLowerCase().trim();
     if (!needle) return candidates;
     return candidates.filter((c) =>
-      [c.name, c.role, c.location, c.email, c.current_company]
+      [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
         .filter(Boolean)
         .some((v) => v!.toLowerCase().includes(needle)),
     );
@@ -105,8 +106,17 @@ function Page() {
                 <TableRowsSkeleton rows={6} cols={5} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">
-                  No candidates yet. Click "Add candidate" to seed your pool.
+                <tr><td colSpan={5} className="px-4 py-8">
+                  <EmptyState
+                    icon={q ? SearchX : Database}
+                    title={q ? "No matches found" : "No candidates yet"}
+                    description={
+                      q
+                        ? `Nothing matches "${q}". Try a different name, skill, or company.`
+                        : "Click \"Add candidate\" to seed your talent pool."
+                    }
+                    className="border-0 bg-transparent p-0"
+                  />
                 </td></tr>
               )}
               {filtered.map((c: CandidateRow) => (

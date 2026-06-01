@@ -42,8 +42,24 @@ function Page() {
     setForm((f) => ({ ...f, [key]: value }));
 
   async function handleFile(f: File | null) {
-    setFile(f);
     if (!f) return;
+    const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+    const ALLOWED = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+    ];
+    const okExt = /\.(pdf|docx?|txt)$/i.test(f.name);
+    if (!okExt && f.type && !ALLOWED.includes(f.type)) {
+      toast.error("Unsupported file type. Upload PDF, DOC, DOCX, or TXT.");
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      toast.error(`File is too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Max 10 MB.`);
+      return;
+    }
+    setFile(f);
     setParsing(true);
     setSaveError(null);
     try {

@@ -2,13 +2,14 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, Plus, Clock, ArrowRight } from "lucide-react";
+import { MapPin, Plus, Clock, ArrowRight, SearchX } from "lucide-react";
 import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
 import { getClientAccountTeam, type ClientAccountMember } from "@/lib/team.functions";
 import { CardListSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/empty-state";
 
 const VISIBLE_STEPS = [
   { id: "received",  label: "Received" },
@@ -118,9 +119,15 @@ function Page() {
       <div className="grid gap-4">
         {loading && <CardListSkeleton rows={3} />}
         {!loading && filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-            No requirements in this view.
-          </div>
+          <EmptyState
+            icon={SearchX}
+            title="No requirements in this view"
+            description={
+              filter === "closed"
+                ? "Closed roles will appear here once interviews are completed."
+                : "Switch tabs or upload a new JD to get started."
+            }
+          />
         )}
         {filtered.map((p) => (
           <RequirementCard
@@ -146,6 +153,14 @@ function RequirementCard({ p, funnel, recruiter }: { p: PositionRow; funnel: Fun
   const step = currentStepOf(p, funnel);
   const stepIndex = VISIBLE_STEPS.findIndex((s) => s.id === step);
   const sla = slaTone(days);
+  const progressPct = (() => {
+    if (p.status === "closed" || funnel.joined > 0) return 100;
+    if (funnel.offered > 0) return 90;
+    if (funnel.interview > 0) return 70;
+    if (funnel.shortlisted > 0) return 50;
+    if (funnel.shared > 0) return 30;
+    return 10; // received
+  })();
   const stepCount = (id: StepId) => {
     if (id === "shared")    return f.shared;
     if (id === "review")    return f.shortlisted;
@@ -166,6 +181,9 @@ function RequirementCard({ p, funnel, recruiter }: { p: PositionRow; funnel: Fun
             <ClientStatusBadge status={p.status} />
             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border", sla.cls)}>
               {sla.label}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 tabular-nums">
+              {progressPct}% complete
             </span>
           </div>
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">

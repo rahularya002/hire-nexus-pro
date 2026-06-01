@@ -159,6 +159,26 @@ export const createCandidate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => candidateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    // Duplicate detection — block on same email or phone (normalized).
+    const normEmail = data.email?.trim().toLowerCase() || null;
+    const normPhone = data.phone?.replace(/\D+/g, "") || null;
+    if (normEmail || normPhone) {
+      const orParts: string[] = [];
+      if (normEmail) orParts.push(`email.ilike.${normEmail}`);
+      if (normPhone && normPhone.length >= 7) orParts.push(`phone.ilike.%${normPhone.slice(-10)}%`);
+      if (orParts.length > 0) {
+        const { data: existing } = await supabase
+          .from("candidates")
+          .select("id,name,email,phone")
+          .or(orParts.join(","))
+          .limit(1);
+        if (existing && existing.length > 0) {
+          const dup = existing[0];
+          const by = normEmail && dup.email?.toLowerCase() === normEmail ? "email" : "phone";
+          throw new Error(`A candidate already exists with this ${by}: ${dup.name}`);
+        }
+      }
+    }
     const { data: row, error } = await supabase
       .from("candidates")
       .insert(clean({ ...data, created_by: userId }))
