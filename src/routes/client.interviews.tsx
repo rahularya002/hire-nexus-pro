@@ -10,8 +10,10 @@ import {
   formatInterviewWhen,
   interviewRoundLabel,
   INTERVIEW_CONDUCTOR_LABEL,
+  type InterviewRow,
 } from "@/lib/interviews.functions";
 import { cn } from "@/lib/utils";
+import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
 
 export const Route = createFileRoute("/client/interviews")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -36,6 +38,7 @@ function bucketize(scheduledAt: string | null): Tab | null {
 
 function Page() {
   const [tab, setTab] = useState<Tab>("today");
+  const [rescheduleFor, setRescheduleFor] = useState<InterviewRow | null>(null);
   const fetchInterviews = useServerFn(listInterviews);
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["client-interviews"],
@@ -114,7 +117,10 @@ function Page() {
                 </button>
               ) : (
                 <>
-                  <button className="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary">
+                  <button
+                    onClick={() => setRescheduleFor(r)}
+                    className="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary"
+                  >
                     Reschedule
                   </button>
                   <a href={r.meeting_link ?? "#"} target="_blank" rel="noreferrer"
@@ -128,6 +134,11 @@ function Page() {
           );
         })}
       </div>
+      <RescheduleInterviewDialog
+        interview={rescheduleFor}
+        onClose={() => setRescheduleFor(null)}
+        invalidateKeys={[["client-interviews"], ["staff-interviews"], ["interviews", "today"]]}
+      />
     </div>
   );
 }
