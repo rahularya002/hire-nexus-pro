@@ -7,7 +7,7 @@ import {
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons";
@@ -146,7 +146,7 @@ function Detail() {
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-3">
               <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" />{initial.location ?? "—"}</span>
-              <span>{initial.experience} · {initial.salary}</span>
+              <span>{[initial.experience, formatSalary(initial.salary)].filter((v) => v && v !== "—").join(" · ") || "—"}</span>
               <span>{initial.openings} opening{initial.openings>1?"s":""}</span>
               <span>Posted {Math.max(0, Math.floor((Date.now() - new Date(initial.posted_at).getTime()) / 86_400_000))}d ago</span>
             </div>

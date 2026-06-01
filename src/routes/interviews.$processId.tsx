@@ -30,6 +30,8 @@ import {
 } from "@/lib/interviews.functions";
 import { listInterviewRoundTemplates, type InterviewRoundTemplate } from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
 
 export const Route = createFileRoute("/interviews/$processId")({
   component: () => <AppShell><Detail /></AppShell>,
@@ -211,6 +213,7 @@ function RoundCard({
   onUpdate: (patch: Partial<InterviewRow>) => void;
   onDelete: () => void;
 }) {
+  const [rescheduling, setRescheduling] = useState(false);
   const dtLocal = r.scheduled_at ? new Date(r.scheduled_at).toISOString().slice(0, 16) : "";
   // Selector value: "builtin:<kind>" or "custom:<templateName>"
   const selectorValue = r.custom_kind_label
@@ -373,7 +376,7 @@ function RoundCard({
               <QuickBtn icon={MessageSquare} label="WhatsApp" />
               <QuickBtn icon={Mail} label="Email" />
               <QuickBtn icon={Send} label="Resend" />
-              <QuickBtn icon={RotateCcw} label="Reschedule" onClick={() => onUpdate({ status: "reschedule_requested" })} />
+              <QuickBtn icon={RotateCcw} label="Reschedule" onClick={() => setRescheduling(true)} />
               <QuickBtn icon={UserX} label="Mark no-show" tone="destructive" onClick={() => onUpdate({ status: "no_show" })} />
               <QuickBtn icon={Check} label="Mark complete" tone="success" onClick={() => onUpdate({ status: "completed" })} />
             </div>
@@ -391,6 +394,11 @@ function RoundCard({
           placeholder="Internal notes about this round…"
         />
       </div>
+      <RescheduleInterviewDialog
+        interview={rescheduling ? r : null}
+        onClose={() => setRescheduling(false)}
+        invalidateKeys={[["interview-process", r.application_id], ["staff-interviews"], ["client-interviews"], ["interviews", "today"]]}
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { listClients } from "@/lib/clients.functions";
 import { listPositions, createPosition } from "@/lib/positions.functions";
 import { colorFor, initialsOf } from "@/lib/display";
 import { ListRowSkeleton } from "@/components/skeletons";
+import { formatSalary } from "@/lib/utils";
 
 export const Route = createFileRoute("/positions")({
   component: () => <AppShell><PositionsShell /></AppShell>,
@@ -26,6 +27,7 @@ function PositionsShell() {
 
 function PositionsPage() {
   const [open, setOpen] = useState(false);
+  const [statusTab, setStatusTab] = useState<"all" | "open" | "in_progress" | "interviews" | "closed">("all");
   const fetchPositions = useServerFn(listPositions);
   const fetchClients = useServerFn(listClients);
   const { data: positions = [], isLoading } = useQuery({
@@ -36,13 +38,23 @@ function PositionsPage() {
     queryKey: ["clients"],
     queryFn: () => fetchClients(),
   });
+  const counts = {
+    all: positions.length,
+    open: positions.filter((p) => p.status === "open").length,
+    in_progress: positions.filter((p) => p.status === "in_progress").length,
+    interviews: positions.filter((p) => p.status === "interviews").length,
+    closed: positions.filter((p) => p.status === "closed").length,
+  };
   const activeCount = positions.filter((p) => p.status !== "closed").length;
+  const filtered = statusTab === "all" ? positions : positions.filter((p) => p.status === statusTab);
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Open requirements</h1>
-          <p className="text-sm text-muted-foreground mt-1">{activeCount} active mandates across {clients.length} clients</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {activeCount} active · {counts.open} pending pickup · across {clients.length} client{clients.length === 1 ? "" : "s"}
+          </p>
         </div>
         <button
           onClick={() => setOpen(true)}
@@ -54,6 +66,29 @@ function PositionsPage() {
         </button>
       </div>
 
+      <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-secondary/60 w-fit">
+        {([
+          { id: "all",         label: `All (${counts.all})` },
+          { id: "open",        label: `Pending (${counts.open})` },
+          { id: "in_progress", label: `In progress (${counts.in_progress})` },
+          { id: "interviews",  label: `Interviews (${counts.interviews})` },
+          { id: "closed",      label: `Closed (${counts.closed})` },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setStatusTab(t.id)}
+            className={
+              "px-3 py-1.5 rounded-md text-xs font-medium transition " +
+              (statusTab === t.id
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground")
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-secondary/30">
           <div className="col-span-5">Position</div>
@@ -63,12 +98,16 @@ function PositionsPage() {
         </div>
         <div className="divide-y divide-border">
           {isLoading && <ListRowSkeleton rows={5} />}
-          {!isLoading && positions.length === 0 && (
+          {!isLoading && filtered.length === 0 && (
             <div className="p-10 text-center text-sm text-muted-foreground">
-              {clients.length === 0 ? "Add a client first, then create positions for them." : "No positions yet. Click \"New position\" to add one."}
+              {clients.length === 0
+                ? "Add a client first, then create positions for them."
+                : positions.length === 0
+                  ? "No positions yet. Click \"New position\" to add one."
+                  : `No positions in the "${statusTab}" view.`}
             </div>
           )}
-          {!isLoading && positions.map((p) => {
+          {!isLoading && filtered.map((p) => {
             const c = p.client;
             return (
               <Link key={p.id} to="/positions/$positionId" params={{ positionId: p.id }}
@@ -90,7 +129,7 @@ function PositionsPage() {
                     </>
                   )}
                 </div>
-                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{p.salary ?? "—"}</div>
+                <div className="md:col-span-2 text-sm tabular-nums text-muted-foreground">{formatSalary(p.salary)}</div>
                 <div className="md:col-span-2"><StatusBadge status={p.status} /></div>
               </Link>
             );

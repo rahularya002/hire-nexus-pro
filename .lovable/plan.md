@@ -1,48 +1,75 @@
-## Goal
 
-1. When a client rejects a candidate, the recruiter/admin sees a clear "needs attention" signal on that requirement, with a one-click "Replace" button that opens AI Talent Scout pre-loaded with the JD.
-2. Fix the client-side **Reject**, **Shortlist**, and **Schedule interview** buttons so they actually transition state and surface to the admin.
+# QA Fixes — Admin & Client
 
-## 1. New "client_rejected" stage
+This is a large list (12 issues across two surfaces). I'll group them into 3 batches so each can be verified before moving on. **Batch 1 = release blockers**, Batch 2 = client UX, Batch 3 = polish/perf.
 
-Today, the client's "Reject" button maps to the generic `closed` stage — which also means "placement closed / filled", so the admin can't tell the two apart.
+Before I start, two quick clarifications inline at the end.
 
-- Add a new value `client_rejected` to the `application_stage` enum (DB migration).
-- Add it to `CLIENT_VISIBLE_STAGES` and `STAGE_LABEL` in `candidates.functions.ts`.
-- Client portal **Reject** button → sets stage to `client_rejected` (not `closed`).
-- Show a red "Rejected by client" badge on the candidate card in the client portal so they see their own decision.
+---
 
-## 2. Admin/recruiter "needs replacement" signal
+## Batch 1 — Release Blockers
 
-In `src/routes/ongoing.tsx`:
+### 1. Rejected candidates not visible on Admin
+- Today `client_rejected` is in `CLIENT_VISIBLE_STAGES` and policies, but the Ongoing/Pipeline admin views likely filter it out.
+- Fix: include `client_rejected` in admin pipeline/ongoing queries; add a "Rejected by client" group/badge in `src/routes/ongoing.tsx` and `src/routes/pipeline.tsx`.
+- Activity log already records stage_change — surface latest stage transition on candidate row.
 
-- For each position row, compute `rejectedCount = apps where stage === 'client_rejected'`.
-- If `rejectedCount > 0`, show an amber `AlertCircle` exclamation badge next to the position title: "N rejected · needs replacement".
-- Inside the expanded row, render rejected candidates in a separate "Rejected by client" group with the rejection visible.
-- Add a **Replace** button (next to the existing "Open full position" link) that navigates to `/scout?positionId={position.id}`. The Scout page already accepts a `positionId` search param and uses the JD/skills from that position to seed sourcing — no change needed there.
+### 2. Reschedule button not working (client + admin)
+- `src/routes/client.interviews.tsx` Reschedule is a static `<button>` with no handler. Same likely on admin `interviews.tsx`.
+- Fix: wire a Reschedule dialog (date/time + reason) → `updateInterview` server fn → mark status `pending_confirmation`, log activity, create notification for the counterpart role.
 
-Same exclamation/Replace affordance also added to the position detail page header (`positions.$positionId.tsx`) for parity.
+### 3. Date filter throws error
+- Need to locate the offending filter (likely on `activity.tsx`, `billing.tsx`, or `tasks.tsx`).
+- Fix: replace any `new Date(str)` parse with a safe parser (DD/MM/YYYY + ISO), clamp invalid ranges, guard empty values.
 
-## 3. Fix the three client buttons
+### 4. Salary field showing 0
+- `positions.salary` is `text` — "0" suggests UI prints raw value or `formatInrShort(0)` on null.
+- Fix: in position cards/detail, render `—` when salary is empty/"0"/non-numeric; keep `formatInrShort` only when a real number is parsed.
 
-Root cause review for `client.positions.$positionId.tsx`:
+### 5. Pending requirements missing ("25 not showing")
+- `src/routes/pending.tsx` likely caps at default Supabase 1000 or filters by status incorrectly.
+- Fix: audit filter (`status = 'open'`), remove stale client-side filtering, ensure dashboard counter uses same source as Pending list.
 
-- **Shortlist** and **Schedule interview** call `updateApplicationStage` correctly, but the UI only invalidates `client-position-apps` + `client-applications-all`. The staff `applications` cache key isn't touched, so on the recruiter side the change doesn't appear until refresh. We'll also invalidate the shared `applications` key.
-- **Schedule interview** currently only flips the stage — it does NOT create an `interviews` row, so nothing shows up under `/interviews`. We'll change this button to navigate the client to a lightweight request flow: stage moves to `interview_scheduled` AND a record is inserted (via a new `requestClientInterview` server fn) with status `pending_confirmation`, so the recruiter sees it in the interviews list and can confirm/finalize the time. This matches the existing `pending_confirmation` enum value.
-- **Reject** — fix per §1 (was writing `closed` which got filtered as "filled").
+---
 
-We'll also verify by triggering the mutation in the browser after the build and watching the network response.
+## Batch 2 — Admin Candidate & Client UX
 
-## 4. Files touched
+### 6. Candidate profile validation / duplicates
+- Add duplicate detection in `createCandidate` and sourced→shortlist promotion: dedupe by normalized `email`, `phone`, and a simple `lower(name)+current_company` key. Surface "Possible duplicate of X" warning before insert.
+- Improve match search: trigram index on `candidates.name` + `skills` overlap scoring (already partly in scout-match).
 
-- `supabase/migrations/<new>.sql` — add `client_rejected` to `application_stage` enum.
-- `src/lib/candidates.functions.ts` — include new stage in arrays + label map; widen `CLIENT_VISIBLE_STAGES`.
-- `src/lib/interviews.functions.ts` — add `requestClientInterview` server fn (client-callable, inserts pending interview + flips stage).
-- `src/routes/client.positions.$positionId.tsx` — wire Reject → `client_rejected`; wire Schedule interview → `requestClientInterview`; invalidate `applications` key; add "Rejected" badge.
-- `src/routes/ongoing.tsx` — exclamation badge + "Replace" button per position; rejected candidates section in expanded row.
-- `src/routes/positions.$positionId.tsx` — same exclamation + Replace button in the header.
+### 7. Client back-button to Open Requirements
+- `src/routes/client.positions.tsx` → detail nav loses filter/page state.
+- Fix: persist filters in URL search params (`?status=open&page=2&q=…`) so browser back restores state naturally; use `Route.useSearch()`.
 
-## 5. Out of scope
+### 8. "No match found" empty state
+- Replace bare empty divs in scout/positions/pipeline with a shared `EmptyState` (icon + suggestion + CTA "Adjust filters" / "Run Scout").
 
-- No changes to AI Talent Scout itself (it already reads `positionId` from the URL).
-- No notification/email — only in-app visual signal for now. (Can add later if needed.)
+### 9. Progress % stuck at 0%
+- Position progress likely counts only `offered/closed` apps.
+- Fix: weighted score by stage (sourcing 10%, shortlist 30%, shared 50%, interview 70%, offered 90%, closed 100%). Compute in `positions.functions.ts`.
+
+### 10. Extra JD upload error
+- `client.positions.$positionId.tsx` upload to `documents` bucket — likely missing size/mime check or path collision.
+- Fix: validate size ≤10MB, mime in (pdf/docx/txt), unique storage path `client/{clientId}/positions/{positionId}/jd-{ts}.{ext}`, toast on error.
+
+### 11. Requirement details format
+- Standardize `client.positions.$positionId.tsx` layout: header card (title/status/openings/salary/location/exp) → JD section → Skills → Pipeline → Documents → Activity. Consistent spacing (`space-y-6`, `rounded-xl border bg-card p-6`).
+
+---
+
+## Batch 3 — Performance polish
+
+### 12. Admin smoothness
+- Add `staleTime: 30s` to heavy list queries (positions, candidates, applications).
+- Skeleton loaders on Ongoing/Pipeline/Dashboard.
+- Memoize `CandidateRow` and stage groupings; remove redundant `listApplications` calls per page.
+
+---
+
+## Quick clarifications
+
+1. For **rejected candidate sync** — do you want rejected candidates to appear as a **separate "Rejected" tab/group** on Ongoing, or inline within each position with a red badge?
+2. For **duplicate detection** — should creating a duplicate be **blocked** (hard error) or **warned** (soft, user can override)?
+
+Reply with answers + "go" and I'll start with Batch 1. If you'd rather I just pick sensible defaults (separate tab; soft warn), say "go with defaults".
