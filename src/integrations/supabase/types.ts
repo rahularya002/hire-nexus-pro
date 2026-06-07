@@ -1231,6 +1231,7 @@ export type Database = {
         | "client"
         | "lead_recruiter"
         | "senior_recruiter"
+        | "super_admin"
       application_stage:
         | "sourcing"
         | "recruiter_shortlist"
@@ -1439,6 +1440,7 @@ export const Constants = {
         "client",
         "lead_recruiter",
         "senior_recruiter",
+        "super_admin",
       ],
       application_stage: [
         "sourcing",
