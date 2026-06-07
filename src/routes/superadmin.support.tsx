@@ -114,6 +114,16 @@ function SupportPage() {
   );
 }
 
+type CreateTicketFn = (args: {
+  data: {
+    agency_id: string | null;
+    type: "support" | "billing" | "feature_request";
+    subject: string;
+    body?: string;
+    priority?: string;
+  };
+}) => Promise<unknown>;
+
 function NewTicketForm({
   agencies,
   onCreated,
@@ -121,7 +131,7 @@ function NewTicketForm({
 }: {
   agencies: { id: string; name: string }[];
   onCreated: () => void;
-  createFn: ReturnType<typeof useServerFn<typeof createTicket>>;
+  createFn: CreateTicketFn;
 }) {
   const [form, setForm] = useState({
     agency_id: "" as string,
