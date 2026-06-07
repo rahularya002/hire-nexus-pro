@@ -40,6 +40,7 @@ import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
 import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientMessagesRouteImport } from './routes/client.messages'
+import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
@@ -205,6 +206,11 @@ const ClientMessagesRoute = ClientMessagesRouteImport.update({
   path: '/client/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientLoginRoute = ClientLoginRouteImport.update({
+  id: '/client/login',
+  path: '/client/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientInterviewsRoute = ClientInterviewsRouteImport.update({
   id: '/client/interviews',
   path: '/client/interviews',
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
@@ -321,6 +328,7 @@ export interface FileRoutesByTo {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
@@ -535,6 +547,7 @@ export interface RootRouteChildren {
   ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
+  ClientLoginRoute: typeof ClientLoginRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
   ClientPipelineRoute: typeof ClientPipelineRoute
   ClientPlacementsRoute: typeof ClientPlacementsRoute
@@ -766,6 +779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientMessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/login': {
+      id: '/client/login'
+      path: '/client/login'
+      fullPath: '/client/login'
+      preLoaderRoute: typeof ClientLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/interviews': {
       id: '/client/interviews'
       path: '/client/interviews'
@@ -907,6 +927,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
+  ClientLoginRoute: ClientLoginRoute,
   ClientMessagesRoute: ClientMessagesRoute,
   ClientPipelineRoute: ClientPipelineRoute,
   ClientPlacementsRoute: ClientPlacementsRoute,
@@ -921,13 +942,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
