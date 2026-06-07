@@ -35,6 +35,7 @@ import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$pr
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
+import { Route as ClientSignupRouteImport } from './routes/client.signup'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
@@ -181,6 +182,11 @@ const ClientTeamRoute = ClientTeamRouteImport.update({
   path: '/client/team',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientSignupRoute = ClientSignupRouteImport.update({
+  id: '/client/signup',
+  path: '/client/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientReportsRoute = ClientReportsRouteImport.update({
   id: '/client/reports',
   path: '/client/reports',
@@ -291,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -334,6 +341,7 @@ export interface FileRoutesByTo {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -378,6 +386,7 @@ export interface FileRoutesById {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -423,6 +432,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -553,6 +565,7 @@ export interface RootRouteChildren {
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
+  ClientSignupRoute: typeof ClientSignupRoute
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -744,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientTeamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/signup': {
+      id: '/client/signup'
+      path: '/client/signup'
+      fullPath: '/client/signup'
+      preLoaderRoute: typeof ClientSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/reports': {
       id: '/client/reports'
       path: '/client/reports'
@@ -933,6 +953,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,
+  ClientSignupRoute: ClientSignupRoute,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
