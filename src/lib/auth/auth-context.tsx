@@ -9,7 +9,8 @@ export type AppRole =
   | "lead_recruiter"
   | "senior_recruiter"
   | "recruiter"
-  | "client";
+  | "client"
+  | "super_admin";
 export type ProfileStatus = "pending" | "active" | "rejected";
 
 export type Profile = {
