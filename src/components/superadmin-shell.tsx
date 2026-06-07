@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   LogOut,
   ShieldCheck,
+  Settings,
 } from "lucide-react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const NAV = [
   { to: "/superadmin/revenue", label: "Revenue", icon: DollarSign },
   { to: "/superadmin/usage", label: "Usage", icon: BarChart3 },
   { to: "/superadmin/support", label: "Support", icon: LifeBuoy },
+  { to: "/superadmin/settings", label: "Master Settings", icon: Settings },
 ];
 
 function FullScreenLoader() {

@@ -80,13 +80,6 @@ const agencyNav: NavSection[] = [
   },
 ];
 
-const adminNavSection: NavSection = {
-  label: "Admin",
-  items: [
-    { to: "/admin/settings", label: "Master Settings", icon: Settings },
-  ],
-};
-
 const recruiterNav: NavSection[] = [
   {
     label: "Overview",
@@ -145,7 +138,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const meStatus = statusOpt(me.status);
   const isAgencyLead = roles.includes("admin") || roles.includes("lead_recruiter");
   const baseNav = isAgencyLead ? agencyNav : recruiterNav;
-  const nav = isAgencyLead ? [...baseNav, adminNavSection] : baseNav;
+  const nav = baseNav;
 
   // Real authenticated identity (overrides mock recruiter for display)
   const displayName = profile?.full_name || profile?.email || "Account";

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -9,19 +9,15 @@ import {
   Lock,
   CheckCircle2,
   XCircle,
-  Loader2,
-  Save,
   CalendarClock,
   Plus,
   Trash2,
 } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
-import { useAuth } from "@/lib/auth/auth-context";
+import { SuperAdminShell } from "@/components/superadmin-shell";
 import { SCOUT_SOURCES } from "@/lib/scout-sources";
 import {
   listSourceSettings,
   upsertSourceSetting,
-  getIntegrationStatus,
   getServiceIntegrationStatus,
   type SourceSettingRow,
 } from "@/lib/admin-settings.functions";
@@ -30,7 +26,6 @@ import {
   INTEGRATION_CATEGORY_ORDER,
   CATEGORY_LABELS,
   type Integration,
-  type IntegrationCategory,
 } from "@/lib/integrations";
 import {
   listInterviewRoundTemplates,
@@ -41,50 +36,31 @@ import {
 } from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/admin/settings")({
+export const Route = createFileRoute("/superadmin/settings")({
   ssr: false,
-  component: AdminSettingsPage,
+  component: SuperAdminSettingsPage,
 });
 
-function AdminSettingsPage() {
+function SuperAdminSettingsPage() {
   return (
-    <AppShell>
-      <AdminSettingsInner />
-    </AppShell>
+    <SuperAdminShell>
+      <SuperAdminSettingsInner />
+    </SuperAdminShell>
   );
 }
 
-function AdminSettingsInner() {
-  const { roles, profileLoaded } = useAuth();
-  const navigate = useNavigate();
-  const isAdmin = roles.includes("admin") || roles.includes("lead_recruiter");
-
-  useEffect(() => {
-    if (profileLoaded && !isAdmin) navigate({ to: "/" });
-  }, [profileLoaded, isAdmin, navigate]);
-
+function SuperAdminSettingsInner() {
   const fetchSettings = useServerFn(listSourceSettings);
-  const fetchStatus = useServerFn(getIntegrationStatus);
   const fetchServiceStatus = useServerFn(getServiceIntegrationStatus);
 
   const { data: settings = [] } = useQuery({
     queryKey: ["scout-source-settings"],
     queryFn: () => fetchSettings(),
-    enabled: isAdmin,
-  });
-  const { data: status } = useQuery({
-    queryKey: ["integration-status"],
-    queryFn: () => fetchStatus(),
-    enabled: isAdmin,
   });
   const { data: serviceStatus = {} } = useQuery({
     queryKey: ["service-integration-status"],
     queryFn: () => fetchServiceStatus(),
-    enabled: isAdmin,
   });
-
-  if (!profileLoaded) return null;
-  if (!isAdmin) return null;
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -94,7 +70,7 @@ function AdminSettingsInner() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Master settings</h1>
-          <p className="text-sm text-muted-foreground">Manage integrations, sourcing actors, and AI configuration.</p>
+          <p className="text-sm text-muted-foreground">Platform-wide integrations, sourcing actors, and AI configuration.</p>
         </div>
       </header>
 
@@ -472,25 +448,27 @@ function SourceRow({ source, settings }: { source: (typeof SCOUT_SOURCES)[number
             >
               <span
                 className={cn(
-                  "absolute top-0.5 size-4 rounded-full bg-background shadow transition",
-                  enabled ? "left-[18px]" : "left-0.5",
+                  "absolute top-0.5 left-0.5 size-4 rounded-full bg-background transition-transform",
+                  enabled && "translate-x-4",
                 )}
               />
             </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-              className="h-7 px-2 rounded-md border border-input text-xs inline-flex items-center gap-1 hover:bg-secondary/60 disabled:opacity-40"
-              title={savedAt ? "Saved" : "Save changes"}
-            >
-              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
-            </button>
+            {dirty && (
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="h-7 px-2 rounded-md bg-primary text-primary-foreground text-[11px] inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                <CheckCircle2 className="size-3" /> Save
+              </button>
+            )}
+            {!dirty && savedAt && (
+              <span className="text-[10px] text-success">Saved</span>
+            )}
           </>
         ) : (
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Lock className="size-3" /> Locked
-          </span>
+          <span className="text-[10px] text-muted-foreground">Locked</span>
         )}
       </div>
     </div>
