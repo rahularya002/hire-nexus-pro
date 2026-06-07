@@ -215,10 +215,6 @@ function RoundCard({
 }) {
   const [rescheduling, setRescheduling] = useState(false);
   const dtLocal = r.scheduled_at ? new Date(r.scheduled_at).toISOString().slice(0, 16) : "";
-  // Selector value: "builtin:<kind>" or "custom:<templateName>"
-  const selectorValue = r.custom_kind_label
-    ? `custom:${r.custom_kind_label}`
-    : `builtin:${r.kind}`;
   const onSelectRound = (value: string) => {
     if (value.startsWith("builtin:")) {
       const k = value.slice("builtin:".length) as InterviewKind;
