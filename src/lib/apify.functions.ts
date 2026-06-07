@@ -10,6 +10,7 @@ import {
   type ApifySourceId,
   type NormalizedProfile,
 } from "./apify.server";
+import { searchGitHubUsers } from "./apify.server";
 
 export type SourcedMatchView = {
   matchId: string | null; // null when no positionId (pure search)
@@ -200,17 +201,28 @@ export const runApifyScout = createServerFn({ method: "POST" })
 
     for (const source of data.sources) {
       try {
-        const actorId = APIFY_ACTORS[source as ApifySourceId];
-        const input = buildActorInput(source as ApifySourceId, {
-          jobTitle: data.jobTitle,
-          location: data.location,
-          skills: data.skills,
-          maxResults: data.maxResults,
-        });
-        const items = await callApifyActor(actorId, input);
-        for (const item of items) {
-          const norm = normalizeForSource(source as ApifySourceId, item);
-          if (norm) allProfiles.push(norm);
+        if (source === "github") {
+          // Use GitHub's public REST API — free, reliable, no Apify actor needed.
+          const profiles = await searchGitHubUsers({
+            jobTitle: data.jobTitle,
+            location: data.location,
+            skills: data.skills,
+            maxResults: data.maxResults,
+          });
+          allProfiles.push(...profiles);
+        } else {
+          const actorId = APIFY_ACTORS[source as ApifySourceId];
+          const input = buildActorInput(source as ApifySourceId, {
+            jobTitle: data.jobTitle,
+            location: data.location,
+            skills: data.skills,
+            maxResults: data.maxResults,
+          });
+          const items = await callApifyActor(actorId, input);
+          for (const item of items) {
+            const norm = normalizeForSource(source as ApifySourceId, item);
+            if (norm) allProfiles.push(norm);
+          }
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
