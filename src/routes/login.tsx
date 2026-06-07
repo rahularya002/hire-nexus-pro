@@ -93,6 +93,10 @@ function LoginPage() {
               Create an account
             </Link>
           </div>
+          <div className="mt-2 text-[11px] text-white/40 text-center">
+            Hiring client?{" "}
+            <Link to="/client/login" className="hover:text-white/70 underline">Use the client portal</Link>
+          </div>
         </div>
       </div>
     </div>
