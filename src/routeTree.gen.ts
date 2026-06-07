@@ -35,11 +35,13 @@ import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$pr
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
+import { Route as ClientSignupRouteImport } from './routes/client.signup'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
 import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientMessagesRouteImport } from './routes/client.messages'
+import { Route as ClientLoginRouteImport } from './routes/client.login'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
@@ -180,6 +182,11 @@ const ClientTeamRoute = ClientTeamRouteImport.update({
   path: '/client/team',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientSignupRoute = ClientSignupRouteImport.update({
+  id: '/client/signup',
+  path: '/client/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientReportsRoute = ClientReportsRouteImport.update({
   id: '/client/reports',
   path: '/client/reports',
@@ -203,6 +210,11 @@ const ClientPipelineRoute = ClientPipelineRouteImport.update({
 const ClientMessagesRoute = ClientMessagesRouteImport.update({
   id: '/client/messages',
   path: '/client/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientLoginRoute = ClientLoginRouteImport.update({
+  id: '/client/login',
+  path: '/client/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientInterviewsRoute = ClientInterviewsRouteImport.update({
@@ -279,11 +291,13 @@ export interface FileRoutesByFullPath {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -321,11 +335,13 @@ export interface FileRoutesByTo {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -364,11 +380,13 @@ export interface FileRoutesById {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -408,11 +426,13 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -450,11 +470,13 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -492,11 +514,13 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/signup'
     | '/client/team'
     | '/client/upload'
     | '/clients/$clientId'
@@ -535,11 +559,13 @@ export interface RootRouteChildren {
   ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
+  ClientLoginRoute: typeof ClientLoginRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
   ClientPipelineRoute: typeof ClientPipelineRoute
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
+  ClientSignupRoute: typeof ClientSignupRoute
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -731,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientTeamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/signup': {
+      id: '/client/signup'
+      path: '/client/signup'
+      fullPath: '/client/signup'
+      preLoaderRoute: typeof ClientSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/reports': {
       id: '/client/reports'
       path: '/client/reports'
@@ -764,6 +797,13 @@ declare module '@tanstack/react-router' {
       path: '/client/messages'
       fullPath: '/client/messages'
       preLoaderRoute: typeof ClientMessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/login': {
+      id: '/client/login'
+      path: '/client/login'
+      fullPath: '/client/login'
+      preLoaderRoute: typeof ClientLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/interviews': {
@@ -907,11 +947,13 @@ const rootRouteChildren: RootRouteChildren = {
   ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
+  ClientLoginRoute: ClientLoginRoute,
   ClientMessagesRoute: ClientMessagesRoute,
   ClientPipelineRoute: ClientPipelineRoute,
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,
+  ClientSignupRoute: ClientSignupRoute,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
@@ -921,13 +963,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

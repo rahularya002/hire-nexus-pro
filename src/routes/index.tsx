@@ -77,7 +77,7 @@ function LandingPage() {
             I'm a recruiter
           </Link>
           <Link
-            to="/login"
+            to="/client/login"
             className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10 sm:w-auto"
           >
             <Building2 className="size-4" />
