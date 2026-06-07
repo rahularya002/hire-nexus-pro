@@ -30,7 +30,9 @@ import { Route as ClosedRouteImport } from './routes/closed'
 import { Route as BillingRouteImport } from './routes/billing'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
+import { Route as SuperadminAgenciesRouteImport } from './routes/superadmin.agencies'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
@@ -158,10 +160,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuperadminIndexRoute = SuperadminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperadminRoute,
+} as any)
 const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
   path: '/client/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SuperadminAgenciesRoute = SuperadminAgenciesRouteImport.update({
+  id: '/agencies',
+  path: '/agencies',
+  getParentRoute: () => SuperadminRoute,
 } as any)
 const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   id: '/$positionId',
@@ -290,7 +302,7 @@ export interface FileRoutesByFullPath {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/superadmin': typeof SuperadminRoute
+  '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
@@ -310,7 +322,9 @@ export interface FileRoutesByFullPath {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/superadmin/agencies': typeof SuperadminAgenciesRoute
   '/client/': typeof ClientIndexRoute
+  '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
@@ -335,7 +349,6 @@ export interface FileRoutesByTo {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/superadmin': typeof SuperadminRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
@@ -355,7 +368,9 @@ export interface FileRoutesByTo {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/superadmin/agencies': typeof SuperadminAgenciesRoute
   '/client': typeof ClientIndexRoute
+  '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
@@ -381,7 +396,7 @@ export interface FileRoutesById {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/superadmin': typeof SuperadminRoute
+  '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
@@ -401,7 +416,9 @@ export interface FileRoutesById {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/superadmin/agencies': typeof SuperadminAgenciesRoute
   '/client/': typeof ClientIndexRoute
+  '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
@@ -448,7 +465,9 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/superadmin/agencies'
     | '/client/'
+    | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
@@ -473,7 +492,6 @@ export interface FileRouteTypes {
     | '/scout'
     | '/settings'
     | '/signup'
-    | '/superadmin'
     | '/tasks'
     | '/team'
     | '/admin/clients'
@@ -493,7 +511,9 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/superadmin/agencies'
     | '/client'
+    | '/superadmin'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
@@ -538,7 +558,9 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/superadmin/agencies'
     | '/client/'
+    | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
@@ -564,7 +586,7 @@ export interface RootRouteChildren {
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
-  SuperadminRoute: typeof SuperadminRoute
+  SuperadminRoute: typeof SuperadminRouteWithChildren
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
   AdminClientsRoute: typeof AdminClientsRoute
@@ -735,12 +757,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/superadmin/': {
+      id: '/superadmin/'
+      path: '/'
+      fullPath: '/superadmin/'
+      preLoaderRoute: typeof SuperadminIndexRouteImport
+      parentRoute: typeof SuperadminRoute
+    }
     '/client/': {
       id: '/client/'
       path: '/client'
       fullPath: '/client/'
       preLoaderRoute: typeof ClientIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/superadmin/agencies': {
+      id: '/superadmin/agencies'
+      path: '/agencies'
+      fullPath: '/superadmin/agencies'
+      preLoaderRoute: typeof SuperadminAgenciesRouteImport
+      parentRoute: typeof SuperadminRoute
     }
     '/positions/$positionId': {
       id: '/positions/$positionId'
@@ -929,6 +965,20 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
   PositionsRouteChildren,
 )
 
+interface SuperadminRouteChildren {
+  SuperadminAgenciesRoute: typeof SuperadminAgenciesRoute
+  SuperadminIndexRoute: typeof SuperadminIndexRoute
+}
+
+const SuperadminRouteChildren: SuperadminRouteChildren = {
+  SuperadminAgenciesRoute: SuperadminAgenciesRoute,
+  SuperadminIndexRoute: SuperadminIndexRoute,
+}
+
+const SuperadminRouteWithChildren = SuperadminRoute._addFileChildren(
+  SuperadminRouteChildren,
+)
+
 interface ClientPositionsRouteChildren {
   ClientPositionsPositionIdRoute: typeof ClientPositionsPositionIdRoute
 }
@@ -960,7 +1010,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
-  SuperadminRoute: SuperadminRoute,
+  SuperadminRoute: SuperadminRouteWithChildren,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
   AdminClientsRoute: AdminClientsRoute,
@@ -984,3 +1034,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
