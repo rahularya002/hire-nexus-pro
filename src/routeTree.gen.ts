@@ -33,6 +33,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
+import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.revenue'
 import { Route as SuperadminAgenciesRouteImport } from './routes/superadmin.agencies'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
@@ -176,6 +177,11 @@ const ClientIndexRoute = ClientIndexRouteImport.update({
 const SuperadminSubscriptionsRoute = SuperadminSubscriptionsRouteImport.update({
   id: '/subscriptions',
   path: '/subscriptions',
+  getParentRoute: () => SuperadminRoute,
+} as any)
+const SuperadminRevenueRoute = SuperadminRevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
   getParentRoute: () => SuperadminRoute,
 } as any)
 const SuperadminAgenciesRoute = SuperadminAgenciesRouteImport.update({
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
@@ -390,6 +397,7 @@ export interface FileRoutesByTo {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client': typeof ClientIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
@@ -441,6 +449,7 @@ export interface FileRoutesById {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
@@ -493,6 +502,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/revenue'
     | '/superadmin/subscriptions'
     | '/client/'
     | '/superadmin/'
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/revenue'
     | '/superadmin/subscriptions'
     | '/client'
     | '/superadmin'
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/revenue'
     | '/superadmin/subscriptions'
     | '/client/'
     | '/superadmin/'
@@ -812,6 +824,13 @@ declare module '@tanstack/react-router' {
       path: '/subscriptions'
       fullPath: '/superadmin/subscriptions'
       preLoaderRoute: typeof SuperadminSubscriptionsRouteImport
+      parentRoute: typeof SuperadminRoute
+    }
+    '/superadmin/revenue': {
+      id: '/superadmin/revenue'
+      path: '/revenue'
+      fullPath: '/superadmin/revenue'
+      preLoaderRoute: typeof SuperadminRevenueRouteImport
       parentRoute: typeof SuperadminRoute
     }
     '/superadmin/agencies': {
@@ -1037,12 +1056,14 @@ const SuperadminAgenciesRouteWithChildren =
 
 interface SuperadminRouteChildren {
   SuperadminAgenciesRoute: typeof SuperadminAgenciesRouteWithChildren
+  SuperadminRevenueRoute: typeof SuperadminRevenueRoute
   SuperadminSubscriptionsRoute: typeof SuperadminSubscriptionsRoute
   SuperadminIndexRoute: typeof SuperadminIndexRoute
 }
 
 const SuperadminRouteChildren: SuperadminRouteChildren = {
   SuperadminAgenciesRoute: SuperadminAgenciesRouteWithChildren,
+  SuperadminRevenueRoute: SuperadminRevenueRoute,
   SuperadminSubscriptionsRoute: SuperadminSubscriptionsRoute,
   SuperadminIndexRoute: SuperadminIndexRoute,
 }
