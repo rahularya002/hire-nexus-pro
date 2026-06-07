@@ -20,7 +20,9 @@ function LoginPage() {
   useEffect(() => {
     if (loading || !session) return;
     if (!profileLoaded) return;
-    if (roles.includes("admin") || roles.includes("lead_recruiter")) {
+    if (roles.includes("super_admin")) {
+      navigate({ to: "/superadmin", replace: true });
+    } else if (roles.includes("admin") || roles.includes("lead_recruiter")) {
       navigate({ to: "/dashboard", replace: true });
     } else if (roles.includes("senior_recruiter") || roles.includes("recruiter")) {
       navigate({ to: "/me", replace: true });
