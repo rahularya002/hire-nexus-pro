@@ -59,6 +59,80 @@ export type Database = {
         }
         Relationships: []
       }
+      agencies: {
+        Row: {
+          created_at: string
+          id: string
+          mrr_cents: number
+          name: string
+          notes: string | null
+          owner_user_id: string | null
+          plan: Database["public"]["Enums"]["agency_plan"]
+          slug: string
+          status: Database["public"]["Enums"]["agency_status"]
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mrr_cents?: number
+          name: string
+          notes?: string | null
+          owner_user_id?: string | null
+          plan?: Database["public"]["Enums"]["agency_plan"]
+          slug: string
+          status?: Database["public"]["Enums"]["agency_status"]
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mrr_cents?: number
+          name?: string
+          notes?: string | null
+          owner_user_id?: string | null
+          plan?: Database["public"]["Enums"]["agency_plan"]
+          slug?: string
+          status?: Database["public"]["Enums"]["agency_status"]
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agency_members: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          role_in_agency: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          role_in_agency?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          role_in_agency?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_members_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           candidate_id: string
@@ -1112,6 +1186,56 @@ export type Database = {
         }
         Relationships: []
       }
+      support_tickets: {
+        Row: {
+          agency_id: string | null
+          assigned_to: string | null
+          body: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          priority: string
+          status: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+          type: Database["public"]["Enums"]["ticket_type"]
+          updated_at: string
+        }
+        Insert: {
+          agency_id?: string | null
+          assigned_to?: string | null
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          priority?: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+          type?: Database["public"]["Enums"]["ticket_type"]
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string | null
+          assigned_to?: string | null
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          priority?: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject?: string
+          type?: Database["public"]["Enums"]["ticket_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           application_id: string | null
@@ -1225,6 +1349,8 @@ export type Database = {
         | "document"
         | "message"
         | "stage_change"
+      agency_plan: "starter" | "professional" | "enterprise"
+      agency_status: "trial" | "active" | "suspended" | "rejected" | "pending"
       app_role:
         | "admin"
         | "recruiter"
@@ -1293,6 +1419,8 @@ export type Database = {
         | "Closed"
         | "Reopened"
         | "No-show"
+      ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      ticket_type: "support" | "billing" | "feature_request"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1434,6 +1562,8 @@ export const Constants = {
         "message",
         "stage_change",
       ],
+      agency_plan: ["starter", "professional", "enterprise"],
+      agency_status: ["trial", "active", "suspended", "rejected", "pending"],
       app_role: [
         "admin",
         "recruiter",
@@ -1510,6 +1640,8 @@ export const Constants = {
         "Reopened",
         "No-show",
       ],
+      ticket_status: ["open", "in_progress", "resolved", "closed"],
+      ticket_type: ["support", "billing", "feature_request"],
     },
   },
 } as const
