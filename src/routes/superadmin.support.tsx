@@ -43,7 +43,7 @@ function SupportPage() {
         </div>
 
         {showNew && (
-          <NewTicketForm agencies={ags?.agencies ?? []} onCreated={() => { setShowNew(false); refresh(); }} createFn={create} />
+          <NewTicketForm agencies={ags?.agencies ?? []} onCreated={() => { setShowNew(false); refresh(); }} createFn={create as CreateTicketFn} />
         )}
 
         <div className="flex gap-2 text-xs">
