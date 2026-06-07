@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
 import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
+import { extractJdWithAi } from "@/lib/jd-extract.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({
@@ -37,6 +38,7 @@ function Page() {
   });
   const createPositionFn = useServerFn(createPosition);
   const createDocumentFn = useServerFn(createDocument);
+  const extractJdAiFn = useServerFn(extractJdWithAi);
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -69,22 +71,40 @@ function Page() {
         return;
       }
       const extracted = extractFieldsFromJd(text);
+      // AI extraction — far better on unstructured JDs. Falls back silently on error.
+      let ai: Awaited<ReturnType<typeof extractJdAiFn>> = {};
+      try {
+        ai = await extractJdAiFn({ data: { text: text.slice(0, 18_000) } });
+      } catch (err) {
+        console.warn("AI JD extract failed, falling back to regex:", err);
+      }
+      const pick = (aiVal: string | null | undefined, regexVal: string | undefined) =>
+        (aiVal && aiVal.trim()) || regexVal || "";
+      const skillsStr = ai.skills?.length ? ai.skills.join(", ") : extracted.skills ?? "";
       setForm((prev) => {
         const next = { ...prev };
         if (!prev.jd.trim()) next.jd = text.slice(0, 15_000);
-        if (!prev.jobTitle.trim() && extracted.jobTitle) next.jobTitle = extracted.jobTitle;
-        if (!prev.location.trim() && extracted.location) next.location = extracted.location;
-        if (!prev.experience.trim() && extracted.experience) next.experience = extracted.experience;
-        if (!prev.salary.trim() && extracted.salary) {
-          const { currency: detected, amount } = splitSalary(extracted.salary);
+        const jobTitle = pick(ai.jobTitle, extracted.jobTitle);
+        if (!prev.jobTitle.trim() && jobTitle) next.jobTitle = jobTitle;
+        const location = pick(ai.location, extracted.location);
+        if (!prev.location.trim() && location) next.location = location;
+        const experience = pick(ai.experience, extracted.experience);
+        if (!prev.experience.trim() && experience) next.experience = experience;
+        const salary = pick(ai.salary, extracted.salary);
+        if (!prev.salary.trim() && salary) {
+          const { currency: detected, amount } = splitSalary(salary);
           if (detected) setCurrency(detected);
           next.salary = amount;
         }
-        if (!prev.openings.trim() && extracted.openings) next.openings = extracted.openings;
-        if (!prev.skills.trim() && extracted.skills) next.skills = extracted.skills;
+        const openings = pick(ai.openings, extracted.openings);
+        if (!prev.openings.trim() && openings) next.openings = openings;
+        if (!prev.skills.trim() && skillsStr) next.skills = skillsStr;
         return next;
       });
-      const filled = Object.keys(extracted).length;
+      const filledFields = ["jobTitle", "location", "experience", "salary", "openings"].filter(
+        (k) => (ai as Record<string, unknown>)[k] || (extracted as Record<string, unknown>)[k],
+      ).length + ((ai.skills?.length || extracted.skills) ? 1 : 0);
+      const filled = filledFields;
       toast.success(filled > 0
         ? `Auto-filled ${filled} field${filled === 1 ? "" : "s"} from your JD — review and submit.`
         : "JD attached. Review the form below before submitting.");

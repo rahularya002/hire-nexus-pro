@@ -54,6 +54,88 @@ export async function callApifyActor(
   return json;
 }
 
+// ---------- GitHub via public REST API ----------
+// The Apify GitHub actor is flaky and costs money. GitHub's own search API
+// is free (60 req/h unauth, 5000 req/h with GITHUB_TOKEN) and far more reliable.
+export async function searchGitHubUsers(args: {
+  jobTitle: string;
+  location?: string | null;
+  skills?: string[];
+  maxResults: number;
+}): Promise<NormalizedProfile[]> {
+  const ghToken = process.env.GITHUB_TOKEN;
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "lovable-scout",
+  };
+  if (ghToken) headers.Authorization = `Bearer ${ghToken}`;
+
+  // Build a GitHub user search query. Skills/title become free-text terms
+  // (matched against name/login/bio). Location uses the `location:` qualifier.
+  const terms: string[] = [];
+  if (args.jobTitle) terms.push(args.jobTitle);
+  for (const s of args.skills ?? []) {
+    if (s.trim()) terms.push(s.trim());
+  }
+  const q = terms.map((t) => (/\s/.test(t) ? `"${t.replace(/"/g, "")}"` : t)).join(" ");
+  const loc = args.location?.trim()
+    ? ` location:"${args.location.trim().replace(/"/g, "")}"`
+    : "";
+  const url = `https://api.github.com/search/users?q=${encodeURIComponent(q + loc + " type:user")}&per_page=${Math.min(args.maxResults, 30)}`;
+
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`GitHub search failed [${res.status}]: ${txt.slice(0, 300)}`);
+  }
+  const json = (await res.json()) as { items?: { login: string; url: string }[] };
+  const items = json.items ?? [];
+  if (!items.length) return [];
+
+  // Fetch full profiles in parallel (capped) to enrich name/bio/company/location.
+  const detailed = await Promise.all(
+    items.slice(0, args.maxResults).map(async (it) => {
+      try {
+        const r = await fetch(it.url, { headers });
+        if (!r.ok) return null;
+        return (await r.json()) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const out: NormalizedProfile[] = [];
+  for (const d of detailed) {
+    if (!d) continue;
+    const norm = normalizeGitHubApi(d);
+    if (norm) out.push(norm);
+  }
+  return out;
+}
+
+function normalizeGitHubApi(o: Record<string, unknown>): NormalizedProfile | null {
+  const login = pickString(o.login);
+  if (!login) return null;
+  const name = pickString(o.name, o.login)!;
+  return {
+    source: "github",
+    source_profile_id: login,
+    name,
+    headline: pickString(o.bio),
+    current_company: pickString(o.company),
+    location: pickString(o.location),
+    experience_years: null,
+    skills: [],
+    email: pickString(o.email),
+    phone: null,
+    profile_url: pickString(o.html_url, o.url),
+    avatar_url: pickString(o.avatar_url),
+    raw: o,
+  };
+}
+
 function pickString(...vals: unknown[]): string | null {
   for (const v of vals) {
     if (typeof v === "string" && v.trim()) return v.trim();
