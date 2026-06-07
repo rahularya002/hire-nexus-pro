@@ -237,29 +237,62 @@ function RoundCard({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center text-xs font-semibold tabular-nums">R{r.round_index}</span>
-          <select
-            value={selectorValue}
-            onChange={(e) => onSelectRound(e.target.value)}
-            className="h-8 rounded-md border border-border bg-card px-2 text-sm font-medium"
-          >
-            <optgroup label="Built-in">
-              {INTERVIEW_KINDS.map((k) => (
-                <option key={k} value={`builtin:${k}`}>{INTERVIEW_KIND_LABEL[k]}</option>
-              ))}
-            </optgroup>
-            {templates.length > 0 && (
-              <optgroup label="Custom">
-                {templates.map((t) => (
-                  <option key={t.id} value={`custom:${t.name}`}>{t.name}</option>
-                ))}
-              </optgroup>
-            )}
+        <div className="flex items-start gap-2 min-w-0 flex-wrap">
+          <span className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center text-xs font-semibold tabular-nums shrink-0">R{r.round_index}</span>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {INTERVIEW_KINDS.map((k) => {
+              const active = !r.custom_kind_label && r.kind === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => onSelectRound(`builtin:${k}`)}
+                  className={cn(
+                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card hover:bg-secondary text-foreground"
+                  )}
+                >
+                  {INTERVIEW_KIND_LABEL[k]}
+                </button>
+              );
+            })}
+            {templates.map((t) => {
+              const active = r.custom_kind_label === t.name;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onSelectRound(`custom:${t.name}`)}
+                  className={cn(
+                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
+                    active
+                      ? "border-purple bg-purple text-primary-foreground"
+                      : "border-purple/40 bg-purple/5 hover:bg-purple/10 text-purple"
+                  )}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
             {r.custom_kind_label && !templates.some((t) => t.name === r.custom_kind_label) && (
-              <option value={`custom:${r.custom_kind_label}`}>{r.custom_kind_label} (archived)</option>
+              <span className="h-7 px-2.5 rounded-full text-xs font-medium border border-purple bg-purple text-primary-foreground inline-flex items-center">
+                {r.custom_kind_label}
+              </span>
             )}
-          </select>
+            <button
+              type="button"
+              onClick={() => {
+                const name = window.prompt("Custom round name (e.g. Culture Fit, Take-home)");
+                const trimmed = name?.trim();
+                if (trimmed) onSelectRound(`custom:${trimmed}`);
+              }}
+              className="h-7 px-2.5 rounded-full text-xs font-medium border border-dashed border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <Plus className="size-3" /> Custom
+            </button>
+          </div>
           <span className={cn(
             "text-[11px] px-2 py-0.5 rounded-md font-medium border inline-flex items-center gap-1",
             r.conducted_by === "client"
