@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { SuperAdminShell } from "@/components/superadmin-shell";
@@ -31,11 +31,12 @@ function AgencyDetailPage() {
   const agency = data?.agency;
   const members = data?.members ?? [];
 
-  // hydrate local edits when data loads
-  if (agency && (plan !== agency.plan || mrr === 0 && agency.mrr_cents !== 0)) {
-    if (plan === "starter" && agency.plan !== "starter") setPlanLocal(agency.plan);
-    if (mrr === 0 && agency.mrr_cents !== 0) setMrr(agency.mrr_cents);
-  }
+  useEffect(() => {
+    if (agency) {
+      setPlanLocal(agency.plan);
+      setMrr(agency.mrr_cents);
+    }
+  }, [agency?.id, agency?.plan, agency?.mrr_cents]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["sa"] });
 
