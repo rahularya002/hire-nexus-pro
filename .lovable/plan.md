@@ -1,75 +1,77 @@
+## Goal
 
-# QA Fixes — Admin & Client
+A `/superadmin` portal — separate from the existing agency app — for your SaaS company to manage tenant recruitment agencies, their plans, trials, usage, and support requests. Manual billing for now (no Stripe yet).
 
-This is a large list (12 issues across two surfaces). I'll group them into 3 batches so each can be verified before moving on. **Batch 1 = release blockers**, Batch 2 = client UX, Batch 3 = polish/perf.
+## 1. Database (one migration)
 
-Before I start, two quick clarifications inline at the end.
+**Extend role enum**
+- `ALTER TYPE public.app_role ADD VALUE 'super_admin'`.
 
----
+**New enums**
+- `agency_status`: `trial | active | suspended | rejected | pending`
+- `agency_plan`: `starter | professional | enterprise`
+- `ticket_status`: `open | in_progress | resolved | closed`
+- `ticket_type`: `support | billing | feature_request`
 
-## Batch 1 — Release Blockers
+**New tables** (all with RLS + GRANTs, `super_admin`-only via `has_role`):
 
-### 1. Rejected candidates not visible on Admin
-- Today `client_rejected` is in `CLIENT_VISIBLE_STAGES` and policies, but the Ongoing/Pipeline admin views likely filter it out.
-- Fix: include `client_rejected` in admin pipeline/ongoing queries; add a "Rejected by client" group/badge in `src/routes/ongoing.tsx` and `src/routes/pipeline.tsx`.
-- Activity log already records stage_change — surface latest stage transition on candidate row.
+- `agencies` — `id, name, slug, owner_user_id (→ auth.users), status, plan, trial_ends_at, mrr_cents, notes, created_at, updated_at`
+- `agency_members` — links existing recruiter/admin profiles to an agency (`agency_id, user_id, role_in_agency`). Backfilled from current users in a single "default agency" so existing data keeps working.
+- `support_tickets` — `id, agency_id, type (ticket_type), subject, body, status, priority, created_by, assigned_to, created_at, updated_at`
 
-### 2. Reschedule button not working (client + admin)
-- `src/routes/client.interviews.tsx` Reschedule is a static `<button>` with no handler. Same likely on admin `interviews.tsx`.
-- Fix: wire a Reschedule dialog (date/time + reason) → `updateInterview` server fn → mark status `pending_confirmation`, log activity, create notification for the counterpart role.
+**RLS**: only `super_admin` can read/write `agencies`, `agency_members`, `support_tickets`. The existing agency app is untouched (no tenant_id wired into positions/candidates yet — that's a future phase).
 
-### 3. Date filter throws error
-- Need to locate the offending filter (likely on `activity.tsx`, `billing.tsx`, or `tasks.tsx`).
-- Fix: replace any `new Date(str)` parse with a safe parser (DD/MM/YYYY + ISO), clamp invalid ranges, guard empty values.
+**Seed**: insert one default agency and bind all existing recruiter/admin/client users to it so dashboards have real numbers from day one.
 
-### 4. Salary field showing 0
-- `positions.salary` is `text` — "0" suggests UI prints raw value or `formatInrShort(0)` on null.
-- Fix: in position cards/detail, render `—` when salary is empty/"0"/non-numeric; keep `formatInrShort` only when a real number is parsed.
+## 2. Server functions (`src/lib/superadmin.functions.ts`)
 
-### 5. Pending requirements missing ("25 not showing")
-- `src/routes/pending.tsx` likely caps at default Supabase 1000 or filters by status incorrectly.
-- Fix: audit filter (`status = 'open'`), remove stale client-side filtering, ensure dashboard counter uses same source as Pending list.
+All gated by a new `requireSuperAdmin` middleware (wraps `requireSupabaseAuth` + `has_role(super_admin)` check).
 
----
+- `listAgencies`, `getAgency(id)`
+- `createAgency({ name, ownerEmail, plan, trialDays })` — admin-creates owner user, assigns `admin` role, creates `agencies` row in `trial` status
+- `updateAgencyStatus(id, status)` — approve / reject / suspend
+- `updateAgencyPlan(id, plan)`
+- `deleteAgency(id)`
+- `extendTrial(id, days)`
+- `getRevenueStats()` — MRR/ARR derived from `agencies.mrr_cents` + status, active subscription count, upcoming renewals
+- `getUsageStats(agencyId?)` — counts from existing tables (`profiles` w/ recruiter role, `clients`, active `positions`, `placements`); AI usage shows "—" until tracked
+- `listTickets`, `updateTicket`
 
-## Batch 2 — Admin Candidate & Client UX
+## 3. Routes (`src/routes/superadmin.*.tsx`)
 
-### 6. Candidate profile validation / duplicates
-- Add duplicate detection in `createCandidate` and sourced→shortlist promotion: dedupe by normalized `email`, `phone`, and a simple `lower(name)+current_company` key. Surface "Possible duplicate of X" warning before insert.
-- Improve match search: trigram index on `candidates.name` + `skills` overlap scoring (already partly in scout-match).
+New `SuperAdminShell` (sidebar, distinct from `AppShell`/`ClientShell`) with a `<SuperAdminGate>` guard that checks `roles.includes("super_admin")` and otherwise redirects to `/`.
 
-### 7. Client back-button to Open Requirements
-- `src/routes/client.positions.tsx` → detail nav loses filter/page state.
-- Fix: persist filters in URL search params (`?status=open&page=2&q=…`) so browser back restores state naturally; use `Route.useSearch()`.
+- `/superadmin` — overview (MRR, ARR, active agencies, trials expiring, ticket counts)
+- `/superadmin/agencies` — table: name, owner, plan, status, MRR, trial ends, actions (approve / suspend / delete / extend trial)
+- `/superadmin/agencies/$id` — detail: members, usage, billing notes, status history
+- `/superadmin/agencies/new` — create agency + owner
+- `/superadmin/subscriptions` — manual plan management per agency (Starter/Pro/Enterprise descriptions + assign)
+- `/superadmin/revenue` — MRR/ARR charts, renewal tracker
+- `/superadmin/usage` — global usage table per agency (recruiters, clients, jobs, placements, AI usage placeholder)
+- `/superadmin/support` — tickets list with type filter (Support / Billing / Feature Request), assign + status update
 
-### 8. "No match found" empty state
-- Replace bare empty divs in scout/positions/pipeline with a shared `EmptyState` (icon + suggestion + CTA "Adjust filters" / "Run Scout").
+## 4. Auth & entry
 
-### 9. Progress % stuck at 0%
-- Position progress likely counts only `offered/closed` apps.
-- Fix: weighted score by stage (sourcing 10%, shortlist 30%, shared 50%, interview 70%, offered 90%, closed 100%). Compute in `positions.functions.ts`.
+- `AuthGate` gets a `"super_admin"` variant; `auth-context` already exposes `roles`.
+- Login flow: after sign-in, super_admins redirect to `/superadmin` (precedence: super_admin → client → agency).
+- One-time bootstrap: a script/SQL to grant `super_admin` to your own user (you tell me the email or I make the first existing admin a super_admin in the same migration).
 
-### 10. Extra JD upload error
-- `client.positions.$positionId.tsx` upload to `documents` bucket — likely missing size/mime check or path collision.
-- Fix: validate size ≤10MB, mime in (pdf/docx/txt), unique storage path `client/{clientId}/positions/{positionId}/jd-{ts}.{ext}`, toast on error.
+## 5. What's stubbed for now
 
-### 11. Requirement details format
-- Standardize `client.positions.$positionId.tsx` layout: header card (title/status/openings/salary/location/exp) → JD section → Skills → Pipeline → Documents → Activity. Consistent spacing (`space-y-6`, `rounded-xl border bg-card p-6`).
+- **Billing**: plan/MRR are manual fields. Stripe/Paddle wiring is a separate future task.
+- **AI usage**: column rendered as "—" with a tooltip "Tracked once AI metering ships."
+- **Per-tenant data isolation**: not in this phase. The `agencies` + `agency_members` tables are in place so a future phase can add `agency_id` to positions/candidates/etc. with backfills.
 
----
+## Technical details
 
-## Batch 3 — Performance polish
+- Tables created in `public` with `GRANT SELECT,INSERT,UPDATE,DELETE … TO authenticated; GRANT ALL TO service_role`; RLS policies use `public.has_role(auth.uid(), 'super_admin')`.
+- `ALTER TYPE … ADD VALUE` runs in its own statement before any usage (Postgres requires this; the migration tool handles it via separate statements).
+- `requireSuperAdmin` middleware lives in `src/integrations/supabase/superadmin-middleware.ts` and reuses the supabase client injected by `requireSupabaseAuth`.
+- All super_admin server fns use `supabaseAdmin` for cross-tenant reads where RLS would otherwise filter rows.
+- New route files follow flat dot-naming: `superadmin.tsx` (layout), `superadmin.index.tsx`, `superadmin.agencies.tsx`, `superadmin.agencies.$id.tsx`, etc.
 
-### 12. Admin smoothness
-- Add `staleTime: 30s` to heavy list queries (positions, candidates, applications).
-- Skeleton loaders on Ongoing/Pipeline/Dashboard.
-- Memoize `CandidateRow` and stage groupings; remove redundant `listApplications` calls per page.
+## Open question before I build
 
----
-
-## Quick clarifications
-
-1. For **rejected candidate sync** — do you want rejected candidates to appear as a **separate "Rejected" tab/group** on Ongoing, or inline within each position with a red badge?
-2. For **duplicate detection** — should creating a duplicate be **blocked** (hard error) or **warned** (soft, user can override)?
-
-Reply with answers + "go" and I'll start with Batch 1. If you'd rather I just pick sensible defaults (separate tab; soft warn), say "go with defaults".
+Who should become the first super_admin? Pick one:
+- (a) the first user in `user_roles` who currently has `admin` (auto-promoted in the migration), or
+- (b) a specific email you'll give me now.
