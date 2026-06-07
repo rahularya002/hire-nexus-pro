@@ -7,10 +7,10 @@ import {
   callApifyActor,
   normalizeForSource,
   rankBatch,
+  searchGitHubUsers,
   type ApifySourceId,
   type NormalizedProfile,
 } from "./apify.server";
-import { searchGitHubUsers } from "./apify.server";
 
 export type SourcedMatchView = {
   matchId: string | null; // null when no positionId (pure search)
