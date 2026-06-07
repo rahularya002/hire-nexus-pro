@@ -32,6 +32,7 @@ import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
+import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
 import { Route as SuperadminAgenciesRouteImport } from './routes/superadmin.agencies'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
@@ -171,6 +172,11 @@ const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
   path: '/client/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SuperadminSubscriptionsRoute = SuperadminSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => SuperadminRoute,
 } as any)
 const SuperadminAgenciesRoute = SuperadminAgenciesRouteImport.update({
   id: '/agencies',
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -383,6 +390,7 @@ export interface FileRoutesByTo {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client': typeof ClientIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
+  '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -484,6 +493,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/subscriptions'
     | '/client/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -532,6 +542,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/subscriptions'
     | '/client'
     | '/superadmin'
     | '/api/public/cron'
@@ -581,6 +592,7 @@ export interface FileRouteTypes {
     | '/interviews/$processId'
     | '/positions/$positionId'
     | '/superadmin/agencies'
+    | '/superadmin/subscriptions'
     | '/client/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -794,6 +806,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/client/'
       preLoaderRoute: typeof ClientIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/superadmin/subscriptions': {
+      id: '/superadmin/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/superadmin/subscriptions'
+      preLoaderRoute: typeof SuperadminSubscriptionsRouteImport
+      parentRoute: typeof SuperadminRoute
     }
     '/superadmin/agencies': {
       id: '/superadmin/agencies'
@@ -1018,11 +1037,13 @@ const SuperadminAgenciesRouteWithChildren =
 
 interface SuperadminRouteChildren {
   SuperadminAgenciesRoute: typeof SuperadminAgenciesRouteWithChildren
+  SuperadminSubscriptionsRoute: typeof SuperadminSubscriptionsRoute
   SuperadminIndexRoute: typeof SuperadminIndexRoute
 }
 
 const SuperadminRouteChildren: SuperadminRouteChildren = {
   SuperadminAgenciesRoute: SuperadminAgenciesRouteWithChildren,
+  SuperadminSubscriptionsRoute: SuperadminSubscriptionsRoute,
   SuperadminIndexRoute: SuperadminIndexRoute,
 }
 
@@ -1085,3 +1106,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
