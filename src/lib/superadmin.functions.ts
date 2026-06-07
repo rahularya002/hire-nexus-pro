@@ -184,7 +184,7 @@ export const updateAgencyPlan = createServerFn({ method: "POST" })
   .inputValidator((input) => UpdatePlanSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context.supabase, context.userId);
-    const patch: { plan: string; mrr_cents?: number } = { plan: data.plan };
+    const patch: { plan: "starter" | "professional" | "enterprise"; mrr_cents?: number } = { plan: data.plan };
     if (typeof data.mrrCents === "number") patch.mrr_cents = data.mrrCents;
     const { error } = await supabaseAdmin.from("agencies").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -302,7 +302,11 @@ export const updateTicket = createServerFn({ method: "POST" })
   .inputValidator((input) => UpdateTicketSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context.supabase, context.userId);
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      status?: "open" | "in_progress" | "resolved" | "closed";
+      priority?: string;
+      assigned_to?: string | null;
+    } = {};
     if (data.status) patch.status = data.status;
     if (data.priority) patch.priority = data.priority;
     if (data.assigned_to !== undefined) patch.assigned_to = data.assigned_to;
