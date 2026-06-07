@@ -33,6 +33,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as SuperadminUsageRouteImport } from './routes/superadmin.usage'
+import { Route as SuperadminSupportRouteImport } from './routes/superadmin.support'
 import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
 import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.revenue'
 import { Route as SuperadminAgenciesRouteImport } from './routes/superadmin.agencies'
@@ -178,6 +179,11 @@ const ClientIndexRoute = ClientIndexRouteImport.update({
 const SuperadminUsageRoute = SuperadminUsageRouteImport.update({
   id: '/usage',
   path: '/usage',
+  getParentRoute: () => SuperadminRoute,
+} as any)
+const SuperadminSupportRoute = SuperadminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => SuperadminRoute,
 } as any)
 const SuperadminSubscriptionsRoute = SuperadminSubscriptionsRouteImport.update({
@@ -355,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
+  '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
@@ -406,6 +413,7 @@ export interface FileRoutesByTo {
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
+  '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/client': typeof ClientIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/superadmin/agencies': typeof SuperadminAgenciesRouteWithChildren
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
+  '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
@@ -513,6 +522,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies'
     | '/superadmin/revenue'
     | '/superadmin/subscriptions'
+    | '/superadmin/support'
     | '/superadmin/usage'
     | '/client/'
     | '/superadmin/'
@@ -564,6 +574,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies'
     | '/superadmin/revenue'
     | '/superadmin/subscriptions'
+    | '/superadmin/support'
     | '/superadmin/usage'
     | '/client'
     | '/superadmin'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies'
     | '/superadmin/revenue'
     | '/superadmin/subscriptions'
+    | '/superadmin/support'
     | '/superadmin/usage'
     | '/client/'
     | '/superadmin/'
@@ -836,6 +848,13 @@ declare module '@tanstack/react-router' {
       path: '/usage'
       fullPath: '/superadmin/usage'
       preLoaderRoute: typeof SuperadminUsageRouteImport
+      parentRoute: typeof SuperadminRoute
+    }
+    '/superadmin/support': {
+      id: '/superadmin/support'
+      path: '/support'
+      fullPath: '/superadmin/support'
+      preLoaderRoute: typeof SuperadminSupportRouteImport
       parentRoute: typeof SuperadminRoute
     }
     '/superadmin/subscriptions': {
@@ -1077,6 +1096,7 @@ interface SuperadminRouteChildren {
   SuperadminAgenciesRoute: typeof SuperadminAgenciesRouteWithChildren
   SuperadminRevenueRoute: typeof SuperadminRevenueRoute
   SuperadminSubscriptionsRoute: typeof SuperadminSubscriptionsRoute
+  SuperadminSupportRoute: typeof SuperadminSupportRoute
   SuperadminUsageRoute: typeof SuperadminUsageRoute
   SuperadminIndexRoute: typeof SuperadminIndexRoute
 }
@@ -1085,6 +1105,7 @@ const SuperadminRouteChildren: SuperadminRouteChildren = {
   SuperadminAgenciesRoute: SuperadminAgenciesRouteWithChildren,
   SuperadminRevenueRoute: SuperadminRevenueRoute,
   SuperadminSubscriptionsRoute: SuperadminSubscriptionsRoute,
+  SuperadminSupportRoute: SuperadminSupportRoute,
   SuperadminUsageRoute: SuperadminUsageRoute,
   SuperadminIndexRoute: SuperadminIndexRoute,
 }
