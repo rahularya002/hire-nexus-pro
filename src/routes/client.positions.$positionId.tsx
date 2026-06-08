@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -241,6 +241,11 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                 {c.resume_url && (
                   <a href={c.resume_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
                     <Eye className="size-4" /> View CV
+                  </a>
+                )}
+                {c.linkedin_url && (
+                  <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-sm font-medium hover:bg-[#0A66C2]/20">
+                    <Linkedin className="size-4" /> Message on LinkedIn
                   </a>
                 )}
                 <div className="flex-1" />

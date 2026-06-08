@@ -192,6 +192,7 @@ export type Database = {
           email: string | null
           experience: string | null
           id: string
+          linkedin_url: string | null
           location: string | null
           name: string
           notes: string | null
@@ -209,6 +210,7 @@ export type Database = {
           email?: string | null
           experience?: string | null
           id?: string
+          linkedin_url?: string | null
           location?: string | null
           name: string
           notes?: string | null
@@ -226,6 +228,7 @@ export type Database = {
           email?: string | null
           experience?: string | null
           id?: string
+          linkedin_url?: string | null
           location?: string | null
           name?: string
           notes?: string | null

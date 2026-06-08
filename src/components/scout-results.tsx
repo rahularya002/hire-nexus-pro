@@ -69,8 +69,13 @@ export function ScoutResults({
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                   {c.email && <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 hover:text-foreground"><Mail className="size-3" />{c.email}</a>}
                   {c.phone && <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 hover:text-foreground"><Phone className="size-3" />{c.phone}</a>}
-                  {c.profileUrl && <a href={c.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground"><ExternalLink className="size-3" />Profile</a>}
-                  {!c.email && !c.phone && <span className="italic">No public contact info</span>}
+                  {c.profileUrl && (
+                    <a href={c.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                      {c.source === "linkedin" ? <Linkedin className="size-3 text-[#0A66C2]" /> : <ExternalLink className="size-3" />}
+                      {c.source === "linkedin" ? "Message on LinkedIn" : "Profile"}
+                    </a>
+                  )}
+                  {!c.email && !c.phone && !c.profileUrl && <span className="italic">No public contact info</span>}
                 </div>
               </div>
               <div className="flex sm:flex-col gap-2 shrink-0">

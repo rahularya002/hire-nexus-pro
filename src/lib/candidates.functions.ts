@@ -48,6 +48,7 @@ export type CandidateRow = {
   current_company: string | null;
   skills: string[];
   resume_url: string | null;
+  linkedin_url: string | null;
   source: "manual" | "scout" | "referral" | "database" | "inbound";
   notes: string | null;
   created_at: string;
@@ -84,6 +85,7 @@ const candidateSchema = z.object({
   current_company: z.string().max(200).optional().nullable(),
   skills: z.array(z.string().min(1).max(60)).max(40).optional(),
   resume_url: z.string().url().max(500).optional().nullable(),
+  linkedin_url: z.string().url().max(500).optional().nullable(),
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
   notes: z.string().max(10_000).optional().nullable(),
 });

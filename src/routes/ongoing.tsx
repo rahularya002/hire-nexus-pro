@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronRight, MapPin, Eye, Send, Sparkles, Users, AlertCircle, RefreshCw } from "lucide-react";
+import { ChevronRight, MapPin, Eye, Send, Sparkles, Users, AlertCircle, RefreshCw, Linkedin } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { listPositions } from "@/lib/positions.functions";
@@ -312,6 +312,16 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
           <span className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground">
             No CV
           </span>
+        )}
+        {c.linkedin_url && (
+          <a
+            href={c.linkedin_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-xs font-medium hover:bg-[#0A66C2]/20"
+          >
+            <Linkedin className="size-3.5" /> LinkedIn
+          </a>
         )}
         {!isRejected && (
           <button

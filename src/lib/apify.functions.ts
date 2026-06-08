@@ -305,6 +305,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
           skills: p.skills ?? [],
           source: "scout" as const,
           resume_url: p.profile_url,
+          linkedin_url: p.source === "linkedin" ? p.profile_url : null,
           created_by: userId,
         }));
       if (toInsert.length) {
@@ -467,6 +468,7 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
         skills: sc.skills ?? [],
         source: "scout",
         resume_url: sc.profile_url,
+        linkedin_url: sc.source === "linkedin" ? sc.profile_url : null,
         created_by: userId,
       })
       .select("id")
