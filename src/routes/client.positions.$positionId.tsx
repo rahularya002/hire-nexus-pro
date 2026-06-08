@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
