@@ -243,6 +243,11 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                     <Eye className="size-4" /> View CV
                   </a>
                 )}
+                {c.linkedin_url && (
+                  <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-sm font-medium hover:bg-[#0A66C2]/20">
+                    <Linkedin className="size-4" /> Message on LinkedIn
+                  </a>
+                )}
                 <div className="flex-1" />
                 {a.stage === "client_rejected" ? (
                   <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-destructive/10 text-destructive text-sm font-medium">
