@@ -468,6 +468,7 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
         skills: sc.skills ?? [],
         source: "scout",
         resume_url: sc.profile_url,
+        linkedin_url: sc.source === "linkedin" ? sc.profile_url : null,
         created_by: userId,
       })
       .select("id")
