@@ -1,26 +1,22 @@
-## Goal
+## Problem
 
-The "Master settings" page (integrations, sourcing actors, AI ranking, interview round templates) is currently at `/admin/settings` inside the agency portal. Move it under the Super Admin portal so only platform owners (`super_admin`) can manage platform-wide configuration.
+Clicking **Create Agency** navigates to `/superadmin/agencies/new`, but the page renders blank and throws:
 
-## Changes
+> Invariant failed: Expected to find a match below the root match in SPA mode.
 
-### New route
-- Create `src/routes/superadmin.settings.tsx` at `/superadmin/settings`.
-  - Wraps content in `SuperAdminShell` (instead of `AppShell`).
-  - Drops the in-component `admin / lead_recruiter` role check (the shell already gates on `super_admin`).
-  - Reuses the exact same UI and sections: Service integrations, Sourcing actors, AI ranking, Interview rounds.
-  - Reuses existing server functions in `src/lib/admin-settings.functions.ts` and `src/lib/interview-templates.functions.ts` unchanged.
+### Root cause
 
-### Super Admin navigation
-- Add a "Settings" item (gear icon) to the `NAV` array in `src/components/superadmin-shell.tsx`, pointing to `/superadmin/settings`.
+In TanStack Router's flat file convention, `src/routes/superadmin.agencies.tsx` is treated as the **parent layout** for its siblings `superadmin.agencies.new.tsx` and `superadmin.agencies.$id.tsx`. A parent must render `<Outlet />` for children to mount, but `superadmin.agencies.tsx` currently renders the full `AgenciesPage` UI with no `<Outlet />`. So `/superadmin/agencies/new` matches, but there's nowhere to render the child — hence the invariant error.
 
-### Remove old entry point
-- Delete `src/routes/admin.settings.tsx`.
-- Remove any links to `/admin/settings` in the agency shell / sidebar (`src/components/app-shell.tsx`) so the agency portal no longer surfaces it.
+## Fix
 
-### Access
-- Server functions stay as-is — they only require an authenticated user. Since the only route that calls them now lives behind the Super Admin shell, only super admins can reach them through the UI. (No DB / RLS change needed for this move.)
+Rename `src/routes/superadmin.agencies.tsx` → `src/routes/superadmin.agencies.index.tsx`, and update its `createFileRoute` path from `/superadmin/agencies` to `/superadmin/agencies/`.
+
+That makes the agency list a leaf at `/superadmin/agencies`, and removes the implicit parent-layout requirement. `superadmin.agencies.new.tsx` and `superadmin.agencies.$id.tsx` continue to work as independent flat routes — no Outlet needed.
+
+No other file edits are required. The Vite plugin regenerates `routeTree.gen.ts` automatically.
 
 ## Out of scope
-- No schema changes.
-- Not splitting "Interview rounds" into a per-agency setting — it moves with the rest. If you want round templates to remain agency-editable later, that's a separate task.
+
+- No changes to `createAgency` server function (it works; the page just never reached it).
+- No DB or RLS changes.

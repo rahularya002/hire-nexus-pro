@@ -12,7 +12,7 @@ import {
   extendTrial,
 } from "@/lib/superadmin.functions";
 
-export const Route = createFileRoute("/superadmin/agencies")({
+export const Route = createFileRoute("/superadmin/agencies/")({
   ssr: false,
   component: AgenciesPage,
 });
