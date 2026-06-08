@@ -305,6 +305,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
           skills: p.skills ?? [],
           source: "scout" as const,
           resume_url: p.profile_url,
+          linkedin_url: p.source === "linkedin" ? p.profile_url : null,
           created_by: userId,
         }));
       if (toInsert.length) {
