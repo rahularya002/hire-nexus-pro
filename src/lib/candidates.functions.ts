@@ -48,6 +48,7 @@ export type CandidateRow = {
   current_company: string | null;
   skills: string[];
   resume_url: string | null;
+  linkedin_url: string | null;
   source: "manual" | "scout" | "referral" | "database" | "inbound";
   notes: string | null;
   created_at: string;
