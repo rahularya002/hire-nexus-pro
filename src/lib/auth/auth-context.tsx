@@ -126,6 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     permissions,
     can: (perm: string) => roles.includes("admin") || permissions.includes(perm),
     signOut: async () => {
+      await queryClient.cancelQueries();
+      queryClient.clear();
       await supabase.auth.signOut();
     },
     refresh: async () => {
