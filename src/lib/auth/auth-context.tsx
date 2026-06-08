@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // 1) Subscribe FIRST so we don't miss events.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       if (sess?.user) {
         setProfileLoaded(false);
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoaded(true);
       }
       router.invalidate();
-      qc.invalidateQueries();
+      if (event !== "SIGNED_OUT") qc.invalidateQueries();
     });
 
     // 2) Then load existing session.
@@ -126,6 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     permissions,
     can: (perm: string) => roles.includes("admin") || permissions.includes(perm),
     signOut: async () => {
+      await qc.cancelQueries();
+      qc.clear();
       await supabase.auth.signOut();
     },
     refresh: async () => {
