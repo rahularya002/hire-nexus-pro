@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronRight, MapPin, Eye, Send, Sparkles, Users, AlertCircle, RefreshCw } from "lucide-react";
+import { ChevronRight, MapPin, Eye, Send, Sparkles, Users, AlertCircle, RefreshCw, Linkedin } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { listPositions } from "@/lib/positions.functions";
