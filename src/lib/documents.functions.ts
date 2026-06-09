@@ -100,7 +100,7 @@ export const createDocument = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("documents")
-      .insert(clean({ ...data, uploaded_by: userId }))
+      .insert(clean({ ...data, uploaded_by: userId }) as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);

@@ -43,7 +43,7 @@ export const createInterviewRoundTemplate = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("interview_round_templates")
-      .insert({ ...data, created_by: userId })
+      .insert({ ...data, created_by: userId } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);

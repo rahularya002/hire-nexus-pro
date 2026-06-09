@@ -135,7 +135,7 @@ export const createClient = createServerFn({ method: "POST" })
     const payload = clean({ ...data, created_by: userId, last_activity_at: new Date().toISOString() });
     const { data: row, error } = await supabase
       .from("clients")
-      .insert(payload)
+      .insert(payload as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -262,7 +262,17 @@ export const onboardClientWithLogin = createServerFn({ method: "POST" })
         .eq("id", newUserId);
       if (profileErr) throw new Error(profileErr.message);
 
-      // 3. Insert client row
+      // 3. Resolve caller's agency (clients belong to the agency that created them)
+      const { data: agencyMembership } = await supabaseAdmin
+        .from("agency_members")
+        .select("agency_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!agencyMembership?.agency_id) {
+        throw new Error("You are not a member of any agency; cannot create a client.");
+      }
+
+      // 4. Insert client row (service-role insert requires explicit agency_id)
       const payload = clean({
         name: data.name,
         industry: data.industry,
@@ -277,11 +287,12 @@ export const onboardClientWithLogin = createServerFn({ method: "POST" })
         website: data.website,
         created_by: userId,
         user_id: newUserId,
+        agency_id: agencyMembership.agency_id,
         last_activity_at: new Date().toISOString(),
       });
       const { data: row, error: insertErr } = await supabaseAdmin
         .from("clients")
-        .insert(payload)
+        .insert(payload as never)
         .select("*")
         .single();
       if (insertErr) throw new Error(insertErr.message);

@@ -88,7 +88,7 @@ export const createActivity = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("activities")
-      .insert(clean({ ...data, actor_id: userId }))
+      .insert(clean({ ...data, actor_id: userId }) as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);

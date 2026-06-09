@@ -76,6 +76,16 @@ export const createTeamMember = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
 
+    // Caller's agency — new staff joins the same agency.
+    const { data: callerMembership } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!callerMembership?.agency_id) {
+      throw new Error("Your account is not linked to an agency.");
+    }
+
     const { data: created, error: createErr } =
       await supabaseAdmin.auth.admin.createUser({
         email: data.email,
@@ -98,6 +108,16 @@ export const createTeamMember = createServerFn({ method: "POST" })
       .from("user_roles")
       .insert({ user_id: newUserId, role: data.role });
     if (roleInsertErr) throw new Error(roleInsertErr.message);
+
+    // Link the new staff member to the caller's agency.
+    await supabaseAdmin.from("agency_members").upsert(
+      {
+        agency_id: callerMembership.agency_id,
+        user_id: newUserId,
+        role_in_agency: data.role,
+      },
+      { onConflict: "agency_id,user_id", ignoreDuplicates: false },
+    );
 
     return { ok: true, userId: newUserId, email: data.email };
   });

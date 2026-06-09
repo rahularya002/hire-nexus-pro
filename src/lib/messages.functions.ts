@@ -76,7 +76,7 @@ export const listThreads = createServerFn({ method: "GET" })
     for (const c of clientsList ?? []) {
       await supabase
         .from("message_threads")
-        .upsert({ client_id: c.id }, { onConflict: "client_id", ignoreDuplicates: true });
+        .upsert({ client_id: c.id } as never, { onConflict: "client_id", ignoreDuplicates: true });
     }
 
     const { data: threads, error } = await supabase

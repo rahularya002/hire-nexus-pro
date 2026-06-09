@@ -329,7 +329,7 @@ export const upsertBillingTerms = createServerFn({ method: "POST" })
     };
     const { error } = await supabase
       .from("client_billing_terms")
-      .upsert(payload, { onConflict: "client_id" });
+      .upsert(payload as never, { onConflict: "client_id" });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -477,7 +477,7 @@ export const generateInvoiceForClient = createServerFn({ method: "POST" })
         total_inr: t.total,
         status: "draft",
         created_by: userId,
-      })
+      } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -493,7 +493,7 @@ export const generateInvoiceForClient = createServerFn({ method: "POST" })
         amount_inr: it.amount_inr,
         kind: it.kind,
       }));
-      const { error: e2 } = await supabase.from("invoice_line_items").insert(rows);
+      const { error: e2 } = await supabase.from("invoice_line_items").insert(rows as never);
       if (e2) throw new Error(e2.message);
     }
     return inv as InvoiceRow;
