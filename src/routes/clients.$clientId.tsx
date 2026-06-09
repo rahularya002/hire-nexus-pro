@@ -92,6 +92,38 @@ function ClientDetail() {
         </div>
       </div>
 
+      {(client.pan_number || client.gst_number || client.website || client.registered_address) && (
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold tracking-tight mb-4">Company details</h2>
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            {client.website && (
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Website</dt>
+                <dd><a href={client.website.startsWith("http") ? client.website : `https://${client.website}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">{client.website}</a></dd>
+              </div>
+            )}
+            {client.pan_number && (
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">PAN</dt>
+                <dd className="font-mono">{client.pan_number}</dd>
+              </div>
+            )}
+            {client.gst_number && (
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">GSTIN</dt>
+                <dd className="font-mono">{client.gst_number}</dd>
+              </div>
+            )}
+            {client.registered_address && (
+              <div className="md:col-span-2">
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Registered address</dt>
+                <dd className="whitespace-pre-line">{client.registered_address}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
+
       <div>
         <h2 className="text-lg font-semibold tracking-tight mb-4">Positions</h2>
         <div className="grid gap-3">
