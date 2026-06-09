@@ -317,14 +317,18 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           created_by: string | null
+          gst_number: string | null
           id: string
           industry: string | null
           last_activity_at: string | null
           name: string
           notes: string | null
+          pan_number: string | null
+          registered_address: string | null
           status: Database["public"]["Enums"]["client_status"]
           updated_at: string
           user_id: string | null
+          website: string | null
         }
         Insert: {
           color?: string | null
@@ -333,14 +337,18 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
+          gst_number?: string | null
           id?: string
           industry?: string | null
           last_activity_at?: string | null
           name: string
           notes?: string | null
+          pan_number?: string | null
+          registered_address?: string | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
           user_id?: string | null
+          website?: string | null
         }
         Update: {
           color?: string | null
@@ -349,14 +357,18 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
+          gst_number?: string | null
           id?: string
           industry?: string | null
           last_activity_at?: string | null
           name?: string
           notes?: string | null
+          pan_number?: string | null
+          registered_address?: string | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
           user_id?: string | null
+          website?: string | null
         }
         Relationships: []
       }
