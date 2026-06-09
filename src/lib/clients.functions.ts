@@ -17,6 +17,10 @@ export type ClientRow = {
   created_at: string;
   user_id?: string | null;
   open_positions?: number;
+  pan_number?: string | null;
+  gst_number?: string | null;
+  registered_address?: string | null;
+  website?: string | null;
 };
 
 const upsertSchema = z.object({
@@ -28,6 +32,10 @@ const upsertSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
   notes: z.string().max(5000).optional().nullable(),
   color: z.string().max(80).optional().nullable(),
+  pan_number: z.string().max(50).optional().nullable(),
+  gst_number: z.string().max(50).optional().nullable(),
+  registered_address: z.string().max(500).optional().nullable(),
+  website: z.string().max(300).optional().nullable(),
 });
 
 function clean<T extends Record<string, any>>(o: T): T {
@@ -263,6 +271,10 @@ export const onboardClientWithLogin = createServerFn({ method: "POST" })
         contact_phone: data.contact_phone,
         notes: data.notes,
         color: data.color,
+        pan_number: data.pan_number,
+        gst_number: data.gst_number,
+        registered_address: data.registered_address,
+        website: data.website,
         created_by: userId,
         user_id: newUserId,
         last_activity_at: new Date().toISOString(),
