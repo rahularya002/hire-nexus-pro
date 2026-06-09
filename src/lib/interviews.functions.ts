@@ -253,7 +253,7 @@ export const createInterview = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("interviews")
-      .insert(clean({ ...data, created_by: userId }))
+      .insert(clean({ ...data, created_by: userId }) as never)
       .select(INTERVIEW_SELECT)
       .single();
     if (error) throw new Error(error.message);
@@ -362,7 +362,16 @@ export const requestClientInterview = createServerFn({ method: "POST" })
       provider: "google_meet" as const,
       created_by: userId,
     }));
-    const { error: insErr } = await supabaseAdmin.from("interviews").insert(rows);
+    // Service-role insert: stamp agency_id from the parent application
+    const { data: parentApp } = await supabaseAdmin
+      .from("applications")
+      .select("agency_id")
+      .eq("id", app.id)
+      .maybeSingle();
+    const parentAgency = parentApp?.agency_id;
+    if (!parentAgency) throw new Error("Application has no agency owner");
+    const rowsWithAgency = rows.map((r) => ({ ...r, agency_id: parentAgency }));
+    const { error: insErr } = await supabaseAdmin.from("interviews").insert(rowsWithAgency as never);
     if (insErr) throw new Error(insErr.message);
 
     const { error: updErr } = await supabaseAdmin
@@ -432,7 +441,7 @@ export const createPlacement = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("placements")
-      .insert(clean({ ...data, created_by: userId }))
+      .insert(clean({ ...data, created_by: userId }) as never)
       .select(PLACEMENT_SELECT)
       .single();
     if (error) throw new Error(error.message);

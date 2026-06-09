@@ -189,7 +189,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
           triggered_by: userId,
           sources: data.sources,
           status: "running",
-        })
+        } as never)
         .select("id")
         .single();
       if (runErr) throw new Error(runErr.message);
@@ -309,7 +309,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
           created_by: userId,
         }));
       if (toInsert.length) {
-        const { error: cErr } = await supabase.from("candidates").insert(toInsert);
+        const { error: cErr } = await supabase.from("candidates").insert(toInsert as never);
         if (cErr) console.warn("Mirror to candidates failed:", cErr.message);
       }
     }
@@ -324,7 +324,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
             position_id: data.positionId!,
             sourced_candidate_id: id,
             run_id: runId,
-          })),
+          })) as never,
           { onConflict: "position_id,sourced_candidate_id", ignoreDuplicates: false },
         )
         .select("id, sourced_candidate_id");
@@ -470,7 +470,7 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
         resume_url: sc.profile_url,
         linkedin_url: sc.source === "linkedin" ? sc.profile_url : null,
         created_by: userId,
-      })
+      } as never)
       .select("id")
       .single();
     if (candErr) throw new Error(candErr.message);
@@ -481,7 +481,7 @@ export const shortlistSourcedMatch = createServerFn({ method: "POST" })
       candidate_id: cand.id,
       stage: "sourcing",
       created_by: userId,
-    });
+    } as never);
     if (appErr) throw new Error(appErr.message);
 
     // Mark match as shortlisted
