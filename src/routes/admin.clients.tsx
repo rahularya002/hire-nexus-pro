@@ -152,6 +152,10 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [website, setWebsite] = useState("");
+  const [pan, setPan] = useState("");
+  const [gst, setGst] = useState("");
+  const [address, setAddress] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState(() => generatePassword());
   const [showPw, setShowPw] = useState(false);
@@ -175,6 +179,10 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
           contact_email: loginEmail.trim(),
           contact_phone: contactPhone.trim() || undefined,
           notes: notes.trim() || undefined,
+          website: website.trim() || undefined,
+          pan_number: pan.trim() || undefined,
+          gst_number: gst.trim() || undefined,
+          registered_address: address.trim() || undefined,
           login_email: loginEmail.trim(),
           login_password: loginPassword,
           full_name: contactName.trim() || undefined,
@@ -240,6 +248,21 @@ function OnboardModal({ onClose }: { onClose: () => void }) {
           <Field label="Industry" placeholder="e.g. Technology" value={industry} onChange={setIndustry} />
           <Field label="Contact person (SPOC)" placeholder="Full name" value={contactName} onChange={setContactName} />
           <Field label="Contact phone" placeholder="+91 …" value={contactPhone} onChange={setContactPhone} />
+          <Field label="Website (optional)" placeholder="https://company.com" value={website} onChange={setWebsite} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="PAN (optional)" placeholder="ABCDE1234F" value={pan} onChange={setPan} />
+            <Field label="GSTIN (optional)" placeholder="22ABCDE1234F1Z5" value={gst} onChange={setGst} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-foreground/80">Registered address (optional)</label>
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              placeholder="Street, city, state, PIN"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
           <div>
             <label className="text-xs font-medium text-foreground/80">Notes</label>
             <textarea
