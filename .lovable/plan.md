@@ -1,59 +1,57 @@
 ## Goal
 
-Walk the entire tenant lifecycle end-to-end in the live preview, fixing gaps as I hit them. Add optional PAN/GST fields on clients (no full KYC workflow), then run the full QA pass.
+Today every agency admin sees every other agency's data. We're fixing that. After this pass:
+- Each row of tenant data belongs to exactly one agency.
+- Agency members only see/modify their own agency's data.
+- Super admin still sees everything.
+- Clients still see only the data tied to their own `clients.id` (their company).
 
-## Phase 1 — Small gap fixes before QA
+## Scope of tables getting `agency_id`
 
-1. **Client tax fields (optional, no verification flow)**
-   - Add nullable columns to `clients`: `pan_number`, `gst_number`, `registered_address`, `website`.
-   - Add these fields to the agency-side Create/Edit client form (all optional).
-   - Display them on the client detail page in a "Company details" block, hidden when empty.
-   - No status, no document upload, no verification — just plain text fields.
+Tenant-owned (need `agency_id NOT NULL`):
+`clients`, `positions`, `candidates`, `applications`, `interviews`, `placements`, `invoices`, `invoice_line_items`, `client_billing_terms`, `documents`, `message_threads`, `tasks`, `activities`, `sourced_candidates`, `position_sourcing_runs`, `position_sourced_matches`, `interview_round_templates`, `scout_source_settings`.
 
-2. **Login routing sanity**
-   - Confirm `admin@gmail.com` → `/superadmin`, `agency@gmail.com` → `/dashboard`, client users → `/client`. Fix any stale redirect on the way.
+Already scoped or out of scope:
+- `agencies`, `agency_members`, `support_tickets` (already have `agency_id`).
+- `profiles`, `user_roles`, `notifications` (user-scoped, not agency-scoped).
+- `messages` (scoped via parent `message_threads.agency_id`).
+- `role_permissions`, `notification_dedup` (global).
 
-3. **Agency-scoped data isolation — flag only**
-   - Today `clients` / `positions` / `candidates` have role-based RLS but no `agency_id`. Multiple agencies would see each other's data. I'll call this out in the QA report, not refactor it this pass unless you say so.
+Current data: 1 agency (`Default Agency`), 2 members. All existing rows backfill to that agency — no ambiguity.
 
-## Phase 2 — End-to-end QA script (in preview)
+## Migration (single file)
 
-**A. Super Admin (`admin@gmail.com`)**
-- Land on `/superadmin`. Create a new agency (name, slug, owner email/password, plan, trial, MRR).
-- Verify it shows in `/superadmin/agencies`, owner profile + role created, and rolls up into revenue / subscriptions / usage.
-- Toggle suspend/reactivate, edit plan.
+1. Add `agency_id uuid REFERENCES agencies(id) ON DELETE CASCADE` to every table above (nullable first).
+2. Backfill every existing row → `Default Agency`.
+3. Set `NOT NULL` + index `(agency_id)` on each.
+4. Helper functions (SECURITY DEFINER):
+   - `current_user_agency_id() returns uuid` — returns the agency the caller belongs to via `agency_members`.
+   - `is_agency_member(_agency_id uuid) returns boolean`.
+5. Trigger `set_agency_id_default` on INSERT for every tenant table: if `NEW.agency_id IS NULL`, set it from `current_user_agency_id()` (skips when caller is super_admin and explicitly provides one).
+6. Rewrite RLS for every tenant table:
+   - SELECT/INSERT/UPDATE/DELETE allowed when `is_agency_member(agency_id)` OR `has_role(auth.uid(),'super_admin')`.
+   - Existing client-portal SELECT policies (e.g. "client sees own positions") are preserved alongside.
+7. `messages` policies updated to derive agency via `message_threads`.
 
-**B. Agency (new owner login)**
-- Lands on `/dashboard`. Invite a recruiter from the team page; check role + notification.
-- Create a client incl. the new PAN/GST/address/website fields. Verify it appears in `/admin/clients` and `/clients/$id` with the company details block.
-- Set billing terms for the client.
+## Code changes
 
-**C. Client (client portal)**
-- Log in as the client user → `/client`.
-- Create a requirement (position) with JD + skills + openings. Confirm it surfaces in the agency's `/positions` and `/ongoing`.
+Minimal — the trigger auto-stamps `agency_id`, so existing `createServerFn` handlers keep working. We only need to:
+- Confirm no handler manually sets `agency_id` to a wrong value.
+- `superadmin.functions.ts` agency-create flow already sets membership — no change.
+- Recruiter invite / agency onboarding: ensure new users get an `agency_members` row (audit `team.functions.ts` and `superadmin.functions.ts`).
 
-**D. Fulfillment loop (agency)**
-- Assign a recruiter to the position.
-- Run Scout (Apify) → sourced candidates appear; shortlist one → candidate created with `linkedin_url` and the "Message on LinkedIn" button on both agency + client cards.
-- Walk pipeline: shortlisted → interview scheduled → feedback → offer → placement.
-- Verify notifications hit the client at each stage, visible on `/client/activity` + bell.
-- Generate invoice from placement; check `/billing` totals + line items.
+No UI changes in this pass.
 
-**E. Cross-cutting**
-- Messaging thread agency ↔ client with attachment.
-- Document sharing both directions.
-- Notification bell counts, deep links, mark-read.
-- Logout from each role → `/login`, no protected-data flash on back button.
+## Risk & rollback
 
-## Phase 3 — Deliverable
+- Single agency today → backfill is safe.
+- If a user has no `agency_members` row, inserts fail (trigger returns null). We'll surface a clear error from the trigger: `RAISE EXCEPTION 'User has no agency membership'`.
+- Super admin without membership: trigger checks `has_role super_admin` first and allows `agency_id` from payload.
 
-QA report in chat:
-- ✅ working
-- ⚠️ rough (UX nits)
-- ❌ broken — with root cause + proposed fix
-- Security/tenant-isolation notes flagged separately for your call.
+## Out of scope this pass
 
-## Open questions
+- `agency_id` on `notifications` (user-scoped).
+- UI for super admin to switch agencies.
+- Moving existing client logins between agencies.
 
-1. OK to create throwaway test data in your live DB during QA (prefixed `[QA]`, cleaned up at the end)?
-2. For broken items I find: fix them inline during this pass, or list them all in the report and let you pick what to fix next?
+Ready to run the migration?
