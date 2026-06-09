@@ -183,7 +183,7 @@ export const createCandidate = createServerFn({ method: "POST" })
     }
     const { data: row, error } = await supabase
       .from("candidates")
-      .insert(clean({ ...data, created_by: userId }))
+      .insert(clean({ ...data, created_by: userId }) as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -282,7 +282,7 @@ export const createApplication = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("applications")
-      .insert(clean({ ...data, created_by: userId }))
+      .insert(clean({ ...data, created_by: userId }) as never)
       .select("*, candidate:candidates(name), position:positions(title, client_id)")
       .single();
     if (error) throw new Error(error.message);

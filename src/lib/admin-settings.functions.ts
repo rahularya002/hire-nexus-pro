@@ -41,7 +41,7 @@ export const upsertSourceSetting = createServerFn({ method: "POST" })
           enabled: data.enabled,
           actor_slug: data.actor_slug ?? null,
           updated_by: userId,
-        },
+        } as never,
         { onConflict: "source_id" },
       );
     if (error) throw new Error(error.message);

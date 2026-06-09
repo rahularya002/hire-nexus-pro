@@ -91,7 +91,7 @@ export const createTask = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("tasks")
-      .insert(clean({ ...data, created_by: userId }))
+      .insert(clean({ ...data, created_by: userId }) as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
