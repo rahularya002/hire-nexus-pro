@@ -85,7 +85,6 @@ function Page() {
         </div>
         <button
           onClick={() => { setNetDays(terms.payment_terms_days ?? 30); setGenOpen(true); }}
-          disabled={cycle.items.length === 0}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 hover:opacity-90 transition"
         >
           <Plus className="size-4" /> Generate invoice
