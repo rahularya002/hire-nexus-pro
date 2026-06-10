@@ -362,14 +362,26 @@ function ScheduleInterviewDialog({
           </div>
           <div className="grid gap-2">
             <Label>Number of rounds</Label>
-            <Select value={rounds} onValueChange={setRounds}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[1,2,3,4,5].map(n => (
-                  <SelectItem key={n} value={String(n)}>{n} round{n>1?"s":""}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-2">
+              {[1,2,3,4,5].map(n => {
+                const active = rounds === String(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRounds(String(n))}
+                    className={cn(
+                      "h-9 px-4 rounded-full border text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card border-border hover:bg-secondary",
+                    )}
+                  >
+                    {n} round{n>1?"s":""}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
         <DialogFooter>
