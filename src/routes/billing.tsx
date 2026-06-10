@@ -8,6 +8,7 @@ import {
   billingKpis, upcomingRuns, listInvoices, listJoiningsLedger, fmtINR, fmtDate,
   type InvoiceStatus,
 } from "@/lib/billing.functions";
+import { listClients } from "@/lib/clients.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/billing")({
@@ -27,12 +28,17 @@ function Page() {
   const rFn = useServerFn(upcomingRuns);
   const iFn = useServerFn(listInvoices);
   const lFn = useServerFn(listJoiningsLedger);
+  const cFn = useServerFn(listClients);
   const kpis = useQuery({ queryKey: ["billing", "kpis"], queryFn: () => kFn() });
   const runs = useQuery({ queryKey: ["billing", "runs"], queryFn: () => rFn() });
   const invs = useQuery({ queryKey: ["billing", "invoices"], queryFn: () => iFn() });
   const ledger = useQuery({ queryKey: ["billing", "ledger"], queryFn: () => lFn() });
+  const clients = useQuery({ queryKey: ["billing", "clients"], queryFn: () => cFn() });
   const [tab, setTab] = useState<"invoices" | "ledger">("invoices");
   const k = kpis.data;
+
+  // Index terms by client id from upcoming runs (which already includes terms).
+  const termsByClient = new Map((runs.data ?? []).map((r) => [r.client.id, r.terms] as const));
 
   return (
     <div className="space-y-6">
@@ -53,6 +59,40 @@ function Page() {
         <Kpi icon={<CalendarClock className="size-4" />} label="Cycle accrual"     value={fmtINR(k?.forecastInr ?? 0)} />
         <Kpi icon={<ShieldCheck className="size-4" />} label="In replacement window" value={`${k?.replacementsActive ?? 0}`} />
       </div>
+
+      <section>
+        <h2 className="text-sm font-semibold mb-2.5">Clients</h2>
+        <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+          {(clients.data ?? []).length === 0 && (
+            <div className="px-4 py-6 text-sm text-muted-foreground">No clients yet.</div>
+          )}
+          {(clients.data ?? []).map((c) => {
+            const t = termsByClient.get(c.id);
+            const initials = c.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+            return (
+              <Link
+                key={c.id}
+                to="/billing/clients/$clientId"
+                params={{ clientId: c.id }}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition"
+              >
+                <div className="size-9 rounded-lg grid place-items-center text-[11px] font-bold text-primary-foreground" style={{ background: c.color ?? "oklch(0.55 0.15 250)" }}>
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{c.name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t
+                      ? `${t.billing_cycle === "monthly" ? `Monthly · day ${t.invoice_day_of_month}` : "Per joining"} · Net ${t.payment_terms_days} · Replacement ${t.replacement_window_days}d`
+                      : "No terms set · click to configure"}
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <h2 className="text-sm font-semibold mb-2.5">Upcoming invoice runs</h2>
