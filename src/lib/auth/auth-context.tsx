@@ -76,6 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 1) Subscribe FIRST so we don't miss events.
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      // Only react to identity transitions. Ignore TOKEN_REFRESHED (fires ~hourly
+      // and on tab focus) and INITIAL_SESSION (fires on every mount) — those
+      // would otherwise reset profileLoaded and cause /pending to flash.
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
+        return;
+      }
       setSession(sess);
       if (sess?.user) {
         setProfileLoaded(false);
