@@ -1,57 +1,37 @@
-## Goal
+## Add custom payment deadline on invoice creation
 
-Today every agency admin sees every other agency's data. We're fixing that. After this pass:
-- Each row of tenant data belongs to exactly one agency.
-- Agency members only see/modify their own agency's data.
-- Super admin still sees everything.
-- Clients still see only the data tied to their own `clients.id` (their company).
+Today the agency clicks **Generate invoice** on a client's billing page and the due date is auto-set from `terms.payment_terms_days`. You want the agency to pick a deadline (e.g. 30 / 45 / 60 days) at the moment of generating the invoice.
 
-## Scope of tables getting `agency_id`
+### UX
 
-Tenant-owned (need `agency_id NOT NULL`):
-`clients`, `positions`, `candidates`, `applications`, `interviews`, `placements`, `invoices`, `invoice_line_items`, `client_billing_terms`, `documents`, `message_threads`, `tasks`, `activities`, `sourced_candidates`, `position_sourcing_runs`, `position_sourced_matches`, `interview_round_templates`, `scout_source_settings`.
+In `src/routes/billing.clients.$clientId.tsx`, replace the single **Generate invoice** button with a small dialog:
 
-Already scoped or out of scope:
-- `agencies`, `agency_members`, `support_tickets` (already have `agency_id`).
-- `profiles`, `user_roles`, `notifications` (user-scoped, not agency-scoped).
-- `messages` (scoped via parent `message_threads.agency_id`).
-- `role_permissions`, `notification_dedup` (global).
+- Preset chips: **Net 15 · 30 · 45 · 60 · 90** (default = client's `payment_terms_days`)
+- A "Custom" number input (0–180 days)
+- Read-only line showing the resulting **Due date** (issue date + N days)
+- **Generate** / Cancel
 
-Current data: 1 agency (`Default Agency`), 2 members. All existing rows backfill to that agency — no ambiguity.
+After generate → navigate to the new invoice page (existing behavior preserved).
 
-## Migration (single file)
+On the invoice detail page (`billing.invoices.$invoiceId.tsx`), surface the chosen deadline more prominently as **"Due in N days"** next to the due date (small QoL).
 
-1. Add `agency_id uuid REFERENCES agencies(id) ON DELETE CASCADE` to every table above (nullable first).
-2. Backfill every existing row → `Default Agency`.
-3. Set `NOT NULL` + index `(agency_id)` on each.
-4. Helper functions (SECURITY DEFINER):
-   - `current_user_agency_id() returns uuid` — returns the agency the caller belongs to via `agency_members`.
-   - `is_agency_member(_agency_id uuid) returns boolean`.
-5. Trigger `set_agency_id_default` on INSERT for every tenant table: if `NEW.agency_id IS NULL`, set it from `current_user_agency_id()` (skips when caller is super_admin and explicitly provides one).
-6. Rewrite RLS for every tenant table:
-   - SELECT/INSERT/UPDATE/DELETE allowed when `is_agency_member(agency_id)` OR `has_role(auth.uid(),'super_admin')`.
-   - Existing client-portal SELECT policies (e.g. "client sees own positions") are preserved alongside.
-7. `messages` policies updated to derive agency via `message_threads`.
+### Backend
 
-## Code changes
+`generateInvoiceForClient` in `src/lib/billing.functions.ts`:
 
-Minimal — the trigger auto-stamps `agency_id`, so existing `createServerFn` handlers keep working. We only need to:
-- Confirm no handler manually sets `agency_id` to a wrong value.
-- `superadmin.functions.ts` agency-create flow already sets membership — no change.
-- Recruiter invite / agency onboarding: ensure new users get an `agency_members` row (audit `team.functions.ts` and `superadmin.functions.ts`).
+- Accept optional `paymentTermsDays: number (0–180)` in the input validator.
+- If provided, override `terms.payment_terms_days` only for this invoice's `due_date` calculation: `due_date = issue_date + paymentTermsDays`.
+- Persist the override into the existing `invoices.due_date` column — no schema change needed.
+- Stored client-level `payment_terms_days` in `client_billing_terms` stays untouched (it remains the default for next time).
 
-No UI changes in this pass.
+### Out of scope
 
-## Risk & rollback
+- Editing the deadline after the invoice is generated.
+- Changing the default `payment_terms_days` on the client (already editable via "Edit terms").
+- Per-line-item deadlines.
 
-- Single agency today → backfill is safe.
-- If a user has no `agency_members` row, inserts fail (trigger returns null). We'll surface a clear error from the trigger: `RAISE EXCEPTION 'User has no agency membership'`.
-- Super admin without membership: trigger checks `has_role super_admin` first and allows `agency_id` from payload.
+### Files touched
 
-## Out of scope this pass
-
-- `agency_id` on `notifications` (user-scoped).
-- UI for super admin to switch agencies.
-- Moving existing client logins between agencies.
-
-Ready to run the migration?
+- `src/lib/billing.functions.ts` — extend `generateInvoiceForClient` input + due-date calc.
+- `src/routes/billing.clients.$clientId.tsx` — replace button with deadline dialog.
+- `src/routes/billing.invoices.$invoiceId.tsx` — show "Due in N days" badge (small).

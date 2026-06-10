@@ -11,6 +11,12 @@ import {
 } from "@/lib/billing.functions";
 import { EditTermsDialog } from "@/components/edit-terms-dialog";
 import { cn } from "@/lib/utils";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/billing/clients/$clientId")({
   component: () => <AppShell><Page /></AppShell>,
@@ -30,14 +36,19 @@ function Page() {
   const fn = useServerFn(getClientBilling);
   const genFn = useServerFn(generateInvoiceForClient);
   const [editOpen, setEditOpen] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
+  const [netDays, setNetDays] = useState<number>(30);
 
   const q = useQuery({
     queryKey: ["billing", "client", clientId],
     queryFn: () => fn({ data: { clientId } }),
   });
   const gen = useMutation({
-    mutationFn: () => genFn({ data: { clientId } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["billing"] }),
+    mutationFn: () => genFn({ data: { clientId, paymentTermsDays: netDays } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["billing"] });
+      setGenOpen(false);
+    },
   });
 
   if (q.isLoading) return (
@@ -51,6 +62,13 @@ function Page() {
   const d = q.data!;
   const { client, terms, cycle, invoices, guarantees } = d;
   const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+  const PRESETS = [15, 30, 45, 60, 90];
+  const previewDue = (() => {
+    const base = new Date(cycle.issueDate + "T00:00:00Z");
+    base.setUTCDate(base.getUTCDate() + (Number.isFinite(netDays) ? netDays : 0));
+    return base.toISOString().slice(0, 10);
+  })();
 
   return (
     <div className="space-y-6">
@@ -66,11 +84,11 @@ function Page() {
           <p className="text-sm text-muted-foreground mt-1">Custom contractual terms · invoiced on actual joinings.</p>
         </div>
         <button
-          onClick={() => gen.mutate()}
-          disabled={gen.isPending || cycle.items.length === 0}
+          onClick={() => { setNetDays(terms.payment_terms_days ?? 30); setGenOpen(true); }}
+          disabled={cycle.items.length === 0}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 hover:opacity-90 transition"
         >
-          <Plus className="size-4" /> {gen.isPending ? "Generating…" : "Generate invoice"}
+          <Plus className="size-4" /> Generate invoice
         </button>
       </div>
 
@@ -211,6 +229,68 @@ function Page() {
         initial={terms}
         onSaved={() => qc.invalidateQueries({ queryKey: ["billing"] })}
       />
+
+      <Dialog open={genOpen} onOpenChange={setGenOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate invoice</DialogTitle>
+            <DialogDescription>
+              Set the payment deadline for {client.name}. Default comes from their billing terms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Payment deadline</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {PRESETS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setNetDays(n)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md border text-xs font-medium transition",
+                      netDays === n
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background hover:bg-secondary",
+                    )}
+                  >
+                    Net {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="custom-days" className="text-xs">Custom (days)</Label>
+                <Input
+                  id="custom-days"
+                  type="number"
+                  min={0}
+                  max={180}
+                  value={Number.isFinite(netDays) ? netDays : ""}
+                  onChange={(e) => setNetDays(Math.max(0, Math.min(180, Number(e.target.value) || 0)))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Due date</Label>
+                <div className="mt-1 h-10 rounded-md border border-border bg-secondary/40 px-3 flex items-center text-sm tabular-nums">
+                  {fmtDate(previewDue)}
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Issue date: {fmtDate(cycle.issueDate)} · {cycle.items.length} line item{cycle.items.length === 1 ? "" : "s"} · {fmtINR(cycle.total)}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenOpen(false)} disabled={gen.isPending}>Cancel</Button>
+            <Button onClick={() => gen.mutate()} disabled={gen.isPending || cycle.items.length === 0}>
+              {gen.isPending ? "Generating…" : "Generate invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

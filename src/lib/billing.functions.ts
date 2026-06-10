@@ -448,12 +448,21 @@ export const billingKpis = createServerFn({ method: "GET" })
 
 export const generateInvoiceForClient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { clientId: string }) => z.object({ clientId: z.string().uuid() }).parse(d))
+  .inputValidator((d: { clientId: string; paymentTermsDays?: number }) =>
+    z.object({
+      clientId: z.string().uuid(),
+      paymentTermsDays: z.number().int().min(0).max(180).optional(),
+    }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: termsRow } = await supabase.from("client_billing_terms").select("*").eq("client_id", data.clientId).maybeSingle();
     const terms = termsRow ? termsRowToTyped(termsRow) : defaultTermsFor(data.clientId);
     const cycle = getOpenCycle(terms);
+    const dueDate =
+      typeof data.paymentTermsDays === "number"
+        ? isoDate(addDays(new Date(cycle.issueDate + "T00:00:00Z"), data.paymentTermsDays))
+        : cycle.dueDate;
     const items = await accruedFromPlacements(supabase as unknown as SupaClient, data.clientId, terms, cycle.from, cycle.to);
     const t = totals(items, terms);
     const { data: client } = await supabase.from("clients").select("name").eq("id", data.clientId).maybeSingle();
@@ -469,7 +478,7 @@ export const generateInvoiceForClient = createServerFn({ method: "POST" })
         period_from: cycle.from,
         period_to: cycle.to,
         issue_date: cycle.issueDate,
-        due_date: cycle.dueDate,
+        due_date: dueDate,
         po_number: terms.po_number,
         subtotal_inr: t.subtotal,
         gst_inr: t.gst,
