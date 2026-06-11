@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Building2, BadgeCheck, UserRound } from "lucide-react";
+import { ArrowRight, Building2, BadgeCheck, UserRound, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -82,6 +82,13 @@ function LandingPage() {
           >
             <Building2 className="size-4" />
             I'm a client
+          </Link>
+          <Link
+            to="/login"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10 sm:w-auto"
+          >
+            <ShieldCheck className="size-4" />
+            Super Admin
           </Link>
         </div>
 
