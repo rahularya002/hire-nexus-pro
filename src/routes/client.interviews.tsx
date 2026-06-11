@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Video, MapPin, Users } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
   listInterviews,
+  recordInterviewDecision,
+  type InterviewDecision,
   INTERVIEW_PROVIDER_LABEL,
   formatInterviewWhen,
   interviewRoundLabel,
@@ -112,9 +114,7 @@ function Page() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {tab === "past" ? (
-                <button className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90">
-                  Submit feedback
-                </button>
+                <PastDecision row={r} />
               ) : (
                 <>
                   <button
@@ -139,6 +139,91 @@ function Page() {
         onClose={() => setRescheduleFor(null)}
         invalidateKeys={[["client-interviews"], ["staff-interviews"], ["interviews", "today"]]}
       />
+    </div>
+  );
+}
+
+function PastDecision({ row }: { row: InterviewRow }) {
+  const qc = useQueryClient();
+  const decide = useServerFn(recordInterviewDecision);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const stage = row.application?.stage ?? null;
+
+  const mutation = useMutation({
+    mutationFn: (decision: InterviewDecision) =>
+      decide({ data: { applicationId: row.application_id, decision, note: note.trim() || undefined } }),
+    onSuccess: () => {
+      setNote("");
+      setNoteOpen(false);
+      qc.invalidateQueries({ queryKey: ["client-interviews"] });
+      qc.invalidateQueries({ queryKey: ["staff-interviews"] });
+      qc.invalidateQueries({ queryKey: ["client-pipeline"] });
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+    },
+  });
+
+  if (stage === "offered" || stage === "closed") {
+    return (
+      <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-success/10 text-success border border-success/20 text-xs font-medium">
+        <Check className="size-3.5" /> Selected
+      </span>
+    );
+  }
+  if (stage === "client_rejected") {
+    return (
+      <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-destructive/10 text-destructive border border-destructive/25 text-xs font-medium">
+        <X className="size-3.5" /> Rejected
+      </span>
+    );
+  }
+
+  const disabled = mutation.isPending;
+
+  return (
+    <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+      <div className="flex flex-wrap items-center gap-1.5 justify-end">
+        <button
+          disabled={disabled}
+          onClick={() => mutation.mutate("select")}
+          className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          <Check className="size-3.5" /> Select
+        </button>
+        <button
+          disabled={disabled}
+          onClick={() => mutation.mutate("next_round")}
+          className="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          <RotateCw className="size-3.5" /> Next round
+        </button>
+        <button
+          disabled={disabled}
+          onClick={() => mutation.mutate("reject")}
+          className="h-8 px-3 rounded-md border border-destructive/30 text-destructive text-xs font-medium hover:bg-destructive/10 inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          <X className="size-3.5" /> Reject
+        </button>
+        <button
+          type="button"
+          onClick={() => setNoteOpen((v) => !v)}
+          className="h-8 px-2 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          <MessageSquare className="size-3.5" /> {noteOpen ? "Hide note" : "Add note"}
+        </button>
+      </div>
+      {noteOpen && (
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Feedback for the recruiter (optional)…"
+          rows={2}
+          className="w-full sm:w-80 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs resize-y"
+        />
+      )}
+      {mutation.isError && (
+        <div className="text-[11px] text-destructive">{(mutation.error as Error).message}</div>
+      )}
     </div>
   );
 }
