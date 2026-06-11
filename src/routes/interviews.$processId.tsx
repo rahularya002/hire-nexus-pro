@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Plus, Check, RotateCcw, UserX, Trash2,
+  ArrowLeft, Plus, Check, RotateCcw, UserX, Trash2, Settings2,
   Video, Calendar, Bell, FileText, MessageSquare, Send, Mail, Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -29,9 +29,30 @@ import {
   type InterviewConductor,
 } from "@/lib/interviews.functions";
 import { listInterviewRoundTemplates, type InterviewRoundTemplate } from "@/lib/interview-templates.functions";
+import {
+  createInterviewRoundTemplate,
+  deleteInterviewRoundTemplate,
+} from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/interviews/$processId")({
   component: () => <AppShell><Detail /></AppShell>,
@@ -214,6 +235,7 @@ function RoundCard({
   onDelete: () => void;
 }) {
   const [rescheduling, setRescheduling] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const dtLocal = r.scheduled_at ? new Date(r.scheduled_at).toISOString().slice(0, 16) : "";
   const onSelectRound = (value: string) => {
     if (value.startsWith("builtin:")) {
@@ -230,63 +252,55 @@ function RoundCard({
       onUpdate(patch);
     }
   };
+  const currentValue = r.custom_kind_label
+    ? `custom:${r.custom_kind_label}`
+    : `builtin:${r.kind}`;
+  const activeTemplates = templates.filter((t) => !t.archived);
+  const orphanCustom =
+    r.custom_kind_label && !activeTemplates.some((t) => t.name === r.custom_kind_label)
+      ? r.custom_kind_label
+      : null;
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-start gap-2 min-w-0 flex-wrap">
           <span className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center text-xs font-semibold tabular-nums shrink-0">R{r.round_index}</span>
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {INTERVIEW_KINDS.map((k) => {
-              const active = !r.custom_kind_label && r.kind === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => onSelectRound(`builtin:${k}`)}
-                  className={cn(
-                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card hover:bg-secondary text-foreground"
-                  )}
-                >
-                  {INTERVIEW_KIND_LABEL[k]}
-                </button>
-              );
-            })}
-            {templates.map((t) => {
-              const active = r.custom_kind_label === t.name;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => onSelectRound(`custom:${t.name}`)}
-                  className={cn(
-                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
-                    active
-                      ? "border-purple bg-purple text-primary-foreground"
-                      : "border-purple/40 bg-purple/5 hover:bg-purple/10 text-purple"
-                  )}
-                >
-                  {t.name}
-                </button>
-              );
-            })}
-            {r.custom_kind_label && !templates.some((t) => t.name === r.custom_kind_label) && (
-              <span className="h-7 px-2.5 rounded-full text-xs font-medium border border-purple bg-purple text-primary-foreground inline-flex items-center">
-                {r.custom_kind_label}
-              </span>
-            )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Select value={currentValue} onValueChange={onSelectRound}>
+              <SelectTrigger className="h-8 w-[200px] text-xs">
+                <SelectValue placeholder="Select round type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Standard rounds</SelectLabel>
+                  {INTERVIEW_KINDS.map((k) => (
+                    <SelectItem key={k} value={`builtin:${k}`}>
+                      {INTERVIEW_KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                {(activeTemplates.length > 0 || orphanCustom) && (
+                  <SelectGroup>
+                    <SelectLabel>Custom rounds</SelectLabel>
+                    {activeTemplates.map((t) => (
+                      <SelectItem key={t.id} value={`custom:${t.name}`}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                    {orphanCustom && (
+                      <SelectItem value={`custom:${orphanCustom}`}>{orphanCustom}</SelectItem>
+                    )}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
             <button
               type="button"
-              onClick={() => {
-                const name = window.prompt("Custom round name (e.g. Culture Fit, Take-home)");
-                const trimmed = name?.trim();
-                if (trimmed) onSelectRound(`custom:${trimmed}`);
-              }}
-              className="h-7 px-2.5 rounded-full text-xs font-medium border border-dashed border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              onClick={() => setManageOpen(true)}
+              title="Manage custom round types"
+              className="h-8 px-2 rounded-md border border-dashed border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
             >
-              <Plus className="size-3" /> Custom
+              <Settings2 className="size-3.5" /> Manage
             </button>
           </div>
           <span className={cn(
@@ -311,6 +325,11 @@ function RoundCard({
           <Trash2 className="size-3.5" />
         </button>
       </div>
+      <ManageRoundsDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        templates={templates}
+      />
 
       <div className="p-4 grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
@@ -468,5 +487,116 @@ function QuickBtn({ icon: Icon, label, tone, onClick }: { icon: React.ElementTyp
     >
       <Icon className="size-3" /> {label}
     </button>
+  );
+}
+
+function ManageRoundsDialog({
+  open,
+  onOpenChange,
+  templates,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  templates: InterviewRoundTemplate[];
+}) {
+  const qc = useQueryClient();
+  const createFn = useServerFn(createInterviewRoundTemplate);
+  const deleteFn = useServerFn(deleteInterviewRoundTemplate);
+  const [name, setName] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["interview-round-templates"] });
+
+  const createMutation = useMutation({
+    mutationFn: (n: string) =>
+      createFn({ data: { name: n, default_conducted_by: "recruiter", default_duration_minutes: 45 } }),
+    onSuccess: () => { setName(""); setErr(null); invalidate(); },
+    onError: (e: any) => setErr(e?.message ?? "Failed to add round type."),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: invalidate,
+    onError: (e: any) => setErr(e?.message ?? "Failed to remove round type."),
+  });
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (templates.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
+      setErr("A round type with this name already exists.");
+      return;
+    }
+    createMutation.mutate(trimmed);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Manage round types</DialogTitle>
+          <DialogDescription>
+            Add custom round labels (e.g. "Founder Chat", "Take-home Review") or remove ones you no longer use.
+            Standard rounds (HR Screen, Technical, etc.) cannot be removed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              value={name}
+              onChange={(e) => { setName(e.target.value); setErr(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+              placeholder="e.g. Founder Chat"
+              maxLength={120}
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <button
+              onClick={submit}
+              disabled={!name.trim() || createMutation.isPending}
+              className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1 disabled:opacity-50"
+            >
+              <Plus className="size-3.5" /> Add
+            </button>
+          </div>
+          {err && <div className="text-xs text-destructive">{err}</div>}
+
+          <div className="rounded-md border border-border divide-y divide-border max-h-64 overflow-y-auto">
+            {templates.length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                No custom round types yet.
+              </div>
+            ) : (
+              templates.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{t.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Default: {t.default_conducted_by === "client" ? "Client" : "Recruiter"} · {t.default_duration_minutes}m
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteMutation.mutate(t.id)}
+                    disabled={deleteMutation.isPending}
+                    title="Remove"
+                    className="size-7 rounded hover:bg-destructive/10 hover:text-destructive grid place-items-center disabled:opacity-50"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="h-9 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary"
+          >
+            Done
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
