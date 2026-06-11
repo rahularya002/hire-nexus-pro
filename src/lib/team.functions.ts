@@ -19,14 +19,34 @@ async function assertAdmin(supabase: any, userId: string) {
 export const getTeamMembers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: profiles, error: profErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, status, created_at");
-    if (profErr) throw new Error(profErr.message);
+    // Scope to the caller's agency — only teammates explicitly added via
+    // "Add teammate" (which links them in agency_members) should appear.
+    const { data: callerMembership } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!callerMembership?.agency_id) return { members: [] };
 
-    const { data: roles, error: roleErr } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id, role");
+    const { data: agencyMembers, error: amErr } = await supabaseAdmin
+      .from("agency_members")
+      .select("user_id, role_in_agency")
+      .eq("agency_id", callerMembership.agency_id);
+    if (amErr) throw new Error(amErr.message);
+
+    const memberIds = (agencyMembers ?? [])
+      .map((m) => m.user_id)
+      .filter((id) => id !== context.userId);
+    if (memberIds.length === 0) return { members: [] };
+
+    const [{ data: profiles, error: profErr }, { data: roles, error: roleErr }] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, status, created_at")
+        .in("id", memberIds),
+      supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", memberIds),
+    ]);
+    if (profErr) throw new Error(profErr.message);
     if (roleErr) throw new Error(roleErr.message);
 
     const roleMap = new Map(roles?.map((r) => [r.user_id, r.role as TeamRole | "client"]) ?? []);
