@@ -235,6 +235,7 @@ function RoundCard({
   onDelete: () => void;
 }) {
   const [rescheduling, setRescheduling] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const dtLocal = r.scheduled_at ? new Date(r.scheduled_at).toISOString().slice(0, 16) : "";
   const onSelectRound = (value: string) => {
     if (value.startsWith("builtin:")) {
@@ -251,63 +252,55 @@ function RoundCard({
       onUpdate(patch);
     }
   };
+  const currentValue = r.custom_kind_label
+    ? `custom:${r.custom_kind_label}`
+    : `builtin:${r.kind}`;
+  const activeTemplates = templates.filter((t) => !t.archived);
+  const orphanCustom =
+    r.custom_kind_label && !activeTemplates.some((t) => t.name === r.custom_kind_label)
+      ? r.custom_kind_label
+      : null;
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-start gap-2 min-w-0 flex-wrap">
           <span className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center text-xs font-semibold tabular-nums shrink-0">R{r.round_index}</span>
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {INTERVIEW_KINDS.map((k) => {
-              const active = !r.custom_kind_label && r.kind === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => onSelectRound(`builtin:${k}`)}
-                  className={cn(
-                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card hover:bg-secondary text-foreground"
-                  )}
-                >
-                  {INTERVIEW_KIND_LABEL[k]}
-                </button>
-              );
-            })}
-            {templates.map((t) => {
-              const active = r.custom_kind_label === t.name;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => onSelectRound(`custom:${t.name}`)}
-                  className={cn(
-                    "h-7 px-2.5 rounded-full text-xs font-medium border transition",
-                    active
-                      ? "border-purple bg-purple text-primary-foreground"
-                      : "border-purple/40 bg-purple/5 hover:bg-purple/10 text-purple"
-                  )}
-                >
-                  {t.name}
-                </button>
-              );
-            })}
-            {r.custom_kind_label && !templates.some((t) => t.name === r.custom_kind_label) && (
-              <span className="h-7 px-2.5 rounded-full text-xs font-medium border border-purple bg-purple text-primary-foreground inline-flex items-center">
-                {r.custom_kind_label}
-              </span>
-            )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Select value={currentValue} onValueChange={onSelectRound}>
+              <SelectTrigger className="h-8 w-[200px] text-xs">
+                <SelectValue placeholder="Select round type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Standard rounds</SelectLabel>
+                  {INTERVIEW_KINDS.map((k) => (
+                    <SelectItem key={k} value={`builtin:${k}`}>
+                      {INTERVIEW_KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                {(activeTemplates.length > 0 || orphanCustom) && (
+                  <SelectGroup>
+                    <SelectLabel>Custom rounds</SelectLabel>
+                    {activeTemplates.map((t) => (
+                      <SelectItem key={t.id} value={`custom:${t.name}`}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                    {orphanCustom && (
+                      <SelectItem value={`custom:${orphanCustom}`}>{orphanCustom}</SelectItem>
+                    )}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
             <button
               type="button"
-              onClick={() => {
-                const name = window.prompt("Custom round name (e.g. Culture Fit, Take-home)");
-                const trimmed = name?.trim();
-                if (trimmed) onSelectRound(`custom:${trimmed}`);
-              }}
-              className="h-7 px-2.5 rounded-full text-xs font-medium border border-dashed border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              onClick={() => setManageOpen(true)}
+              title="Manage custom round types"
+              className="h-8 px-2 rounded-md border border-dashed border-border bg-card hover:bg-secondary text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
             >
-              <Plus className="size-3" /> Custom
+              <Settings2 className="size-3.5" /> Manage
             </button>
           </div>
           <span className={cn(
@@ -332,6 +325,11 @@ function RoundCard({
           <Trash2 className="size-3.5" />
         </button>
       </div>
+      <ManageRoundsDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        templates={templates}
+      />
 
       <div className="p-4 grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
