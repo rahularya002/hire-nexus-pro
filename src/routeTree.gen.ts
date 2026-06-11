@@ -50,6 +50,7 @@ import { Route as ClientPlacementsRouteImport } from './routes/client.placements
 import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientMessagesRouteImport } from './routes/client.messages'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
+import { Route as ClientInvoicesRouteImport } from './routes/client.invoices'
 import { Route as ClientInterviewsRouteImport } from './routes/client.interviews'
 import { Route as ClientDocumentsRouteImport } from './routes/client.documents'
 import { Route as ClientActivityRouteImport } from './routes/client.activity'
@@ -267,6 +268,11 @@ const ClientLoginRoute = ClientLoginRouteImport.update({
   path: '/client/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientInvoicesRoute = ClientInvoicesRouteImport.update({
+  id: '/client/invoices',
+  path: '/client/invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientInterviewsRoute = ClientInterviewsRouteImport.update({
   id: '/client/interviews',
   path: '/client/interviews',
@@ -351,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/invoices': typeof ClientInvoicesRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
@@ -403,6 +410,7 @@ export interface FileRoutesByTo {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/invoices': typeof ClientInvoicesRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
@@ -458,6 +466,7 @@ export interface FileRoutesById {
   '/client/activity': typeof ClientActivityRoute
   '/client/documents': typeof ClientDocumentsRoute
   '/client/interviews': typeof ClientInterviewsRoute
+  '/client/invoices': typeof ClientInvoicesRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/pipeline': typeof ClientPipelineRoute
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/invoices'
     | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
@@ -566,6 +576,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/invoices'
     | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/client/activity'
     | '/client/documents'
     | '/client/interviews'
+    | '/client/invoices'
     | '/client/login'
     | '/client/messages'
     | '/client/pipeline'
@@ -675,6 +687,7 @@ export interface RootRouteChildren {
   ClientActivityRoute: typeof ClientActivityRoute
   ClientDocumentsRoute: typeof ClientDocumentsRoute
   ClientInterviewsRoute: typeof ClientInterviewsRoute
+  ClientInvoicesRoute: typeof ClientInvoicesRoute
   ClientLoginRoute: typeof ClientLoginRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
   ClientPipelineRoute: typeof ClientPipelineRoute
@@ -978,6 +991,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/invoices': {
+      id: '/client/invoices'
+      path: '/client/invoices'
+      fullPath: '/client/invoices'
+      preLoaderRoute: typeof ClientInvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/interviews': {
       id: '/client/interviews'
       path: '/client/interviews'
@@ -1163,6 +1183,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientActivityRoute: ClientActivityRoute,
   ClientDocumentsRoute: ClientDocumentsRoute,
   ClientInterviewsRoute: ClientInterviewsRoute,
+  ClientInvoicesRoute: ClientInvoicesRoute,
   ClientLoginRoute: ClientLoginRoute,
   ClientMessagesRoute: ClientMessagesRoute,
   ClientPipelineRoute: ClientPipelineRoute,
