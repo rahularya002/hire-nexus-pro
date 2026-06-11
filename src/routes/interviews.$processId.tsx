@@ -489,3 +489,114 @@ function QuickBtn({ icon: Icon, label, tone, onClick }: { icon: React.ElementTyp
     </button>
   );
 }
+
+function ManageRoundsDialog({
+  open,
+  onOpenChange,
+  templates,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  templates: InterviewRoundTemplate[];
+}) {
+  const qc = useQueryClient();
+  const createFn = useServerFn(createInterviewRoundTemplate);
+  const deleteFn = useServerFn(deleteInterviewRoundTemplate);
+  const [name, setName] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["interview-round-templates"] });
+
+  const createMutation = useMutation({
+    mutationFn: (n: string) =>
+      createFn({ data: { name: n, default_conducted_by: "recruiter", default_duration_minutes: 45 } }),
+    onSuccess: () => { setName(""); setErr(null); invalidate(); },
+    onError: (e: any) => setErr(e?.message ?? "Failed to add round type."),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: invalidate,
+    onError: (e: any) => setErr(e?.message ?? "Failed to remove round type."),
+  });
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (templates.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
+      setErr("A round type with this name already exists.");
+      return;
+    }
+    createMutation.mutate(trimmed);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Manage round types</DialogTitle>
+          <DialogDescription>
+            Add custom round labels (e.g. "Founder Chat", "Take-home Review") or remove ones you no longer use.
+            Standard rounds (HR Screen, Technical, etc.) cannot be removed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              value={name}
+              onChange={(e) => { setName(e.target.value); setErr(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+              placeholder="e.g. Founder Chat"
+              maxLength={120}
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <button
+              onClick={submit}
+              disabled={!name.trim() || createMutation.isPending}
+              className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1 disabled:opacity-50"
+            >
+              <Plus className="size-3.5" /> Add
+            </button>
+          </div>
+          {err && <div className="text-xs text-destructive">{err}</div>}
+
+          <div className="rounded-md border border-border divide-y divide-border max-h-64 overflow-y-auto">
+            {templates.length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                No custom round types yet.
+              </div>
+            ) : (
+              templates.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{t.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Default: {t.default_conducted_by === "client" ? "Client" : "Recruiter"} · {t.default_duration_minutes}m
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteMutation.mutate(t.id)}
+                    disabled={deleteMutation.isPending}
+                    title="Remove"
+                    className="size-7 rounded hover:bg-destructive/10 hover:text-destructive grid place-items-center disabled:opacity-50"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="h-9 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary"
+          >
+            Done
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
