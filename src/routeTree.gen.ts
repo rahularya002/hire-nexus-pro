@@ -32,6 +32,7 @@ import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
+import { Route as BillingIndexRouteImport } from './routes/billing.index'
 import { Route as SuperadminUsageRouteImport } from './routes/superadmin.usage'
 import { Route as SuperadminSupportRouteImport } from './routes/superadmin.support'
 import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
@@ -175,6 +176,11 @@ const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
   path: '/client/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const BillingIndexRoute = BillingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => BillingRoute,
 } as any)
 const SuperadminUsageRoute = SuperadminUsageRouteImport.update({
   id: '/usage',
@@ -362,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
+  '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -375,7 +382,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/billing': typeof BillingRouteWithChildren
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
@@ -414,6 +420,7 @@ export interface FileRoutesByTo {
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
+  '/billing': typeof BillingIndexRoute
   '/client': typeof ClientIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -468,6 +475,7 @@ export interface FileRoutesById {
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
   '/superadmin/support': typeof SuperadminSupportRoute
   '/superadmin/usage': typeof SuperadminUsageRoute
+  '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -523,6 +531,7 @@ export interface FileRouteTypes {
     | '/superadmin/subscriptions'
     | '/superadmin/support'
     | '/superadmin/usage'
+    | '/billing/'
     | '/client/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -536,7 +545,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
-    | '/billing'
     | '/closed'
     | '/dashboard'
     | '/database'
@@ -575,6 +583,7 @@ export interface FileRouteTypes {
     | '/superadmin/subscriptions'
     | '/superadmin/support'
     | '/superadmin/usage'
+    | '/billing'
     | '/client'
     | '/superadmin'
     | '/api/public/cron'
@@ -628,6 +637,7 @@ export interface FileRouteTypes {
     | '/superadmin/subscriptions'
     | '/superadmin/support'
     | '/superadmin/usage'
+    | '/billing/'
     | '/client/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -842,6 +852,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/billing/': {
+      id: '/billing/'
+      path: '/'
+      fullPath: '/billing/'
+      preLoaderRoute: typeof BillingIndexRouteImport
+      parentRoute: typeof BillingRoute
+    }
     '/superadmin/usage': {
       id: '/superadmin/usage'
       path: '/usage'
@@ -1042,11 +1059,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface BillingRouteChildren {
+  BillingIndexRoute: typeof BillingIndexRoute
   BillingClientsClientIdRoute: typeof BillingClientsClientIdRoute
   BillingInvoicesInvoiceIdRoute: typeof BillingInvoicesInvoiceIdRoute
 }
 
 const BillingRouteChildren: BillingRouteChildren = {
+  BillingIndexRoute: BillingIndexRoute,
   BillingClientsClientIdRoute: BillingClientsClientIdRoute,
   BillingInvoicesInvoiceIdRoute: BillingInvoicesInvoiceIdRoute,
 }
