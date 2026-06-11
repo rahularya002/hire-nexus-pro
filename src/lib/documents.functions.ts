@@ -86,11 +86,21 @@ export const listOwnClientDocuments = createServerFn({ method: "GET" })
     if (!own?.id) return [] as DocumentRow[];
     const { data: rows, error } = await supabase
       .from("documents")
-      .select("*, position:positions(id, title)")
+      .select("*")
       .eq("client_id", own.id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (rows ?? []) as unknown as DocumentRow[];
+    const docs = (rows ?? []) as unknown as DocumentRow[];
+    const posIds = Array.from(new Set(docs.map((d: any) => d.position_id).filter(Boolean)));
+    if (posIds.length) {
+      const { data: positions } = await supabase
+        .from("positions")
+        .select("id, title")
+        .in("id", posIds);
+      const map = new Map((positions ?? []).map((p: any) => [p.id, p]));
+      for (const d of docs as any[]) d.position = d.position_id ? map.get(d.position_id) ?? null : null;
+    }
+    return docs;
   });
 
 export const createDocument = createServerFn({ method: "POST" })
