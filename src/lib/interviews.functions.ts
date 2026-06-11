@@ -100,6 +100,7 @@ export type InterviewRow = {
     client_id: string;
     client?: { id: string; name: string; color: string | null } | null;
   } | null;
+  application?: { id: string; stage: string } | null;
 };
 
 export type PlacementRow = {
@@ -158,7 +159,7 @@ async function logActivity(
 }
 
 const INTERVIEW_SELECT =
-  "*, candidate:candidates(id,name,role), position:positions(id,title,client_id, client:clients(id,name,color))";
+  "*, candidate:candidates(id,name,role), position:positions(id,title,client_id, client:clients(id,name,color)), application:applications(id,stage)";
 
 /* ---------------- Interviews ---------------- */
 
