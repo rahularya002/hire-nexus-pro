@@ -7,6 +7,13 @@ import { APPLICATION_STAGES, STAGE_LABEL, listApplications } from "@/lib/candida
 import { initialsOf } from "@/lib/display";
 import { KanbanCardSkeleton } from "@/components/skeletons";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/pipeline")({
   component: () => <AppShell><Page /></AppShell>,
@@ -47,28 +54,19 @@ function Page() {
         </p>
       </div>
       {clientOptions.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setClientId("all")}
-            className={cn(
-              "px-3 py-1.5 rounded-full border text-xs font-medium transition",
-              clientId === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground",
-            )}
-          >
-            All clients
-          </button>
-          {clientOptions.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setClientId(c.id)}
-              className={cn(
-                "px-3 py-1.5 rounded-full border text-xs font-medium transition",
-                clientId === c.id ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {c.name}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-muted-foreground">Client</label>
+          <Select value={clientId} onValueChange={(v) => setClientId(v as string | "all")}>
+            <SelectTrigger className="h-9 w-64 text-sm">
+              <SelectValue placeholder="All clients" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All clients</SelectItem>
+              {clientOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
       <div className="grid grid-flow-col auto-cols-[260px] gap-3 overflow-x-auto pb-4">
