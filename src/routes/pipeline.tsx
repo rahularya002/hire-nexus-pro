@@ -6,7 +6,6 @@ import { AppShell } from "@/components/app-shell";
 import { APPLICATION_STAGES, STAGE_LABEL, listApplications } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
 import { KanbanCardSkeleton } from "@/components/skeletons";
-import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
