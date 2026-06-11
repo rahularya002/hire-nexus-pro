@@ -504,3 +504,76 @@ export function formatInterviewWhen(iso: string | null): string {
 export function interviewRoundLabel(r: Pick<InterviewRow, "kind" | "custom_kind_label">): string {
   return (r.custom_kind_label && r.custom_kind_label.trim()) || INTERVIEW_KIND_LABEL[r.kind];
 }
+
+/* ---------------- Client post-interview decision ---------------- */
+
+export const INTERVIEW_DECISIONS = ["select", "reject", "next_round"] as const;
+export type InterviewDecision = (typeof INTERVIEW_DECISIONS)[number];
+
+const DECISION_TO_STAGE: Record<InterviewDecision, "offered" | "client_rejected" | "interview_scheduled"> = {
+  select: "offered",
+  reject: "client_rejected",
+  next_round: "interview_scheduled",
+};
+
+const DECISION_LABEL: Record<InterviewDecision, string> = {
+  select: "Client selected candidate",
+  reject: "Client rejected candidate",
+  next_round: "Client requested another round",
+};
+
+export const recordInterviewDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        applicationId: z.string().uuid(),
+        decision: z.enum(INTERVIEW_DECISIONS),
+        note: z.string().trim().max(2000).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .select("id, candidate_id, position_id, position:positions(id, client_id)")
+      .eq("id", data.applicationId)
+      .maybeSingle();
+    if (appErr) throw new Error(appErr.message);
+    if (!app) throw new Error("Application not found.");
+
+    const stage = DECISION_TO_STAGE[data.decision];
+    const { error: updErr } = await supabase
+      .from("applications")
+      .update({ stage })
+      .eq("id", data.applicationId);
+    if (updErr) throw new Error(updErr.message);
+
+    await logActivity(supabase, userId, {
+      kind: "stage_change",
+      title: DECISION_LABEL[data.decision],
+      detail: data.note?.trim() || null,
+      client_id: (app.position as any)?.client_id ?? null,
+      position_id: app.position_id,
+      candidate_id: app.candidate_id,
+      application_id: app.id,
+      client_visible: true,
+    });
+
+    if (data.note && data.note.trim()) {
+      await logActivity(supabase, userId, {
+        kind: "note",
+        title: "Interview feedback",
+        detail: data.note.trim(),
+        client_id: (app.position as any)?.client_id ?? null,
+        position_id: app.position_id,
+        candidate_id: app.candidate_id,
+        application_id: app.id,
+        client_visible: true,
+      });
+    }
+
+    return { ok: true, stage };
+  });
