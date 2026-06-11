@@ -1,39 +1,36 @@
-## 1. Fix "Pending approval" flashing dialog
+## Problem
 
-**Cause:** `AuthProvider.onAuthStateChange` (in `src/lib/auth/auth-context.tsx`) currently runs on every event Supabase emits — including `TOKEN_REFRESHED` (~hourly + on tab focus) and `INITIAL_SESSION` (every mount). Each time it resets `profileLoaded = false`, re-fetches profile/roles, and calls `router.invalidate()` + `queryClient.invalidateQueries()`. While `profileLoaded` is briefly false, gated screens flicker, and login/AuthGate redirect logic can momentarily route to `/pending` before roles re-populate.
+On the client portal's **Interviews → Past** tab, each completed interview only shows a generic **"Submit feedback"** button that does nothing. After the client interviews a candidate, they should be able to actually act on the outcome — move the candidate forward, reject them, or request another round.
 
-**Fix:**
-- Filter the auth-state callback to only act on identity transitions: `SIGNED_IN`, `SIGNED_OUT`, `USER_UPDATED`. Ignore `TOKEN_REFRESHED` and `INITIAL_SESSION`.
-- Do not reset `profileLoaded` on token refresh.
-- Only call `queryClient.invalidateQueries()` when a session is present (skip on `SIGNED_OUT` to prevent 401 storm).
-- Keep the initial `getSession()` bootstrap as-is.
+## Proposed flow
 
-## 2. Fix "Can't click a client in Billing to change billing period"
+Replace the lone "Submit feedback" button on past interviews with a small decision panel. Three actions, plus an optional feedback note:
 
-**Cause:** `src/routes/billing.tsx` only renders clients inside the **Upcoming invoice runs** list, which is built from `upcomingRuns()`. For the current agency (Agency 1 / AI Tech) there are no placements yet, so the section shows entries but the page has no dedicated "All clients" entry list; users assume the cards aren't clickable. There is also no entry point for a brand-new client with no terms set.
+1. **Select candidate** → move the application to `offered` (so it shows in the recruiter's pipeline as ready for offer).
+2. **Reject** → move the application to `client_rejected`. Asks for a short reason (optional but encouraged).
+3. **Schedule next round** → move the application back to `interview_scheduled`; recruiter then sets up the next round in the existing interview detail page.
 
-**Fix in `src/routes/billing.tsx`:**
-- Add a top-level **Clients** section listing every client in the agency (use existing `listClients`/agency clients fetch). Each row links to `/billing/clients/$clientId` with: name, current billing cycle + Net days (or "Set terms" if none), and a chevron.
-- Keep "Upcoming invoice runs" below as a secondary view.
-- Ensure rows are obviously clickable (hover state + chevron, role=link).
+The optional feedback note is saved as an `activity` row (kind `note`, `client_visible: true`) tied to the candidate/position so the recruiter sees it in the activity feed. The interview itself stays as the historical record (no schema change needed).
 
-No changes to billing terms editor itself — `EditTermsDialog` on the client page already lets the user change `payment_terms_days` (Net), `billing_cycle`, and `invoice_day_of_month`.
+## What changes
 
-## 3. Pipeline — filter by client
+### Frontend
+- `src/routes/client.interviews.tsx`
+  - Past-tab row gets a compact action cluster: **Select** (primary), **Reject** (subtle destructive), **Next round** (outline), plus a small "Add note" link that expands a textarea.
+  - Disable actions once a decision has already been recorded for that application (i.e. stage already `offered` / `client_rejected`), and show the current outcome inline instead ("Selected", "Rejected").
+  - On success, invalidate `client-interviews`, `client-pipeline`, and `staff-interviews` queries.
 
-**File:** `src/routes/pipeline.tsx`
+### Server functions (new, in existing files)
+- `src/lib/interviews.functions.ts` (or `applications.functions.ts` if you prefer — currently stage updates live inline in pipeline code; I'd add them here next to the interview row they act on):
+  - `recordInterviewDecision({ applicationId, decision: "select" | "reject" | "next_round", note?: string })`
+    - Uses `requireSupabaseAuth`; relies on existing RLS policy `"client updates own application stage"` for the stage transition (client already has UPDATE rights for these stages).
+    - Updates `applications.stage` accordingly.
+    - If `note` provided, inserts an `activities` row (`kind: "note"`, `client_visible: true`, `candidate_id`, `position_id`, `application_id`).
 
-- Add a client filter pill row above the Kanban (derive distinct clients from `apps[].position.client`).
-- Default = "All clients". Selecting a client filters `apps` before the per-stage `filter()`.
-- Update the summary line (`N candidates across M mandates`) to reflect the filter.
-- Persist selection in URL search param `?clientId=` so it survives reloads/back-nav.
+### No DB migration required
+The `application_stage` enum already includes `offered`, `client_rejected`, `interview_scheduled`. The RLS policy `"client updates own application stage"` already permits the client to set these. No schema or policy changes needed.
 
-## 4. Out of scope (per your reply)
-
-- Contract duration / weekly-monthly profile refresh — skipping for now. The replacement-window concept already exists on `client_billing_terms.replacement_window_days` and is editable from the client billing page; we'll align that with billing-period semantics when you're ready.
-
-## Technical notes
-
-- No DB migrations needed for any of the above.
-- `AuthProvider` change is the highest-leverage fix — it also stops periodic refetch thrash across the app.
-- Billing list addition reuses existing server fns; no new endpoint required (we can extend `upcomingRuns` to include clients with zero placements, or add a parallel `listAgencyClientsForBilling` fn — preferring the latter to keep `upcomingRuns` semantics intact).
+## Out of scope (mentioned in case you want them later)
+- A structured feedback form (scores per round, strengths/concerns) — current scope is one free-text note.
+- Mirroring the same decision UI inside the recruiter-side `/interviews/$processId` page — that page already has full status/stage controls; if you want a one-click "client decided" shortcut there too, say the word.
+- Notifications to the recruiter when a decision is recorded.
