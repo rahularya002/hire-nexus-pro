@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Plus, Check, RotateCcw, UserX, Trash2,
+  ArrowLeft, Plus, Check, RotateCcw, UserX, Trash2, Settings2,
   Video, Calendar, Bell, FileText, MessageSquare, Send, Mail, Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -29,9 +29,30 @@ import {
   type InterviewConductor,
 } from "@/lib/interviews.functions";
 import { listInterviewRoundTemplates, type InterviewRoundTemplate } from "@/lib/interview-templates.functions";
+import {
+  createInterviewRoundTemplate,
+  deleteInterviewRoundTemplate,
+} from "@/lib/interview-templates.functions";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/interviews/$processId")({
   component: () => <AppShell><Detail /></AppShell>,
