@@ -242,5 +242,4 @@ export const INTEGRATION_CATEGORY_ORDER: IntegrationCategory[] = [
   "ats",
   "enrichment",
   "billing",
-  "backend",
 ];
