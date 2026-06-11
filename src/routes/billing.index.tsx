@@ -11,7 +11,7 @@ import {
 import { listClients } from "@/lib/clients.functions";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/billing")({
+export const Route = createFileRoute("/billing/")({
   component: () => <AppShell><Page /></AppShell>,
 });
 
