@@ -3,7 +3,7 @@ import { ArrowLeft, MapPin, Calendar, Users, Loader2, Sparkles, UserCheck, UserX
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
+import { PriorityBadge, StatusBadge, RecruitmentModelBadge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getPositionById, assignPositionRecruiter, listAssignableRecruiters } from "@/lib/positions.functions";
@@ -70,6 +70,7 @@ function PositionDetail() {
               <h1 className="text-2xl font-semibold tracking-tight">{position.title}</h1>
               <PriorityBadge priority={position.priority} />
               <StatusBadge status={position.status} />
+              <RecruitmentModelBadge model={position.recruitment_model} />
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-3">
               {position.location && <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> {position.location}</span>}

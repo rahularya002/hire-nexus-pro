@@ -18,6 +18,8 @@ export type PositionRow = {
   posted_at: string;
   created_at: string;
   assigned_recruiter_id: string | null;
+  client_assignee_id: string | null;
+  recruitment_model: "agency" | "self" | "hybrid";
   client?: { id: string; name: string; color: string | null; industry: string | null; contact_name: string | null } | null;
 };
 
@@ -33,6 +35,8 @@ const upsertSchema = z.object({
   description: z.string().max(10_000).optional().nullable(),
   skills: z.array(z.string().min(1).max(60)).max(30).optional(),
   assigned_recruiter_id: z.string().uuid().nullable().optional(),
+  client_assignee_id: z.string().uuid().nullable().optional(),
+  recruitment_model: z.enum(["agency", "self", "hybrid"]).optional(),
 });
 
 function clean<T extends Record<string, any>>(o: T): T {
@@ -47,7 +51,10 @@ function clean<T extends Record<string, any>>(o: T): T {
 export const listPositions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ clientId: z.string().uuid().optional() }).optional().parse(d) ?? {},
+    z.object({
+      clientId: z.string().uuid().optional(),
+      recruitmentModel: z.enum(["agency", "self", "hybrid"]).optional(),
+    }).optional().parse(d) ?? {},
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -56,6 +63,7 @@ export const listPositions = createServerFn({ method: "GET" })
       .select("*, client:clients(id, name, color, industry, contact_name)")
       .order("posted_at", { ascending: false });
     if (data?.clientId) q = q.eq("client_id", data.clientId);
+    if (data?.recruitmentModel) q = q.eq("recruitment_model", data.recruitmentModel);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []) as PositionRow[];

@@ -33,6 +33,7 @@ function Page() {
     salary: "",
     openings: "",
     priority: "High",
+    recruitmentModel: "agency" as "agency" | "self" | "hybrid",
     skills: "",
     jd: "",
   });
@@ -152,6 +153,7 @@ function Page() {
           skills: form.skills
             ? form.skills.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 30)
             : [],
+          recruitment_model: form.recruitmentModel,
         },
       });
 
@@ -286,6 +288,10 @@ function Page() {
             <OpeningsField value={form.openings} onChange={(v) => set("openings", v)} />
             <Select label="Priority" options={["High", "Medium", "Low"]} value={form.priority} onChange={(v) => set("priority", v)} />
             <Field label="Required skills" placeholder="React, D2C, Leadership..." full value={form.skills} onChange={(v) => set("skills", v)} />
+            <RecruitmentModelPicker
+              value={form.recruitmentModel}
+              onChange={(v) => set("recruitmentModel", v)}
+            />
             <Textarea label="Job description" placeholder="Describe the role, responsibilities and ideal candidate..." value={form.jd} onChange={(v) => set("jd", v)} />
           </div>
         </div>
@@ -393,6 +399,48 @@ function Select({ label, options, value, onChange }: { label: string; options: s
       <select value={value} onChange={(e) => onChange(e.target.value)} className="mt-1.5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40">
         {options.map(o => <option key={o}>{o}</option>)}
       </select>
+    </div>
+  );
+}
+
+type RecruitmentModel = "agency" | "self" | "hybrid";
+
+function RecruitmentModelPicker({
+  value,
+  onChange,
+}: {
+  value: RecruitmentModel;
+  onChange: (v: RecruitmentModel) => void;
+}) {
+  const options: { id: RecruitmentModel; label: string; desc: string }[] = [
+    { id: "agency", label: "Agency", desc: "Our recruiter sources & screens; you review." },
+    { id: "self",   label: "Self",   desc: "Your team handles sourcing. We provide the platform." },
+    { id: "hybrid", label: "Hybrid", desc: "Your team + our recruiter both work this role." },
+  ];
+  return (
+    <div className="sm:col-span-2">
+      <label className="text-xs font-medium">Recruitment model <span className="text-destructive">*</span></label>
+      <div className="mt-1.5 grid sm:grid-cols-3 gap-2">
+        {options.map((o) => {
+          const active = value === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onChange(o.id)}
+              className={cn(
+                "text-left rounded-md border px-3 py-2.5 transition",
+                active
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                  : "border-input bg-background hover:border-primary/40",
+              )}
+            >
+              <div className="text-sm font-medium">{o.label}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{o.desc}</div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

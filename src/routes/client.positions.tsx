@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus, Clock, ArrowRight, SearchX } from "lucide-react";
 import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
+import { RecruitmentModelBadge } from "@/components/ui-bits";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow, type ApplicationStage } from "@/lib/candidates.functions";
 import { getClientAccountTeam, type ClientAccountMember } from "@/lib/team.functions";
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/client/positions")({
   component: ClientPositionsRoute,
   validateSearch: (s: Record<string, unknown>) => ({
     status: (s.status === "active" || s.status === "closed" ? s.status : "all") as "all" | "active" | "closed",
+    model: (s.model === "agency" || s.model === "self" || s.model === "hybrid" ? s.model : "all") as "all" | "agency" | "self" | "hybrid",
   }),
 });
 
@@ -65,10 +67,12 @@ function ClientPositionsRoute() {
 }
 
 function Page() {
-  const { status: filter } = Route.useSearch();
+  const { status: filter, model: modelFilter } = Route.useSearch();
   const navigate = Route.useNavigate();
   const setFilter = (f: "all" | "active" | "closed") =>
-    navigate({ search: { status: f }, replace: false });
+    navigate({ search: { status: f, model: modelFilter }, replace: false });
+  const setModel = (m: "all" | "agency" | "self" | "hybrid") =>
+    navigate({ search: { status: filter, model: m }, replace: false });
   const fetchPositions = useServerFn(listPositions);
   const fetchApps = useServerFn(listApplications);
   const fetchTeam = useServerFn(getClientAccountTeam);
@@ -91,9 +95,11 @@ function Page() {
     return m;
   }, [apps]);
 
-  const filtered = positions.filter((p) =>
-    filter === "all" ? true : filter === "closed" ? p.status === "closed" : p.status !== "closed"
-  );
+  const filtered = positions.filter((p) => {
+    const statusOk = filter === "all" ? true : filter === "closed" ? p.status === "closed" : p.status !== "closed";
+    const modelOk = modelFilter === "all" ? true : p.recruitment_model === modelFilter;
+    return statusOk && modelOk;
+  });
   const active = positions.filter((p) => p.status !== "closed").length;
   const loading = posQ.isLoading || appQ.isLoading;
 
@@ -120,6 +126,19 @@ function Page() {
             {f}
           </button>
         ))}
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-muted-foreground">Recruitment model:</span>
+        <select
+          value={modelFilter}
+          onChange={(e) => setModel(e.target.value as "all" | "agency" | "self" | "hybrid")}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="all">All</option>
+          <option value="agency">Agency</option>
+          <option value="self">Self</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
       </div>
 
       <div className="grid gap-4">

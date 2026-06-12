@@ -1,6 +1,22 @@
 import { cn } from "@/lib/utils";
 import type { Priority, PositionStatus, CandidateStage } from "@/lib/mock-data";
 
+export type RecruitmentModel = "agency" | "self" | "hybrid";
+
+export function RecruitmentModelBadge({ model }: { model: RecruitmentModel }) {
+  const map: Record<RecruitmentModel, { c: string; l: string }> = {
+    agency: { c: "bg-success/15 text-success border-success/25", l: "Agency" },
+    self:   { c: "bg-info/15 text-info border-info/25",          l: "Self" },
+    hybrid: { c: "bg-warning/15 text-warning border-warning/25", l: "Hybrid" },
+  };
+  const v = map[model] ?? map.agency;
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border", v.c)}>
+      {v.l}
+    </span>
+  );
+}
+
 export function PriorityBadge({ priority }: { priority: Priority }) {
   const map = {
     high: "bg-destructive/10 text-destructive border-destructive/20",
