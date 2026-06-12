@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
-import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
+import { PriorityBadge, StatusBadge, RecruitmentModelBadge } from "@/components/ui-bits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,7 @@ function PositionsShell() {
 function PositionsPage() {
   const [open, setOpen] = useState(false);
   const [statusTab, setStatusTab] = useState<"all" | "open" | "in_progress" | "interviews" | "closed">("all");
+  const [modelFilter, setModelFilter] = useState<"all" | "agency" | "self" | "hybrid">("all");
   const fetchPositions = useServerFn(listPositions);
   const fetchClients = useServerFn(listClients);
   const { data: positions = [], isLoading } = useQuery({
@@ -46,7 +47,10 @@ function PositionsPage() {
     closed: positions.filter((p) => p.status === "closed").length,
   };
   const activeCount = positions.filter((p) => p.status !== "closed").length;
-  const filtered = statusTab === "all" ? positions : positions.filter((p) => p.status === statusTab);
+  const filtered = positions.filter((p) =>
+    (statusTab === "all" || p.status === statusTab) &&
+    (modelFilter === "all" || p.recruitment_model === modelFilter),
+  );
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
@@ -88,6 +92,19 @@ function PositionsPage() {
           </button>
         ))}
       </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-muted-foreground">Recruitment model:</span>
+        <select
+          value={modelFilter}
+          onChange={(e) => setModelFilter(e.target.value as typeof modelFilter)}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="all">All</option>
+          <option value="agency">Agency</option>
+          <option value="self">Self</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+      </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-secondary/30">
@@ -116,6 +133,7 @@ function PositionsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="font-medium truncate">{p.title}</div>
                     <PriorityBadge priority={p.priority} />
+                    <RecruitmentModelBadge model={p.recruitment_model} />
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">
                     <MapPin className="size-3" /> {[p.location, p.experience].filter(Boolean).join(" · ") || "—"}

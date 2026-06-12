@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { cn, formatSalary } from "@/lib/utils";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
+import { RecruitmentModelBadge } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardListSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
@@ -145,6 +146,7 @@ function Detail() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-semibold tracking-tight">{initial.title}</h1>
               <ClientStatusBadge status={initial.status} />
+              <RecruitmentModelBadge model={initial.recruitment_model} />
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-3">
               <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" />{initial.location ?? "—"}</span>

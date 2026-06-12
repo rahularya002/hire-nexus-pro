@@ -403,6 +403,48 @@ function Select({ label, options, value, onChange }: { label: string; options: s
   );
 }
 
+type RecruitmentModel = "agency" | "self" | "hybrid";
+
+function RecruitmentModelPicker({
+  value,
+  onChange,
+}: {
+  value: RecruitmentModel;
+  onChange: (v: RecruitmentModel) => void;
+}) {
+  const options: { id: RecruitmentModel; label: string; desc: string }[] = [
+    { id: "agency", label: "Agency", desc: "Our recruiter sources & screens; you review." },
+    { id: "self",   label: "Self",   desc: "Your team handles sourcing. We provide the platform." },
+    { id: "hybrid", label: "Hybrid", desc: "Your team + our recruiter both work this role." },
+  ];
+  return (
+    <div className="sm:col-span-2">
+      <label className="text-xs font-medium">Recruitment model <span className="text-destructive">*</span></label>
+      <div className="mt-1.5 grid sm:grid-cols-3 gap-2">
+        {options.map((o) => {
+          const active = value === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onChange(o.id)}
+              className={cn(
+                "text-left rounded-md border px-3 py-2.5 transition",
+                active
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                  : "border-input bg-background hover:border-primary/40",
+              )}
+            >
+              <div className="text-sm font-medium">{o.label}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{o.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Textarea({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="sm:col-span-2">
