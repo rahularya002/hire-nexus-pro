@@ -70,9 +70,9 @@ function Page() {
   const { status: filter, model: modelFilter } = Route.useSearch();
   const navigate = Route.useNavigate();
   const setFilter = (f: "all" | "active" | "closed") =>
-    navigate({ search: (s) => ({ ...s, status: f }), replace: false });
+    navigate({ search: { status: f, model: modelFilter }, replace: false });
   const setModel = (m: "all" | "agency" | "self" | "hybrid") =>
-    navigate({ search: (s) => ({ ...s, model: m }), replace: false });
+    navigate({ search: { status: filter, model: m }, replace: false });
   const fetchPositions = useServerFn(listPositions);
   const fetchApps = useServerFn(listApplications);
   const fetchTeam = useServerFn(getClientAccountTeam);
