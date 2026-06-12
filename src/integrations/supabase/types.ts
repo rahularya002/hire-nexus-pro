@@ -354,15 +354,51 @@ export type Database = {
           },
         ]
       }
+      client_custom_roles: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          permissions: string[]
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          permissions?: string[]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          permissions?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_custom_roles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_members: {
         Row: {
           client_id: string
           created_at: string
           created_by: string | null
+          custom_role_id: string | null
           full_name: string | null
           id: string
           invited_email: string | null
-          role: Database["public"]["Enums"]["client_member_role"]
+          role: Database["public"]["Enums"]["client_member_role"] | null
           status: string
           updated_at: string
           user_id: string | null
@@ -371,10 +407,11 @@ export type Database = {
           client_id: string
           created_at?: string
           created_by?: string | null
+          custom_role_id?: string | null
           full_name?: string | null
           id?: string
           invited_email?: string | null
-          role?: Database["public"]["Enums"]["client_member_role"]
+          role?: Database["public"]["Enums"]["client_member_role"] | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -383,10 +420,11 @@ export type Database = {
           client_id?: string
           created_at?: string
           created_by?: string | null
+          custom_role_id?: string | null
           full_name?: string | null
           id?: string
           invited_email?: string | null
-          role?: Database["public"]["Enums"]["client_member_role"]
+          role?: Database["public"]["Enums"]["client_member_role"] | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -397,6 +435,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_members_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "client_custom_roles"
             referencedColumns: ["id"]
           },
         ]
