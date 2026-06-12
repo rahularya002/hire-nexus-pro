@@ -33,6 +33,7 @@ function Page() {
     salary: "",
     openings: "",
     priority: "High",
+    recruitmentModel: "agency" as "agency" | "self" | "hybrid",
     skills: "",
     jd: "",
   });
@@ -152,6 +153,7 @@ function Page() {
           skills: form.skills
             ? form.skills.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 30)
             : [],
+          recruitment_model: form.recruitmentModel,
         },
       });
 
@@ -286,6 +288,10 @@ function Page() {
             <OpeningsField value={form.openings} onChange={(v) => set("openings", v)} />
             <Select label="Priority" options={["High", "Medium", "Low"]} value={form.priority} onChange={(v) => set("priority", v)} />
             <Field label="Required skills" placeholder="React, D2C, Leadership..." full value={form.skills} onChange={(v) => set("skills", v)} />
+            <RecruitmentModelPicker
+              value={form.recruitmentModel}
+              onChange={(v) => set("recruitmentModel", v)}
+            />
             <Textarea label="Job description" placeholder="Describe the role, responsibilities and ideal candidate..." value={form.jd} onChange={(v) => set("jd", v)} />
           </div>
         </div>
