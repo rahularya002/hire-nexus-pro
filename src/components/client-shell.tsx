@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare, ReceiptText, Users2, ShieldCheck, Sparkles } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare, ReceiptText, Users2 } from "lucide-react";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,6 @@ const nav = [
   { to: "/client",            label: "Overview",        icon: LayoutDashboard, exact: true },
   { to: "/client/positions",  label: "My Requirements", icon: Briefcase },
   { to: "/client/pipeline",   label: "Pipeline",        icon: Workflow },
-  { to: "/client/scout",      label: "Scout Candidates", icon: Sparkles },
   { to: "/client/interviews", label: "Interviews",      icon: CalendarClock },
   { to: "/client/placements", label: "Placements",      icon: CheckCircle2 },
   { to: "/client/invoices",   label: "Invoices",        icon: ReceiptText },

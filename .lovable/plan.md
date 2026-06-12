@@ -1,60 +1,24 @@
 ## Goal
 
-1. Remove the standalone "Roles & Permissions" sidebar entry and merge it into **My Team** as an inline tab (keeps one place to manage people + access).
-2. Let clients create their own **custom roles** (name + permission set) in addition to the built-in Admin / Recruiter / Viewer, and assign them to teammates.
+Make Scout reachable only from within a self/hybrid position. Remove the sidebar shortcut entirely; if the client lands on `/client/scout` without a qualifying position context, show an empty state explaining how to unlock it.
 
----
+## Changes
 
-## UX changes
+**1. `src/components/client-shell.tsx`**
+- Remove the `{ to: "/client/scout", label: "Scout Candidates", icon: Sparkles }` entry from the `nav` array. Scout no longer appears in the client sidebar.
+- Leave `Sparkles` import if still used elsewhere; otherwise drop it.
 
-**Sidebar (`client-shell.tsx`)**
-- Remove the `Roles & Permissions` nav item. Keep only `My Team`.
+**2. `src/routes/client.positions.$positionId.tsx`**
+- No change needed. It already conditionally renders the "Scout candidates" CTA only when `recruitment_model` is `self` or `hybrid`, linking to `/client/scout?positionId=…`. This becomes the sole entry point.
 
-**My Team page (`client.my-team.tsx`)** — single page, two tabs:
-- **Members** (current table) — invite, change role, remove.
-- **Roles & Permissions** — lists Admin (locked, full access), Recruiter, Viewer, and any custom roles the client created. Each row shows permission checkboxes + Save. A "+ New role" button opens a dialog (name + starting permissions) to create a custom role. Custom roles can be renamed or deleted (deletion blocked if assigned to any member).
-
-**Invite + Change-role dropdowns**
-- Role dropdown now shows the built-in three plus all custom roles for this client.
-
-**Old route `/client/my-team/permissions`**
-- Deleted. Anyone landing on it redirects to `/client/my-team?tab=permissions`.
-
----
-
-## Data model
-
-New table `public.client_custom_roles`:
-- `client_id` (fk → clients), `name` (text, unique per client), `permissions` (text[]), timestamps.
-- RLS: client owner + active `client_members` of that client can read; only client owner can insert/update/delete.
-- Grants: `authenticated` (full CRUD scoped by RLS), `service_role` (all).
-
-Alter `public.client_members`:
-- Add `custom_role_id uuid references client_custom_roles(id) on delete set null` (nullable).
-- Make existing enum `role` nullable.
-- Add CHECK: `(role IS NOT NULL) <> (custom_role_id IS NOT NULL)` — exactly one assigned.
-
-No backfill needed; current rows keep their enum role.
-
----
-
-## Server functions (`client-team.functions.ts`)
-
-Add:
-- `listClientCustomRoles()` — returns `{ id, name, permissions }[]` for the client.
-- `createClientCustomRole({ name, permissions })`
-- `updateClientCustomRole({ id, name?, permissions? })`
-- `deleteClientCustomRole({ id })` — errors if any member references it.
-
-Update:
-- `listClientMembers` — also return `custom_role_id` and (joined) custom role name; UI shows whichever is set.
-- `inviteClientMember` and `updateClientMemberRole` — accept either `role: enum` or `customRoleId: uuid` (exactly one), validate ownership before assigning.
-
-`CLIENT_PERMISSIONS` constant stays as-is; it's the available permission catalog used both by built-in role editing and custom-role creation.
-
----
+**3. `src/routes/client.scout.tsx`** — gate the page
+- When the route loads WITHOUT a `positionId` search param, render a locked empty state instead of the scout UI:
+  - Headline: "Scout is unlocked per position"
+  - Body: "Talent Scout is available for roles you're recruiting in-house. Upload a JD with the **Self** or **Hybrid** recruitment model, then open that position and click **Scout candidates**."
+  - Two CTAs: "Upload a JD" → `/client/upload`, "View my requirements" → `/client/positions`.
+- When the route loads WITH a `positionId`, fetch the position (existing effect). If the fetched position's `recruitment_model` is `agency` (not self/hybrid), show the same locked empty state with an extra note: "This position is set to Agency mode — your TalentFlow recruiter is sourcing for it." Otherwise proceed with the current scout flow.
+- Keep the existing `navigate({ to: "/client/scout", search: {}, replace: true })` cleanup, but only after we've confirmed the model is self/hybrid; otherwise leave the search param so the gate keeps showing the position-specific message until the user navigates away.
 
 ## Out of scope
-
-- Enforcing the permissions in other client routes (this PR keeps the existing behavior; permission gating across pages stays a follow-up).
-- Agency-side roles.
+- Server-side enforcement (scout server functions still callable directly). This is a UX gate; the existing scout functions already require the user own the position via RLS.
+- Agency-side scout access.

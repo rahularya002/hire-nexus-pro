@@ -1,9 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Search, Lock } from "lucide-react";
+import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Search, Lock, Upload, Briefcase } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { parseJdFile } from "@/lib/parse-jd";
@@ -21,6 +21,36 @@ import { ScoutResults } from "@/components/scout-results";
 import { cn } from "@/lib/utils";
 
 const scoutSearchSchema = z.object({ positionId: z.string().uuid().optional() });
+
+function ScoutLockedEmpty({ reason }: { reason: "blocked-agency" | "blocked-none" }) {
+  return (
+    <div className="max-w-xl mx-auto py-16">
+      <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-5">
+        <div className="mx-auto size-12 rounded-full bg-secondary grid place-items-center text-muted-foreground">
+          <Lock className="size-5" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight">Scout is unlocked per position</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {reason === "blocked-agency" ? (
+              <>This position is set to <span className="font-medium text-foreground">Agency</span> mode — your TalentFlow recruiter is sourcing for it. Scout is available only on roles your team is recruiting in-house.</>
+            ) : (
+              <>Talent Scout is available for roles you're recruiting in-house. Upload a JD with the <span className="font-medium text-foreground">Self</span> or <span className="font-medium text-foreground">Hybrid</span> recruitment model, then open that position and click <span className="font-medium text-foreground">Scout candidates</span>.</>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2 pt-1">
+          <Link to="/client/upload" className="inline-flex items-center gap-1.5 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+            <Upload className="size-4" /> Upload a JD
+          </Link>
+          <Link to="/client/positions" className="inline-flex items-center gap-1.5 h-10 px-4 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
+            <Briefcase className="size-4" /> View my requirements
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/client/scout")({
   validateSearch: (s) => scoutSearchSchema.parse(s),
@@ -55,6 +85,9 @@ function ClientScout() {
   const [skillsContext, setSkillsContext] = useState<string[]>([]);
   const [titleContext, setTitleContext] = useState<string>("");
   const [locationContext, setLocationContext] = useState<string>("");
+  const [gateState, setGateState] = useState<"checking" | "allowed" | "blocked-agency" | "blocked-none">(
+    positionId ? "checking" : "blocked-none",
+  );
   const searchInternal = useServerFn(searchSourcedCandidates);
   const runApify = useServerFn(runApifyScout);
   const rankMatches = useServerFn(rankSourcedMatches);
@@ -80,6 +113,10 @@ function ClientScout() {
       try {
         const p = await fetchPosition({ data: { id: positionId } });
         if (!p) return;
+        if (p.recruitment_model !== "self" && p.recruitment_model !== "hybrid") {
+          setGateState("blocked-agency");
+          return;
+        }
         setActivePositionId(p.id);
         setTitleContext(p.title);
         setSkillsContext(p.skills ?? []);
@@ -96,13 +133,24 @@ function ClientScout() {
         setJdContext(brief);
         setCv({ name: `${p.title} — JD`, text: brief });
         setInput(`Source 5 strong candidates for this ${p.title} role.`);
+        setGateState("allowed");
+        navigate({ to: "/client/scout", search: {}, replace: true });
       } catch (e) {
         console.error(e);
-      } finally {
-        navigate({ to: "/client/scout", search: {}, replace: true });
       }
     })();
   }, [positionId, fetchPosition, navigate]);
+
+  if (gateState !== "allowed" && gateState !== "checking") {
+    return <ScoutLockedEmpty reason={gateState} />;
+  }
+  if (gateState === "checking") {
+    return (
+      <div className="h-[calc(100vh-8rem)] grid place-items-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   function toggle(id: SourceId) {
     const def = sources.find((s) => s.id === id);
