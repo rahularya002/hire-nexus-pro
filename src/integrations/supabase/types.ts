@@ -155,6 +155,7 @@ export type Database = {
           notes: string | null
           position_id: string
           stage: Database["public"]["Enums"]["application_stage"]
+          submitted_by_kind: string
           updated_at: string
         }
         Insert: {
@@ -167,6 +168,7 @@ export type Database = {
           notes?: string | null
           position_id: string
           stage?: Database["public"]["Enums"]["application_stage"]
+          submitted_by_kind?: string
           updated_at?: string
         }
         Update: {
@@ -179,6 +181,7 @@ export type Database = {
           notes?: string | null
           position_id?: string
           stage?: Database["public"]["Enums"]["application_stage"]
+          submitted_by_kind?: string
           updated_at?: string
         }
         Relationships: [
@@ -346,6 +349,88 @@ export type Database = {
             foreignKeyName: "client_billing_terms_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_members: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          full_name: string | null
+          id: string
+          invited_email: string | null
+          role: Database["public"]["Enums"]["client_member_role"]
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          full_name?: string | null
+          id?: string
+          invited_email?: string | null
+          role?: Database["public"]["Enums"]["client_member_role"]
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          full_name?: string | null
+          id?: string
+          invited_email?: string | null
+          role?: Database["public"]["Enums"]["client_member_role"]
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_role_permissions: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          permissions: string[]
+          role: Database["public"]["Enums"]["client_member_role"]
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          permissions?: string[]
+          role: Database["public"]["Enums"]["client_member_role"]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          permissions?: string[]
+          role?: Database["public"]["Enums"]["client_member_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_role_permissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
@@ -1155,6 +1240,7 @@ export type Database = {
         Row: {
           agency_id: string
           assigned_recruiter_id: string | null
+          client_assignee_id: string | null
           client_id: string
           created_at: string
           created_by: string | null
@@ -1165,6 +1251,7 @@ export type Database = {
           openings: number
           posted_at: string
           priority: Database["public"]["Enums"]["position_priority"]
+          recruitment_model: Database["public"]["Enums"]["recruitment_model"]
           salary: string | null
           skills: string[]
           status: Database["public"]["Enums"]["position_status"]
@@ -1174,6 +1261,7 @@ export type Database = {
         Insert: {
           agency_id: string
           assigned_recruiter_id?: string | null
+          client_assignee_id?: string | null
           client_id: string
           created_at?: string
           created_by?: string | null
@@ -1184,6 +1272,7 @@ export type Database = {
           openings?: number
           posted_at?: string
           priority?: Database["public"]["Enums"]["position_priority"]
+          recruitment_model?: Database["public"]["Enums"]["recruitment_model"]
           salary?: string | null
           skills?: string[]
           status?: Database["public"]["Enums"]["position_status"]
@@ -1193,6 +1282,7 @@ export type Database = {
         Update: {
           agency_id?: string
           assigned_recruiter_id?: string | null
+          client_assignee_id?: string | null
           client_id?: string
           created_at?: string
           created_by?: string | null
@@ -1203,6 +1293,7 @@ export type Database = {
           openings?: number
           posted_at?: string
           priority?: Database["public"]["Enums"]["position_priority"]
+          recruitment_model?: Database["public"]["Enums"]["recruitment_model"]
           salary?: string | null
           skills?: string[]
           status?: Database["public"]["Enums"]["position_status"]
@@ -1533,12 +1624,20 @@ export type Database = {
         Returns: boolean
       }
       is_agency_member: { Args: { _agency_id: string }; Returns: boolean }
+      is_client_owner: {
+        Args: { _client_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_client_owner_of_position: {
         Args: { _position_id: string; _user_id: string }
         Returns: boolean
       }
       is_client_owner_of_thread: {
         Args: { _thread_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_client_team_member: {
+        Args: { _client_id: string; _user_id: string }
         Returns: boolean
       }
     }
@@ -1577,6 +1676,7 @@ export type Database = {
         | "client_rejected"
       billing_cycle: "monthly" | "per_joining"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
+      client_member_role: "client_admin" | "client_recruiter" | "client_viewer"
       client_status: "active" | "inactive"
       document_kind: "jd" | "onboarding" | "offer" | "resume" | "other"
       fee_model: "percent_ctc" | "flat_per_hire" | "tiered"
@@ -1616,6 +1716,7 @@ export type Database = {
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
+      recruitment_model: "agency" | "self" | "hybrid"
       replacement_policy: "free_replacement" | "pro_rata_credit" | "none"
       sourcing_run_status: "pending" | "running" | "succeeded" | "failed"
       task_sla: "ok" | "warning" | "breach"
@@ -1792,6 +1893,7 @@ export const Constants = {
       ],
       billing_cycle: ["monthly", "per_joining"],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],
+      client_member_role: ["client_admin", "client_recruiter", "client_viewer"],
       client_status: ["active", "inactive"],
       document_kind: ["jd", "onboarding", "offer", "resume", "other"],
       fee_model: ["percent_ctc", "flat_per_hire", "tiered"],
@@ -1836,6 +1938,7 @@ export const Constants = {
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
       profile_status: ["pending", "active", "rejected"],
+      recruitment_model: ["agency", "self", "hybrid"],
       replacement_policy: ["free_replacement", "pro_rata_credit", "none"],
       sourcing_run_status: ["pending", "running", "succeeded", "failed"],
       task_sla: ["ok", "warning", "breach"],
