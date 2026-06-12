@@ -284,7 +284,7 @@ export const updateClientCustomRole = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const clientId = await getOwnedClientId(context.supabase, context.userId);
     if (!clientId) throw new Error("Forbidden");
-    const patch: Record<string, unknown> = {};
+    const patch: { name?: string; permissions?: string[] } = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.permissions !== undefined) patch.permissions = data.permissions;
     const { error } = await context.supabase
