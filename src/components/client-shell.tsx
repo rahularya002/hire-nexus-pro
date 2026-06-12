@@ -28,7 +28,6 @@ const nav = [
   { to: "/client/activity",   label: "Activity",        icon: ActivityIcon },
   { to: "/client/team",       label: "Account Team",    icon: UsersRound },
   { to: "/client/my-team",    label: "My Team",         icon: Users2 },
-  { to: "/client/my-team/permissions", label: "Roles & Permissions", icon: ShieldCheck },
   { to: "/client/messages",   label: "Messages",        icon: MessageSquare },
   { to: "/client/upload",     label: "Upload JD",       icon: Upload },
   { to: "/client/documents",  label: "Documents",       icon: FileText },
