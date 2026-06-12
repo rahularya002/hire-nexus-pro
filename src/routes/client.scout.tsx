@@ -1,9 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Search, Lock } from "lucide-react";
+import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Search, Lock, Upload, Briefcase } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { parseJdFile } from "@/lib/parse-jd";
@@ -55,6 +55,9 @@ function ClientScout() {
   const [skillsContext, setSkillsContext] = useState<string[]>([]);
   const [titleContext, setTitleContext] = useState<string>("");
   const [locationContext, setLocationContext] = useState<string>("");
+  const [gateState, setGateState] = useState<"checking" | "allowed" | "blocked-agency" | "blocked-none">(
+    positionId ? "checking" : "blocked-none",
+  );
   const searchInternal = useServerFn(searchSourcedCandidates);
   const runApify = useServerFn(runApifyScout);
   const rankMatches = useServerFn(rankSourcedMatches);
@@ -80,6 +83,10 @@ function ClientScout() {
       try {
         const p = await fetchPosition({ data: { id: positionId } });
         if (!p) return;
+        if (p.recruitment_model !== "self" && p.recruitment_model !== "hybrid") {
+          setGateState("blocked-agency");
+          return;
+        }
         setActivePositionId(p.id);
         setTitleContext(p.title);
         setSkillsContext(p.skills ?? []);
@@ -96,13 +103,24 @@ function ClientScout() {
         setJdContext(brief);
         setCv({ name: `${p.title} — JD`, text: brief });
         setInput(`Source 5 strong candidates for this ${p.title} role.`);
+        setGateState("allowed");
+        navigate({ to: "/client/scout", search: {}, replace: true });
       } catch (e) {
         console.error(e);
-      } finally {
-        navigate({ to: "/client/scout", search: {}, replace: true });
       }
     })();
   }, [positionId, fetchPosition, navigate]);
+
+  if (gateState !== "allowed" && gateState !== "checking") {
+    return <ScoutLockedEmpty reason={gateState} />;
+  }
+  if (gateState === "checking") {
+    return (
+      <div className="h-[calc(100vh-8rem)] grid place-items-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   function toggle(id: SourceId) {
     const def = sources.find((s) => s.id === id);
