@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare, ReceiptText, Users2, ShieldCheck, Sparkles } from "lucide-react";
+import { LayoutDashboard, Briefcase, Upload, FileText, Settings, Search, ArrowLeft, LogOut, Workflow, CalendarClock, CheckCircle2, BarChart3, Activity as ActivityIcon, UsersRound, MessageSquare, ReceiptText, Users2 } from "lucide-react";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
