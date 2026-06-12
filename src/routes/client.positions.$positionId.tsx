@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -159,11 +159,21 @@ function Detail() {
               {(initial.skills ?? []).map(s => <span key={s} className="text-xs px-2.5 py-1 rounded-md bg-secondary font-medium">{s}</span>)}
             </div>
           </div>
-          <Link
-            to="/client/messages"
-            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-card text-sm font-medium hover:bg-secondary">
-            <MessageSquare className="size-4" /> Message recruiter
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(initial.recruitment_model === "self" || initial.recruitment_model === "hybrid") && (
+              <Link
+                to="/client/scout"
+                search={{ positionId: initial.id }}
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+                <Sparkles className="size-4" /> Scout candidates
+              </Link>
+            )}
+            <Link
+              to="/client/messages"
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-card text-sm font-medium hover:bg-secondary">
+              <MessageSquare className="size-4" /> Message recruiter
+            </Link>
+          </div>
         </div>
       </div>
 
