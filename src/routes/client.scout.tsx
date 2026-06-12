@@ -22,6 +22,36 @@ import { cn } from "@/lib/utils";
 
 const scoutSearchSchema = z.object({ positionId: z.string().uuid().optional() });
 
+function ScoutLockedEmpty({ reason }: { reason: "blocked-agency" | "blocked-none" }) {
+  return (
+    <div className="max-w-xl mx-auto py-16">
+      <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-5">
+        <div className="mx-auto size-12 rounded-full bg-secondary grid place-items-center text-muted-foreground">
+          <Lock className="size-5" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight">Scout is unlocked per position</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {reason === "blocked-agency" ? (
+              <>This position is set to <span className="font-medium text-foreground">Agency</span> mode — your TalentFlow recruiter is sourcing for it. Scout is available only on roles your team is recruiting in-house.</>
+            ) : (
+              <>Talent Scout is available for roles you're recruiting in-house. Upload a JD with the <span className="font-medium text-foreground">Self</span> or <span className="font-medium text-foreground">Hybrid</span> recruitment model, then open that position and click <span className="font-medium text-foreground">Scout candidates</span>.</>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2 pt-1">
+          <Link to="/client/upload" className="inline-flex items-center gap-1.5 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+            <Upload className="size-4" /> Upload a JD
+          </Link>
+          <Link to="/client/positions" className="inline-flex items-center gap-1.5 h-10 px-4 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary">
+            <Briefcase className="size-4" /> View my requirements
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/client/scout")({
   validateSearch: (s) => scoutSearchSchema.parse(s),
   component: () => (
