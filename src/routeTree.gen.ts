@@ -44,6 +44,7 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
 import { Route as ClientSignupRouteImport } from './routes/client.signup'
+import { Route as ClientScoutRouteImport } from './routes/client.scout'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
@@ -240,6 +241,11 @@ const ClientSignupRoute = ClientSignupRouteImport.update({
   path: '/client/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientScoutRoute = ClientScoutRouteImport.update({
+  id: '/client/scout',
+  path: '/client/scout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientReportsRoute = ClientReportsRouteImport.update({
   id: '/client/reports',
   path: '/client/reports',
@@ -377,6 +383,7 @@ export interface FileRoutesByFullPath {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/scout': typeof ClientScoutRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -432,6 +439,7 @@ export interface FileRoutesByTo {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/scout': typeof ClientScoutRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -490,6 +498,7 @@ export interface FileRoutesById {
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
+  '/client/scout': typeof ClientScoutRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -549,6 +558,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/scout'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -604,6 +614,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/scout'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -661,6 +672,7 @@ export interface FileRouteTypes {
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
+    | '/client/scout'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -719,6 +731,7 @@ export interface RootRouteChildren {
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
+  ClientScoutRoute: typeof ClientScoutRoute
   ClientSignupRoute: typeof ClientSignupRoute
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
@@ -972,6 +985,13 @@ declare module '@tanstack/react-router' {
       path: '/client/signup'
       fullPath: '/client/signup'
       preLoaderRoute: typeof ClientSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/scout': {
+      id: '/client/scout'
+      path: '/client/scout'
+      fullPath: '/client/scout'
+      preLoaderRoute: typeof ClientScoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client/reports': {
@@ -1242,6 +1262,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,
+  ClientScoutRoute: ClientScoutRoute,
   ClientSignupRoute: ClientSignupRoute,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
@@ -1252,13 +1273,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
