@@ -34,20 +34,20 @@ export const getMyClientContext = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<MyClientContext> => {
     const { data: owned } = await context.supabase
       .from("clients")
-      .select("id, company_name, name")
+      .select("id, name")
       .eq("user_id", context.userId)
       .maybeSingle();
     if (owned) {
       return {
         clientId: owned.id,
-        companyName: (owned as any).company_name ?? (owned as any).name ?? null,
+        companyName: owned.name ?? null,
         isOwner: true,
         isTeamMember: false,
       };
     }
     const { data: member } = await context.supabase
       .from("client_members")
-      .select("client_id, clients:clients(id, company_name, name)")
+      .select("client_id, clients:clients(id, name)")
       .eq("user_id", context.userId)
       .eq("status", "active")
       .maybeSingle();
@@ -55,7 +55,7 @@ export const getMyClientContext = createServerFn({ method: "GET" })
       const c = (member as any).clients;
       return {
         clientId: c.id,
-        companyName: c.company_name ?? c.name ?? null,
+        companyName: c.name ?? null,
         isOwner: false,
         isTeamMember: true,
       };
