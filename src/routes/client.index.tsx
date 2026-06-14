@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin } from "lucide-react";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
+import { ClientTeamDashboard } from "@/components/client-team-dashboard";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listApplications, type ApplicationRow } from "@/lib/candidates.functions";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -10,8 +11,14 @@ import { CardListSkeleton } from "@/components/skeletons";
 import { formatSalary } from "@/lib/utils";
 
 export const Route = createFileRoute("/client/")({
-  component: () => <ClientShell><Dashboard /></ClientShell>,
+  component: () => <ClientShell><DashboardSwitcher /></ClientShell>,
 });
+
+function DashboardSwitcher() {
+  const { clientContext } = useAuth();
+  if (clientContext?.isTeamMember) return <ClientTeamDashboard />;
+  return <Dashboard />;
+}
 
 type Funnel = { shared: number; shortlisted: number; interview: number; offered: number; rejected: number };
 
