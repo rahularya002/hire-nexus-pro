@@ -63,6 +63,7 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         )
         .eq("position_id", data.positionId)
         .eq("rejected", false)
+      .gte("match_score", 50)
         .order("match_score", { ascending: false, nullsFirst: false })
         .limit(data.limit);
       if (mErr) throw new Error(mErr.message);
