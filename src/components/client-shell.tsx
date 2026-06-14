@@ -70,10 +70,11 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 function ClientShellInner({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { profile, roles, signOut } = useAuth();
+  const { profile, roles, clientContext, signOut } = useAuth();
   const canSwitchToAgency = roles.includes("admin") || roles.includes("recruiter") || roles.includes("lead_recruiter") || roles.includes("senior_recruiter");
 
-  const companyName = profile?.company_name || profile?.full_name || profile?.email || "Client Portal";
+  const resolvedCompany = clientContext?.companyName || profile?.company_name || null;
+  const companyName = resolvedCompany || profile?.full_name || profile?.email || "Client Portal";
   const companyInitials = (companyName.match(/\b\w/g) ?? ["C"]).slice(0, 2).join("").toUpperCase();
   const companyColor = "oklch(0.62 0.20 295)";
   const fullName = profile?.full_name || "Client";
@@ -171,13 +172,13 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
               </div>
               <div className="hidden sm:block text-xs leading-tight text-left">
                 <div className="font-medium">{profile?.full_name || profile?.email || "Client"}</div>
-                <div className="text-muted-foreground">{profile?.company_name || "Client"}</div>
+                <div className="text-muted-foreground">{resolvedCompany || "Client"}</div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="text-sm font-medium">{fullName}</div>
-                <div className="text-[11px] text-muted-foreground font-normal">{profile?.company_name || "Client"}</div>
+                <div className="text-[11px] text-muted-foreground font-normal">{resolvedCompany || "Client"}</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer">
