@@ -3,6 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { getMyClientContext, type MyClientContext } from "@/lib/client-team.functions";
 
 export type AppRole =
   | "admin"
@@ -29,6 +30,7 @@ type AuthState = {
   profile: Profile | null;
   roles: AppRole[];
   permissions: string[];
+  clientContext: MyClientContext | null;
   can: (perm: string) => boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -36,7 +38,7 @@ type AuthState = {
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
 
-async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile | null; roles: AppRole[]; permissions: string[] }> {
+async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile | null; roles: AppRole[]; permissions: string[]; clientContext: MyClientContext | null }> {
   const [pRes, rRes] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email, company_name, status").eq("id", userId).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
@@ -56,10 +58,20 @@ async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile |
     permissions = [...set];
   }
 
+  let clientContext: MyClientContext | null = null;
+  if (roles.includes("client")) {
+    try {
+      clientContext = await getMyClientContext();
+    } catch {
+      clientContext = null;
+    }
+  }
+
   return {
     profile: (pRes.data as Profile | null) ?? null,
     roles,
     permissions,
+    clientContext,
   };
 }
 
@@ -68,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [clientContext, setClientContext] = useState<MyClientContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const router = useRouter();
@@ -87,10 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoaded(false);
         // Defer the supabase calls so we don't deadlock the callback.
         setTimeout(() => {
-          loadProfileAndRoles(sess.user.id).then(({ profile, roles, permissions }) => {
+          loadProfileAndRoles(sess.user.id).then(({ profile, roles, permissions, clientContext }) => {
             setProfile(profile);
             setRoles(roles);
             setPermissions(permissions);
+            setClientContext(clientContext);
             setProfileLoaded(true);
           });
         }, 0);
@@ -98,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setRoles([]);
         setPermissions([]);
+        setClientContext(null);
         setProfileLoaded(true);
       }
       router.invalidate();
@@ -108,10 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session?.user) {
-        const { profile, roles, permissions } = await loadProfileAndRoles(data.session.user.id);
+        const { profile, roles, permissions, clientContext } = await loadProfileAndRoles(data.session.user.id);
         setProfile(profile);
         setRoles(roles);
         setPermissions(permissions);
+        setClientContext(clientContext);
         setProfileLoaded(true);
       } else {
         setProfileLoaded(true);
@@ -130,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     roles,
     permissions,
+    clientContext,
     can: (perm: string) => roles.includes("admin") || permissions.includes(perm),
     signOut: async () => {
       await qc.cancelQueries();
@@ -138,10 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     refresh: async () => {
       if (!session?.user) return;
-      const { profile, roles, permissions } = await loadProfileAndRoles(session.user.id);
+      const { profile, roles, permissions, clientContext } = await loadProfileAndRoles(session.user.id);
       setProfile(profile);
       setRoles(roles);
       setPermissions(permissions);
+      setClientContext(clientContext);
       setProfileLoaded(true);
     },
   };
