@@ -22,19 +22,14 @@ export function ClientTeamDashboard() {
   const awaitingReview = apps.filter((a) => a.stage === "shared_with_client").length;
   const openPositions = positions.filter((p) => p.status !== "closed").length;
 
-  const weekEnd = Date.now() + 7 * 86_400_000;
-  const interviewsThisWeek = apps.filter((a) => {
-    if (a.stage !== "interview_scheduled" && a.stage !== "rounds") return false;
-    const dt = (a as any).interview_at ? new Date((a as any).interview_at).getTime() : null;
-    return dt ? dt >= Date.now() && dt <= weekEnd : false;
-  }).length;
+  const interviewsScheduled = apps.filter((a) => a.stage === "interview_scheduled" || a.stage === "rounds").length;
 
   const firstName = (profile?.full_name || "").split(/\s+/)[0] || "there";
   const company = clientContext?.companyName || profile?.company_name || "your team";
 
   const kpis = [
     { label: "Awaiting your review", value: awaitingReview, icon: Inbox, tone: "from-primary/15 to-primary/5 text-primary", to: "/client/pipeline" as const },
-    { label: "Interviews this week", value: interviewsThisWeek, icon: CalendarCheck, tone: "from-info/15 to-info/5 text-info", to: "/client/interviews" as const },
+    { label: "Interviews scheduled", value: interviewsScheduled, icon: CalendarCheck, tone: "from-info/15 to-info/5 text-info", to: "/client/interviews" as const },
     { label: "Open positions", value: openPositions, icon: Briefcase, tone: "from-purple/15 to-purple/5 text-purple", to: "/client/positions" as const },
   ];
 
@@ -50,7 +45,7 @@ export function ClientTeamDashboard() {
           <p className="text-sm text-muted-foreground mt-2 max-w-xl">
             {loading
               ? "Loading your queue…"
-              : `${awaitingReview} candidate${awaitingReview === 1 ? "" : "s"} need your review, and ${interviewsThisWeek} interview${interviewsThisWeek === 1 ? "" : "s"} are scheduled this week.`}
+              : `${awaitingReview} candidate${awaitingReview === 1 ? "" : "s"} need your review, and ${interviewsScheduled} interview${interviewsScheduled === 1 ? "" : "s"} are in motion.`}
           </p>
         </div>
       </div>
