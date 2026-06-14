@@ -22,6 +22,47 @@ export type ClientCustomRole = {
   permissions: string[];
 };
 
+export type MyClientContext = {
+  clientId: string | null;
+  companyName: string | null;
+  isOwner: boolean;
+  isTeamMember: boolean;
+};
+
+export const getMyClientContext = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<MyClientContext> => {
+    const { data: owned } = await context.supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (owned) {
+      return {
+        clientId: owned.id,
+        companyName: owned.name ?? null,
+        isOwner: true,
+        isTeamMember: false,
+      };
+    }
+    const { data: member } = await context.supabase
+      .from("client_members")
+      .select("client_id, clients:clients(id, name)")
+      .eq("user_id", context.userId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (member && (member as any).clients) {
+      const c = (member as any).clients;
+      return {
+        clientId: c.id,
+        companyName: c.name ?? null,
+        isOwner: false,
+        isTeamMember: true,
+      };
+    }
+    return { clientId: null, companyName: null, isOwner: false, isTeamMember: false };
+  });
+
 export const CLIENT_PERMISSIONS = [
   "positions.view",
   "positions.create",
