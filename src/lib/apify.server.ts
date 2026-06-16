@@ -183,6 +183,44 @@ function pickStringArray(...vals: unknown[]): string[] {
 }
 
 // LinkedIn actor outputs vary; this tolerantly maps common shapes.
+const OTW_TEXT_RE = /#?open[\s-]?to[\s-]?work|open for opportunities|open for new opportunities|looking for (a )?new (role|opportunit|job)|actively (seeking|looking)|available for (hire|new role|opportunit)|seeking (new|next) (role|opportunit|job)|exploring new opportunit/i;
+
+const HIRING_TITLE_RE = /\b(recruiter|recruitment|talent acquisition|talent partner|talent sourc|technical sourc|sourcer|head of (talent|people|hr|recruit)|hr (manager|business partner|director|lead)|people ops|people operations|chief people|chro)\b/i;
+const HIRING_TEXT_RE = /#hiring\b|we['\u2019]?re hiring|we are hiring|now hiring|currently hiring|join (our|the) team|join us|apply (here|now|via)|dm (me )?(your )?(cv|resume)|send (me )?(your )?(cv|resume)|hiring (multiple|several|\w+ )?(engineer|developer|designer|manager|role|position)|open (roles?|positions?) (at|in)/i;
+
+function collectText(o: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const k of ["headline", "subTitle", "occupation", "about", "summary", "bio", "description", "jobTitle", "position"]) {
+    const v = o[k];
+    if (typeof v === "string") parts.push(v);
+  }
+  return parts.join(" \n ");
+}
+
+export function detectOpenToWork(o: Record<string, unknown>): boolean {
+  if (o.openToWork === true || o.isOpenToWork === true) return true;
+  if (typeof o.openToWorkStatus === "string" && o.openToWorkStatus.trim()) return true;
+  if (o.hasOpenToWorkPhotoFrame === true || o.openToWorkPhotoFrame === true) return true;
+  const frame = typeof o.profilePictureFrame === "string" ? o.profilePictureFrame.toLowerCase() : "";
+  if (frame.includes("opentowork") || frame.includes("open_to_work")) return true;
+  const status = typeof o.jobSeekerStatus === "string" ? o.jobSeekerStatus.toLowerCase()
+    : typeof o.jobSearchStatus === "string" ? o.jobSearchStatus.toLowerCase() : "";
+  if (status && (status.includes("active") || status.includes("open") || status.includes("looking"))) return true;
+  return OTW_TEXT_RE.test(collectText(o));
+}
+
+export function detectHiringProfile(o: Record<string, unknown>): boolean {
+  if (o.openToHiring === true || o.isHiring === true) return true;
+  if (typeof o.hiringStatus === "string" && o.hiringStatus.trim()) return true;
+  const frame = typeof o.profilePictureFrame === "string" ? o.profilePictureFrame.toLowerCase() : "";
+  if (frame.includes("hiring")) return true;
+  const headline = [o.headline, o.subTitle, o.occupation, o.jobTitle, o.position]
+    .filter((v) => typeof v === "string")
+    .join(" \n ");
+  if (HIRING_TITLE_RE.test(headline)) return true;
+  return HIRING_TEXT_RE.test(collectText(o));
+}
+
 export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
   if (!item || typeof item !== "object") return null;
   const o = item as Record<string, unknown>;
