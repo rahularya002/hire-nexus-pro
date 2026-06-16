@@ -10,6 +10,9 @@ import { AppShell } from "@/components/app-shell";
 import {
   createCandidate,
   listCandidates,
+  listApplications,
+  STAGE_LABEL,
+  type ApplicationRow,
   type CandidateRow,
 } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
@@ -24,6 +27,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/database")({
   component: () => <AppShell><Page /></AppShell>,
@@ -32,6 +37,7 @@ export const Route = createFileRoute("/database")({
 function Page() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<CandidateRow | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
   const qc = useQueryClient();
@@ -120,7 +126,11 @@ function Page() {
                 </td></tr>
               )}
               {filtered.map((c: CandidateRow) => (
-                <tr key={c.id} className="hover:bg-secondary/30 transition">
+                <tr
+                  key={c.id}
+                  className="hover:bg-secondary/30 transition cursor-pointer"
+                  onClick={() => setSelected(c)}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="size-8 rounded-full bg-gradient-to-br from-primary/40 to-purple/40 grid place-items-center text-[11px] font-semibold">
@@ -162,6 +172,117 @@ function Page() {
         onSubmit={(d) => create.mutate(d)}
         submitting={create.isPending}
       />
+      <CandidateDetailSheet
+        candidate={selected}
+        onClose={() => setSelected(null)}
+      />
+    </div>
+  );
+}
+
+function CandidateDetailSheet({
+  candidate,
+  onClose,
+}: {
+  candidate: CandidateRow | null;
+  onClose: () => void;
+}) {
+  const fetchApps = useServerFn(listApplications);
+  const { data: apps = [], isLoading } = useQuery({
+    queryKey: ["candidate-history", candidate?.id],
+    queryFn: () => fetchApps({ data: { candidateId: candidate!.id } }),
+    enabled: !!candidate,
+  });
+
+  return (
+    <Sheet open={!!candidate} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        {candidate && (
+          <>
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-3">
+                <div className="size-10 rounded-full bg-gradient-to-br from-primary/40 to-purple/40 grid place-items-center text-sm font-semibold">
+                  {initialsOf(candidate.name)}
+                </div>
+                <div className="leading-tight">
+                  <div>{candidate.name}</div>
+                  <div className="text-xs font-normal text-muted-foreground">
+                    {candidate.role ?? "—"}
+                  </div>
+                </div>
+              </SheetTitle>
+              <SheetDescription className="sr-only">Candidate details and history</SheetDescription>
+            </SheetHeader>
+
+            <Tabs defaultValue="profile" className="mt-5">
+              <TabsList>
+                <TabsTrigger value="profile">Profile</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+              <TabsContent value="profile" className="space-y-2 text-sm">
+                <Row k="Email" v={candidate.email} />
+                <Row k="Phone" v={candidate.phone} />
+                <Row k="Experience" v={candidate.experience} />
+                <Row k="Location" v={candidate.location} />
+                <Row k="Current company" v={candidate.current_company} />
+                <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
+                <Row k="Source" v={candidate.source} />
+                {candidate.linkedin_url && (
+                  <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
+                    className="text-primary text-xs underline">View LinkedIn profile</a>
+                )}
+              </TabsContent>
+              <TabsContent value="history">
+                {isLoading && <div className="text-xs text-muted-foreground py-6">Loading history…</div>}
+                {!isLoading && apps.length === 0 && (
+                  <div className="text-xs text-muted-foreground py-6">
+                    This candidate hasn't been shared with any client yet.
+                  </div>
+                )}
+                <ul className="divide-y divide-border">
+                  {apps.map((a: ApplicationRow) => {
+                    const rejected = a.stage === "client_rejected";
+                    return (
+                      <li key={a.id} className="py-3 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-sm font-medium">
+                            {a.position?.client?.name ?? "Client"}
+                          </div>
+                          <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            rejected ? "bg-destructive/15 text-destructive"
+                            : a.stage === "offered" ? "bg-emerald-500/15 text-emerald-600"
+                            : "bg-secondary text-secondary-foreground"
+                          }`}>
+                            {STAGE_LABEL[a.stage] ?? a.stage}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {a.position?.title ?? "—"}
+                          {a.match_score != null && <> · {a.match_score}% match</>}
+                        </div>
+                        {rejected && a.notes && (
+                          <div className="text-xs text-destructive/90 mt-1">
+                            <span className="font-medium">Reason:</span> {a.notes}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string | null | undefined }) {
+  return (
+    <div className="flex gap-3 py-1">
+      <span className="text-xs text-muted-foreground w-32 shrink-0">{k}</span>
+      <span className="text-xs">{v ?? "—"}</span>
     </div>
   );
 }
