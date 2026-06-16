@@ -29,6 +29,7 @@ export type SourcedMatchView = {
   matchScore: number | null;
   reasoning: string | null;
   rejected: boolean;
+  openToWork: boolean;
   origin: "internal" | "apify";
 };
 
