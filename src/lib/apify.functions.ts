@@ -401,7 +401,7 @@ export const rankSourcedMatches = createServerFn({ method: "POST" })
     const { data: rows, error } = await supabase
       .from("sourced_candidates")
       .select(
-        "id, name, headline, current_company, location, experience_years, skills",
+        "id, name, headline, current_company, location, experience_years, skills, open_to_work",
       )
       .in("id", data.sourcedCandidateIds);
     if (error) throw new Error(error.message);
@@ -419,6 +419,7 @@ export const rankSourcedMatches = createServerFn({ method: "POST" })
         location: r.location,
         experience_years: r.experience_years ? Number(r.experience_years) : null,
         skills: r.skills ?? [],
+        open_to_work: !!(r as { open_to_work?: boolean | null }).open_to_work,
       }));
       const results = await rankBatch(data.jdText, batch);
       allResults.push(...results);
