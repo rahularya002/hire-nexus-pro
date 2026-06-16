@@ -6,6 +6,7 @@ export type NotificationKind =
   | "interview_reminder"
   | "task_sla_breach"
   | "invoice_overdue"
+  | "invoice_due"
   | "system";
 
 export type NotificationRow = {
