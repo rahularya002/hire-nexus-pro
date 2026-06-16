@@ -350,6 +350,7 @@ export type RankInput = {
   location: string | null;
   experience_years: number | null;
   skills: string[];
+  open_to_work?: boolean;
 };
 
 export async function rankBatch(jdText: string, candidates: RankInput[]) {
@@ -359,7 +360,7 @@ export async function rankBatch(jdText: string, candidates: RankInput[]) {
   const candidateLines = candidates
     .map(
       (c) =>
-        `${c.id} | ${c.name} | ${c.headline ?? ""} @ ${c.current_company ?? "—"} | ${c.location ?? "—"} | ${c.experience_years ?? "?"}y | skills: ${c.skills.slice(0, 12).join(", ")}`,
+        `${c.id} | ${c.name} | ${c.headline ?? ""} @ ${c.current_company ?? "—"} | ${c.location ?? "—"} | ${c.experience_years ?? "?"}y | OTW:${c.open_to_work ? "yes" : "no"} | skills: ${c.skills.slice(0, 12).join(", ")}`,
     )
     .join("\n");
 
@@ -375,7 +376,7 @@ export async function rankBatch(jdText: string, candidates: RankInput[]) {
         {
           role: "system",
           content:
-            "You rank candidates against a job description. Score 0-100 honestly. Give 1-2 sentence reasoning per candidate. Return ONLY via the rank_candidates tool.",
+            "You rank candidates against a job description. Score 0-100 honestly. Candidates marked OTW:yes are explicitly open to work — give them a meaningful score boost. Give 1-2 sentence reasoning per candidate. Return ONLY via the rank_candidates tool.",
         },
         {
           role: "user",
