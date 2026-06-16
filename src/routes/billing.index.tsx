@@ -6,10 +6,14 @@ import { Receipt, Wallet, AlarmClock, ShieldCheck, TrendingUp, ChevronRight, Cal
 import { AppShell } from "@/components/app-shell";
 import {
   billingKpis, upcomingRuns, listInvoices, listJoiningsLedger, fmtINR, fmtDate,
+  listPendingJoinings, generateInvoiceForClient,
   type InvoiceStatus,
 } from "@/lib/billing.functions";
 import { listClients } from "@/lib/clients.functions";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/billing/")({
   component: () => <AppShell><Page /></AppShell>,
@@ -29,11 +33,23 @@ function Page() {
   const iFn = useServerFn(listInvoices);
   const lFn = useServerFn(listJoiningsLedger);
   const cFn = useServerFn(listClients);
+  const pFn = useServerFn(listPendingJoinings);
+  const genFn = useServerFn(generateInvoiceForClient);
+  const qc = useQueryClient();
   const kpis = useQuery({ queryKey: ["billing", "kpis"], queryFn: () => kFn() });
   const runs = useQuery({ queryKey: ["billing", "runs"], queryFn: () => rFn() });
   const invs = useQuery({ queryKey: ["billing", "invoices"], queryFn: () => iFn() });
   const ledger = useQuery({ queryKey: ["billing", "ledger"], queryFn: () => lFn() });
   const clients = useQuery({ queryKey: ["billing", "clients"], queryFn: () => cFn() });
+  const pending = useQuery({ queryKey: ["billing", "pending-joinings"], queryFn: () => pFn() });
+  const gen = useMutation({
+    mutationFn: (clientId: string) => genFn({ data: { clientId } }),
+    onSuccess: () => {
+      toast.success("Draft invoice generated.");
+      qc.invalidateQueries({ queryKey: ["billing"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [tab, setTab] = useState<"invoices" | "ledger">("invoices");
   const k = kpis.data;
 
@@ -59,6 +75,35 @@ function Page() {
         <Kpi icon={<CalendarClock className="size-4" />} label="Cycle accrual"     value={fmtINR(k?.forecastInr ?? 0)} />
         <Kpi icon={<ShieldCheck className="size-4" />} label="In replacement window" value={`${k?.replacementsActive ?? 0}`} />
       </div>
+
+      {(pending.data ?? []).length > 0 && (
+        <section className="rounded-xl border border-warning/40 bg-warning/5 overflow-hidden">
+          <div className="px-4 py-3 border-b border-warning/30 flex items-center gap-2">
+            <AlertCircle className="size-4 text-warning" />
+            <div className="text-sm font-semibold">Action needed · candidates joined, invoice pending</div>
+            <span className="text-[11px] text-muted-foreground">{(pending.data ?? []).length} placement{(pending.data ?? []).length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="divide-y divide-warning/20">
+            {(pending.data ?? []).map((p) => (
+              <div key={p.placement_id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{p.candidate_name} · {p.position_title}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {p.client_name} · joined {fmtDate(p.joining_date)} · suggested fee {fmtINR(p.suggested_fee_inr)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => gen.mutate(p.client_id)}
+                  disabled={gen.isPending}
+                  className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-60"
+                >
+                  Generate invoice
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-sm font-semibold mb-2.5">Clients</h2>
