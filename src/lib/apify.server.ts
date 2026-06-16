@@ -23,6 +23,8 @@ export type NormalizedProfile = {
   phone: string | null;
   profile_url: string | null;
   avatar_url: string | null;
+  open_to_work: boolean;
+  is_hiring: boolean;
   raw: Record<string, unknown>;
 };
 
