@@ -29,6 +29,7 @@ export type SourcedMatchView = {
   matchScore: number | null;
   reasoning: string | null;
   rejected: boolean;
+  openToWork: boolean;
   origin: "internal" | "apify";
 };
 
@@ -59,7 +60,7 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       const { data: matchRows, error: mErr } = await supabase
         .from("position_sourced_matches")
         .select(
-          "id, match_score, reasoning, rejected, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url)",
+          "id, match_score, reasoning, rejected, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url, open_to_work, is_hiring)",
         )
         .eq("position_id", data.positionId)
         .eq("rejected", false)
@@ -67,13 +68,15 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         .order("match_score", { ascending: false, nullsFirst: false })
         .limit(data.limit);
       if (mErr) throw new Error(mErr.message);
-      const matches: SourcedMatchView[] = (matchRows ?? []).map((m) => {
+      const matches: SourcedMatchView[] = (matchRows ?? [])
+        .map((m) => {
         const c = m.sourced_candidates as unknown as {
           id: string; source: string; name: string; headline: string | null;
           current_company: string | null; location: string | null;
           experience_years: number | string | null; skills: string[] | null;
           email: string | null; phone: string | null;
           profile_url: string | null; avatar_url: string | null;
+          open_to_work?: boolean | null; is_hiring?: boolean | null;
         };
         return {
           matchId: m.id,
@@ -92,8 +95,17 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           matchScore: m.match_score,
           reasoning: m.reasoning,
           rejected: m.rejected,
+          openToWork: !!c.open_to_work,
+          _isHiring: !!c.is_hiring,
           origin: "internal" as const,
-        };
+        } as SourcedMatchView & { _isHiring: boolean };
+      })
+      // Hide hiring/recruiter profiles from results
+      .filter((m) => !(m as unknown as { _isHiring: boolean })._isHiring)
+      // Sort: OTW first, then by score
+      .sort((a, b) => {
+        if (a.openToWork !== b.openToWork) return a.openToWork ? -1 : 1;
+        return (b.matchScore ?? -1) - (a.matchScore ?? -1);
       });
       return { matches };
     }
@@ -101,8 +113,9 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     let query = supabase
       .from("sourced_candidates")
       .select(
-        "id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url",
+        "id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url, open_to_work, is_hiring",
       )
+      .eq("is_hiring", false)
       .limit(data.limit);
 
     if (skills.length) {
@@ -139,10 +152,14 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           matchScore: null,
           reasoning: null,
           rejected: false,
+          openToWork: !!(c as { open_to_work?: boolean | null }).open_to_work,
           origin: "internal" as const,
         };
       })
-      .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
+      .sort((a, b) => {
+        if (a.openToWork !== b.openToWork) return a.openToWork ? -1 : 1;
+        return (b.matchScore ?? -1) - (a.matchScore ?? -1);
+      });
 
     return { matches };
   });
@@ -234,6 +251,14 @@ export const runApifyScout = createServerFn({ method: "POST" })
 
     // Upsert candidates
     const sourcedIds: string[] = [];
+    // Defense in depth: drop any profile flagged as hiring (recruiter, "we're hiring")
+    // unless they are also OTW themselves. Then sort OTW-first.
+    const filteredProfiles = allProfiles
+      .filter((p) => !(p.is_hiring && !p.open_to_work))
+      .sort((a, b) => Number(b.open_to_work) - Number(a.open_to_work));
+    // Replace allProfiles content downstream
+    allProfiles.length = 0;
+    allProfiles.push(...filteredProfiles);
     if (allProfiles.length) {
       const { data: upserted, error: upErr } = await supabase
         .from("sourced_candidates")
@@ -251,6 +276,8 @@ export const runApifyScout = createServerFn({ method: "POST" })
             phone: p.phone,
             profile_url: p.profile_url,
             avatar_url: p.avatar_url,
+            open_to_work: p.open_to_work,
+            is_hiring: p.is_hiring,
             raw: p.raw as unknown as Record<string, never>,
             last_seen_at: new Date().toISOString(),
           })) as never,
@@ -374,7 +401,7 @@ export const rankSourcedMatches = createServerFn({ method: "POST" })
     const { data: rows, error } = await supabase
       .from("sourced_candidates")
       .select(
-        "id, name, headline, current_company, location, experience_years, skills",
+        "id, name, headline, current_company, location, experience_years, skills, open_to_work",
       )
       .in("id", data.sourcedCandidateIds);
     if (error) throw new Error(error.message);
@@ -392,6 +419,7 @@ export const rankSourcedMatches = createServerFn({ method: "POST" })
         location: r.location,
         experience_years: r.experience_years ? Number(r.experience_years) : null,
         skills: r.skills ?? [],
+        open_to_work: !!(r as { open_to_work?: boolean | null }).open_to_work,
       }));
       const results = await rankBatch(data.jdText, batch);
       allResults.push(...results);

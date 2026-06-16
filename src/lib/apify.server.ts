@@ -23,6 +23,8 @@ export type NormalizedProfile = {
   phone: string | null;
   profile_url: string | null;
   avatar_url: string | null;
+  open_to_work: boolean;
+  is_hiring: boolean;
   raw: Record<string, unknown>;
 };
 
@@ -132,6 +134,8 @@ function normalizeGitHubApi(o: Record<string, unknown>): NormalizedProfile | nul
     phone: null,
     profile_url: pickString(o.html_url, o.url),
     avatar_url: pickString(o.avatar_url),
+    open_to_work: false,
+    is_hiring: false,
     raw: o,
   };
 }
@@ -179,6 +183,44 @@ function pickStringArray(...vals: unknown[]): string[] {
 }
 
 // LinkedIn actor outputs vary; this tolerantly maps common shapes.
+const OTW_TEXT_RE = /#?open[\s-]?to[\s-]?work|open for opportunities|open for new opportunities|looking for (a )?new (role|opportunit|job)|actively (seeking|looking)|available for (hire|new role|opportunit)|seeking (new|next) (role|opportunit|job)|exploring new opportunit/i;
+
+const HIRING_TITLE_RE = /\b(recruiter|recruitment|talent acquisition|talent partner|talent sourc|technical sourc|sourcer|head of (talent|people|hr|recruit)|hr (manager|business partner|director|lead)|people ops|people operations|chief people|chro)\b/i;
+const HIRING_TEXT_RE = /#hiring\b|we['\u2019]?re hiring|we are hiring|now hiring|currently hiring|join (our|the) team|join us|apply (here|now|via)|dm (me )?(your )?(cv|resume)|send (me )?(your )?(cv|resume)|hiring (multiple|several|\w+ )?(engineer|developer|designer|manager|role|position)|open (roles?|positions?) (at|in)/i;
+
+function collectText(o: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const k of ["headline", "subTitle", "occupation", "about", "summary", "bio", "description", "jobTitle", "position"]) {
+    const v = o[k];
+    if (typeof v === "string") parts.push(v);
+  }
+  return parts.join(" \n ");
+}
+
+export function detectOpenToWork(o: Record<string, unknown>): boolean {
+  if (o.openToWork === true || o.isOpenToWork === true) return true;
+  if (typeof o.openToWorkStatus === "string" && o.openToWorkStatus.trim()) return true;
+  if (o.hasOpenToWorkPhotoFrame === true || o.openToWorkPhotoFrame === true) return true;
+  const frame = typeof o.profilePictureFrame === "string" ? o.profilePictureFrame.toLowerCase() : "";
+  if (frame.includes("opentowork") || frame.includes("open_to_work")) return true;
+  const status = typeof o.jobSeekerStatus === "string" ? o.jobSeekerStatus.toLowerCase()
+    : typeof o.jobSearchStatus === "string" ? o.jobSearchStatus.toLowerCase() : "";
+  if (status && (status.includes("active") || status.includes("open") || status.includes("looking"))) return true;
+  return OTW_TEXT_RE.test(collectText(o));
+}
+
+export function detectHiringProfile(o: Record<string, unknown>): boolean {
+  if (o.openToHiring === true || o.isHiring === true) return true;
+  if (typeof o.hiringStatus === "string" && o.hiringStatus.trim()) return true;
+  const frame = typeof o.profilePictureFrame === "string" ? o.profilePictureFrame.toLowerCase() : "";
+  if (frame.includes("hiring")) return true;
+  const headline = [o.headline, o.subTitle, o.occupation, o.jobTitle, o.position]
+    .filter((v) => typeof v === "string")
+    .join(" \n ");
+  if (HIRING_TITLE_RE.test(headline)) return true;
+  return HIRING_TEXT_RE.test(collectText(o));
+}
+
 export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
   if (!item || typeof item !== "object") return null;
   const o = item as Record<string, unknown>;
@@ -189,15 +231,36 @@ export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
     [o.firstName, o.lastName].filter(Boolean).join(" "),
   );
   if (!id || !name) return null;
+  const openToWork = detectOpenToWork(o);
+  const isHiring = detectHiringProfile(o);
+  // Exclude recruiters / "we're hiring" posts entirely — unless the person is
+  // also open to work themselves (rare but legitimate).
+  if (isHiring && !openToWork) return null;
+
+  const firstExp = Array.isArray(o.experience) && o.experience.length
+    ? (o.experience[0] as Record<string, unknown>)
+    : null;
+
   return {
     source: "linkedin",
     source_profile_id: id,
     name,
-    headline: pickString(o.headline, o.subTitle, o.occupation),
+    headline: pickString(
+      o.headline,
+      o.subTitle,
+      o.occupation,
+      o.jobTitle,
+      o.position,
+      (o.currentPosition as Record<string, unknown> | undefined)?.title,
+      firstExp?.title,
+    ),
     current_company: pickString(
       o.companyName,
       (o.currentCompany as Record<string, unknown> | undefined)?.name,
       o.company,
+      (o.currentPosition as Record<string, unknown> | undefined)?.companyName,
+      firstExp?.companyName,
+      firstExp?.company,
     ),
     location: pickString(o.location, o.geoLocationName, o.addressWithCountry),
     experience_years: pickNumber(o.experienceYears, o.yearsOfExperience),
@@ -206,6 +269,8 @@ export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
     phone: pickString(o.phone, o.phoneNumber, o.mobile),
     profile_url: pickString(o.url, o.profileUrl, o.linkedinUrl),
     avatar_url: pickString(o.profilePicture, o.pictureUrl, o.avatar),
+    open_to_work: openToWork,
+    is_hiring: isHiring,
     raw: o,
   };
 }
@@ -229,6 +294,8 @@ export function normalizeGitHub(item: unknown): NormalizedProfile | null {
     phone: null,
     profile_url: pickString(o.htmlUrl, o.url, o.profileUrl),
     avatar_url: pickString(o.avatarUrl, o.avatar_url),
+    open_to_work: false,
+    is_hiring: false,
     raw: o,
   };
 }
@@ -283,6 +350,7 @@ export type RankInput = {
   location: string | null;
   experience_years: number | null;
   skills: string[];
+  open_to_work?: boolean;
 };
 
 export async function rankBatch(jdText: string, candidates: RankInput[]) {
@@ -292,7 +360,7 @@ export async function rankBatch(jdText: string, candidates: RankInput[]) {
   const candidateLines = candidates
     .map(
       (c) =>
-        `${c.id} | ${c.name} | ${c.headline ?? ""} @ ${c.current_company ?? "—"} | ${c.location ?? "—"} | ${c.experience_years ?? "?"}y | skills: ${c.skills.slice(0, 12).join(", ")}`,
+        `${c.id} | ${c.name} | ${c.headline ?? ""} @ ${c.current_company ?? "—"} | ${c.location ?? "—"} | ${c.experience_years ?? "?"}y | OTW:${c.open_to_work ? "yes" : "no"} | skills: ${c.skills.slice(0, 12).join(", ")}`,
     )
     .join("\n");
 
@@ -308,7 +376,7 @@ export async function rankBatch(jdText: string, candidates: RankInput[]) {
         {
           role: "system",
           content:
-            "You rank candidates against a job description. Score 0-100 honestly. Give 1-2 sentence reasoning per candidate. Return ONLY via the rank_candidates tool.",
+            "You rank candidates against a job description. Score 0-100 honestly. Candidates marked OTW:yes are explicitly open to work — give them a meaningful score boost. Give 1-2 sentence reasoning per candidate. Return ONLY via the rank_candidates tool.",
         },
         {
           role: "user",

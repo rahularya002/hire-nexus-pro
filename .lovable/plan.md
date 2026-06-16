@@ -1,72 +1,67 @@
-# Plan — Agency & Client UI polish + Joining-triggered billing notification
+## Goal
 
-Scope: UI/presentation changes only (no new roles, no workflow rewrites). Plus one backend hook: when a placement gets a `joining_date`, notify the agency owner/recruiter to raise the invoice. **Out of scope** (per your call): Activity, My Team, WhatsApp/SMS.
+Make the Apify scout return only people who are realistically hire-able:
+1. Prefer / prioritize "Open To Work" (OTW) profiles
+2. Hard-exclude profiles that are clearly hiring/recruiting (talent acquisition, "we're hiring", founders posting roles, recruiters)
+3. For non-OTW profiles that still pass the hiring filter, always surface current organization, experience, headline, location — never blank
 
----
+This is a normalization + filter layer on top of the existing scout pipeline. No DB schema changes required (we reuse `sourced_candidates.raw`), but we add two cached flags into the row so the UI can badge OTW vs passive.
 
-## 1. Agency side — UI clarifications
+## What to build
 
-### 1a. Dashboard label + scoping
-- Add a clear header on the agency dashboard ("Recruiter Dashboard" for recruiter role, "Manager Dashboard" for owner/manager) using existing role from `user_roles`.
-- "Active Clients" tile for recruiters → count only clients where they're the assigned recruiter on at least one position (filter via `positions.recruiter_id = auth.uid()`). Managers keep the agency-wide count.
-- "Open Positions" tile detail drawer: replace the "Assign recruiter" CTA with a read-only panel showing **company name, JD link/download, title, location, experience, CTC band, JD summary**. Keep "Assign recruiter" as a small secondary action visible only to managers.
+### 1. Detect signals in `src/lib/apify.server.ts`
 
-### 1b. Position detail page
-- Reorder the right rail so JD + company info are above the recruiter-assignment block.
-- Add a "View JD" button that opens the uploaded JD doc from `documents` (already stored).
+Add two pure helpers used during normalization:
 
-### 1c. Candidate database — history tab
-- On each candidate profile, add a **History** tab listing every client they were shared with: client name, position, current stage (shortlisted/rejected/etc.), and rejection reason if present. Pure read from `applications` joined to `positions`/`clients`.
+- `detectOpenToWork(o)` — true when any of the following is present in the LinkedIn raw object:
+  - `openToWork === true`, `isOpenToWork === true`, `openToWorkStatus` truthy
+  - badge / frame fields: `profilePictureFrame`, `openToWorkPhotoFrame`, `hasOpenToWorkPhotoFrame`
+  - headline / about contains `#opentowork`, `open to work`, `open for opportunities`, `looking for new opportunities`, `actively seeking`, `available for hire`, `seeking new role`
+  - `jobSeekerStatus` / `jobSearchStatus` indicating active
 
----
+- `detectHiringProfile(o)` — true when:
+  - headline / current title matches `/recruiter|talent acquisition|talent partner|technical recruiter|sourcer|head of (talent|people)|hr (manager|business partner)|people ops/i`
+  - headline / about contains `#hiring`, `we're hiring`, `we are hiring`, `now hiring`, `dm me your cv`, `apply here`, `join our team`, `hiring [a-z ]+ engineers?`
+  - `openToHiring === true`, `hiringStatus` truthy, OTW-style "Hiring" frame fields
 
-## 2. Client side — UI clarifications
+### 2. Update `normalizeLinkedIn`
 
-### 2a. Upload JD helper
-- Add a small "How to format for best auto-fill" expandable hint above the upload zone with 4–5 bullets (clear title, responsibilities section, must-have skills, experience range, location). No logic change.
+- Compute `openToWork` and `isHiring` flags.
+- Return `null` (filter out) when `isHiring === true` AND `openToWork === false` — these are recruiters/founders posting roles, not candidates. (If a person is both OTW and posting jobs, keep them — rare but legitimate.)
+- Even when `openToWork === false`, keep filling `headline`, `current_company`, `location`, `experience_years` from the raw object (current logic already does this — verify, and add fallbacks: `o.jobTitle`, `o.position`, `o.currentPosition?.title`, `(o.experience?.[0])?.companyName`, `(o.experience?.[0])?.title`).
+- Attach the flags onto the normalized profile so they round-trip into storage via the `raw` blob, plus expose them on `NormalizedProfile` itself.
 
-### 2b. My Requirements → Position detail
-- Under each candidate card show a compact meta row: **Current Org · Experience · Salary · Location · Match %**. All fields exist on `candidates` / `applications.match_score`.
-- Replace "Message on LinkedIn" with **"View LinkedIn profile"** → opens `candidates.linkedin_url` in a new tab.
+### 3. Persist the flags
 
-### 2c. Shortlist & Schedule Interview actions
-- "Shortlist" → confirm toast + flip `applications.stage` to `client_shortlist`. Button switches to a green "Shortlisted" pill afterward.
-- "Schedule Interview" → opens a modal (reuse existing interview scheduling dialog) with interviewer picker + date/time. Writes to `interviews` and flips stage to `interview_scheduled`.
+Add two columns to `sourced_candidates`:
+- `open_to_work boolean default false`
+- `is_hiring boolean default false`
 
-### 2d. Pipeline rework
-- Pipeline landing page = list of the client's open positions (title, # candidates, # in interview, # offered). Click → drills into the current per-candidate kanban for that position.
+(Migration with backfill = false; new inserts populate the flags. Existing rows can stay false — they'll refresh on next scout.)
 
-### 2e. Dummy data for Reports / Invoices / Placements
-- Seed a small set of demo rows (3–5 each) scoped to the demo client so these pages aren't empty. Will be inserted via a data-only insert (not a migration).
+Update the upsert in `runApifyScout` to write both flags.
 
----
+### 4. Ranking / surfacing
 
-## 3. Billing — notify agency on joining
+In `runApifyScout`, after normalizing:
+- Drop any profile where `isHiring && !openToWork` (defense in depth — already filtered at normalize but covers shapes we missed).
+- Sort `allProfiles` so OTW comes first, then the rest. Limit still respected.
+- Pass the OTW flag into the AI rank prompt as an extra signal ("openToWork: true/false") so it can weight it.
 
-This replaces the manual "raise invoice" trigger.
+### 5. UI surfacing (small)
 
-- Add a trigger on `public.placements`: when `joining_date` transitions from NULL → a date, insert a notification for the agency owner(s) of that client's agency with type `invoice_due`, payload `{ placement_id, candidate_name, client_name, joining_date, suggested_fee_inr }`.
-- The existing notification bell will pick it up automatically.
-- On the agency Billing page, add an **"Action needed"** strip at the top listing these pending joinings with a one-click **"Generate invoice"** button → calls existing `generateInvoiceForClient` server fn.
-- No auto-invoice creation — agency confirms.
+In `SourcedMatchView` add `openToWork: boolean`. In `src/routes/client.positions.$positionId.tsx` (and any other consumer of `searchSourcedCandidates`), show a small "Open to work" badge next to the name when true. Ensure the meta row (current org / experience / location / match %) renders "—" instead of hiding when a field is null — keep the row always visible.
 
----
+## Technical notes
+
+- LinkedIn Apify actors are inconsistent — that's why both raw-field checks and text-pattern checks are needed.
+- Filtering happens at normalize time (before upsert) so we don't pollute `sourced_candidates` with recruiters going forward.
+- A subsequent "refresh" of an existing recruiter row won't auto-delete it; if needed we can add a maintenance fn later. Out of scope for this change.
+- No change to GitHub path — GitHub doesn't have OTW/hiring semantics in the same way.
 
 ## Files touched
 
-**Agency UI**: `src/routes/dashboard.tsx`, `src/routes/positions.$positionId.tsx`, `src/routes/database.tsx` (+ candidate detail), `src/components/app-shell.tsx` (dashboard header).
-
-**Client UI**: `src/routes/client.upload.tsx`, `src/routes/client.positions.$positionId.tsx`, `src/routes/client.pipeline.tsx`, `src/components/scout-results.tsx` (LinkedIn link).
-
-**Billing**: new DB trigger via migration, `src/routes/billing.index.tsx` (action strip), `src/lib/billing.functions.ts` (list pending joinings server fn).
-
-**Dummy data**: insert tool call seeding `placements`, `invoices`, applications for the demo client.
-
----
-
-## Out of scope (confirmed)
-- Activity page, My Team page — leave as-is.
-- WhatsApp/SMS interview reminders — defer.
-- No new roles or permission model changes; only role-aware UI tweaks using existing `user_roles`.
-
-Approve and I'll implement in this order: (1) billing trigger + notification strip, (2) agency UI tweaks, (3) client UI tweaks, (4) dummy data.
+- `supabase/migrations/<new>.sql` — add `open_to_work`, `is_hiring` columns
+- `src/lib/apify.server.ts` — detectors, normalize update, type update
+- `src/lib/apify.functions.ts` — upsert new columns, sort OTW-first, expose flag in `SourcedMatchView`, pass into rank
+- `src/routes/client.positions.$positionId.tsx` — "Open to work" badge + always-visible meta row

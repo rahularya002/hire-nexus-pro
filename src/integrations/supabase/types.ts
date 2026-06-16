@@ -1455,9 +1455,11 @@ export type Database = {
           experience_years: number | null
           headline: string | null
           id: string
+          is_hiring: boolean
           last_seen_at: string
           location: string | null
           name: string
+          open_to_work: boolean
           phone: string | null
           profile_url: string | null
           raw: Json
@@ -1475,9 +1477,11 @@ export type Database = {
           experience_years?: number | null
           headline?: string | null
           id?: string
+          is_hiring?: boolean
           last_seen_at?: string
           location?: string | null
           name: string
+          open_to_work?: boolean
           phone?: string | null
           profile_url?: string | null
           raw?: Json
@@ -1495,9 +1499,11 @@ export type Database = {
           experience_years?: number | null
           headline?: string | null
           id?: string
+          is_hiring?: boolean
           last_seen_at?: string
           location?: string | null
           name?: string
+          open_to_work?: boolean
           phone?: string | null
           profile_url?: string | null
           raw?: Json
