@@ -1,62 +1,72 @@
-## Goal
+# Plan — Agency & Client UI polish + Joining-triggered billing notification
 
-Three independent fixes to the client portal:
-1. Team members (invited via `client_members`) currently see "Client" or their own name in the sidebar/header because their `profiles.company_name` is null. Show the parent client's company name instead.
-2. Replace the client Overview dashboard with a leaner, task-focused view when the signed-in user is a team member (not the client owner).
-3. In the Scout/Sourcing results, hide candidates with `matchScore < 50` so only above-50% AI matches surface.
+Scope: UI/presentation changes only (no new roles, no workflow rewrites). Plus one backend hook: when a placement gets a `joining_date`, notify the agency owner/recruiter to raise the invoice. **Out of scope** (per your call): Activity, My Team, WhatsApp/SMS.
 
 ---
 
-## 1. Team members see their company
+## 1. Agency side — UI clarifications
 
-**Server**: extend `useAuth` data with the resolved company name.
+### 1a. Dashboard label + scoping
+- Add a clear header on the agency dashboard ("Recruiter Dashboard" for recruiter role, "Manager Dashboard" for owner/manager) using existing role from `user_roles`.
+- "Active Clients" tile for recruiters → count only clients where they're the assigned recruiter on at least one position (filter via `positions.recruiter_id = auth.uid()`). Managers keep the agency-wide count.
+- "Open Positions" tile detail drawer: replace the "Assign recruiter" CTA with a read-only panel showing **company name, JD link/download, title, location, experience, CTC band, JD summary**. Keep "Assign recruiter" as a small secondary action visible only to managers.
 
-- `src/lib/client-team.functions.ts`: add a new lightweight serverFn `getMyClientContext` (auth-required) that returns `{ clientId, companyName, isOwner, isTeamMember }`.
-  - If the user owns a `clients` row → `{ isOwner: true, companyName: clients.company_name, clientId }`.
-  - Else if the user has an active `client_members` row → join to that client → `{ isTeamMember: true, companyName: <client>.company_name, clientId }`.
-  - Else `{}` (agency users, super admins).
+### 1b. Position detail page
+- Reorder the right rail so JD + company info are above the recruiter-assignment block.
+- Add a "View JD" button that opens the uploaded JD doc from `documents` (already stored).
 
-**Client wiring**:
-- `src/lib/auth/auth-context.tsx`: after profile/roles load, also fetch `getMyClientContext` for `client`-role users; expose `clientContext` on the auth context (`{ companyName, isOwner, isTeamMember, clientId } | null`).
-- `src/components/client-shell.tsx`: replace the four `profile?.company_name` reads with `clientContext?.companyName ?? profile?.company_name ?? ...` so team members see the parent client's company in:
-  - sidebar header brand
-  - mobile header logo block
-  - user dropdown trigger subtitle
-  - dropdown label subtitle
-  - `companyInitials` derived from the resolved name
+### 1c. Candidate database — history tab
+- On each candidate profile, add a **History** tab listing every client they were shared with: client name, position, current stage (shortlisted/rejected/etc.), and rejection reason if present. Pure read from `applications` joined to `positions`/`clients`.
 
 ---
 
-## 2. Distinct dashboard for team members
+## 2. Client side — UI clarifications
 
-- New file `src/components/client-team-dashboard.tsx`: a smaller dashboard focused on what an individual teammate actually does:
-  - Greeting using their `full_name`, with the parent company name as the secondary line.
-  - Three small KPI tiles scoped to apps they should act on: "Awaiting your review" (stage `shared_with_client`), "Interviews this week", "Open positions".
-  - "Recent positions" list (top 5) linking to `/client/positions/$id`.
-  - Quick links: Pipeline, Interviews, Messages. No "Upload JD" CTA (positions creation stays an owner action by default).
-- `src/routes/client.index.tsx`: branch on `clientContext.isTeamMember` (or `!isOwner` when both client-role). Owner keeps the existing `<Dashboard />`. Team members render `<ClientTeamDashboard />`.
-- Reuse the existing `listPositions` / `listApplications` server fns — they already RLS-scope to the user's client.
+### 2a. Upload JD helper
+- Add a small "How to format for best auto-fill" expandable hint above the upload zone with 4–5 bullets (clear title, responsibilities section, must-have skills, experience range, location). No logic change.
 
-Out of scope: a permission-driven nav trim. Sidebar entries stay the same; only the landing page changes.
+### 2b. My Requirements → Position detail
+- Under each candidate card show a compact meta row: **Current Org · Experience · Salary · Location · Match %**. All fields exist on `candidates` / `applications.match_score`.
+- Replace "Message on LinkedIn" with **"View LinkedIn profile"** → opens `candidates.linkedin_url` in a new tab.
 
----
+### 2c. Shortlist & Schedule Interview actions
+- "Shortlist" → confirm toast + flip `applications.stage` to `client_shortlist`. Button switches to a green "Shortlisted" pill afterward.
+- "Schedule Interview" → opens a modal (reuse existing interview scheduling dialog) with interviewer picker + date/time. Writes to `interviews` and flips stage to `interview_scheduled`.
 
-## 3. Scout: show only ≥50% AI matches
+### 2d. Pipeline rework
+- Pipeline landing page = list of the client's open positions (title, # candidates, # in interview, # offered). Click → drills into the current per-candidate kanban for that position.
 
-- `src/lib/apify.functions.ts` (`listSourcedMatches` handler, ~line 60):
-  - Add `.gte("match_score", 50)` to the position-scoped query so anything below 50 (and `NULL`) is filtered server-side.
-  - In the fallback skills/title branch (lines 100-146) candidates have `matchScore: null` (no AI score yet) — leave that branch as-is so it still shows raw matches when no scoring exists, OR drop it from the result. **Default**: keep the fallback branch (it only runs when there are no scored matches at all); if you'd rather hide unscored entirely, say so and we'll drop it too.
-- No UI change in `src/components/scout-results.tsx` — it just renders what it receives.
+### 2e. Dummy data for Reports / Invoices / Placements
+- Seed a small set of demo rows (3–5 each) scoped to the demo client so these pages aren't empty. Will be inserted via a data-only insert (not a migration).
 
 ---
 
-## Technical notes
+## 3. Billing — notify agency on joining
 
-- `getMyClientContext` is read-only and cheap; cache it via React Query keyed by `["my-client-context", userId]` inside the auth provider's load step, similar to the existing `loadProfileAndRoles` call.
-- Company-name fallback chain stays: `clientContext.companyName → profile.company_name → profile.full_name → "Client Portal"`, so existing single-user clients are unaffected.
-- The `≥ 50` threshold is applied server-side so pagination/limit behaves correctly; no need to over-fetch and filter client-side.
+This replaces the manual "raise invoice" trigger.
 
-## Out of scope
-- Changing what permissions team members have (still governed by `client_role_permissions`).
-- Editing the apify scoring prompt itself or persisted scores.
-- Agency-side scout views.
+- Add a trigger on `public.placements`: when `joining_date` transitions from NULL → a date, insert a notification for the agency owner(s) of that client's agency with type `invoice_due`, payload `{ placement_id, candidate_name, client_name, joining_date, suggested_fee_inr }`.
+- The existing notification bell will pick it up automatically.
+- On the agency Billing page, add an **"Action needed"** strip at the top listing these pending joinings with a one-click **"Generate invoice"** button → calls existing `generateInvoiceForClient` server fn.
+- No auto-invoice creation — agency confirms.
+
+---
+
+## Files touched
+
+**Agency UI**: `src/routes/dashboard.tsx`, `src/routes/positions.$positionId.tsx`, `src/routes/database.tsx` (+ candidate detail), `src/components/app-shell.tsx` (dashboard header).
+
+**Client UI**: `src/routes/client.upload.tsx`, `src/routes/client.positions.$positionId.tsx`, `src/routes/client.pipeline.tsx`, `src/components/scout-results.tsx` (LinkedIn link).
+
+**Billing**: new DB trigger via migration, `src/routes/billing.index.tsx` (action strip), `src/lib/billing.functions.ts` (list pending joinings server fn).
+
+**Dummy data**: insert tool call seeding `placements`, `invoices`, applications for the demo client.
+
+---
+
+## Out of scope (confirmed)
+- Activity page, My Team page — leave as-is.
+- WhatsApp/SMS interview reminders — defer.
+- No new roles or permission model changes; only role-aware UI tweaks using existing `user_roles`.
+
+Approve and I'll implement in this order: (1) billing trigger + notification strip, (2) agency UI tweaks, (3) client UI tweaks, (4) dummy data.
