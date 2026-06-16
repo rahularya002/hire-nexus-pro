@@ -51,6 +51,7 @@ function Cockpit() {
   const [taskTab, setTaskTab] = useState<TaskState>("Pending");
   const { roles, profile, user } = useAuth();
   const isAdmin = roles.includes("admin");
+  const dashboardLabel = isAdmin ? "Manager Dashboard" : "Recruiter Dashboard";
 
   const fetchPositions = useServerFn(listPositions);
   const fetchClients = useServerFn(listClients);
@@ -104,9 +105,9 @@ function Cockpit() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mission Control · {dateLabel}</div>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{dashboardLabel} · {dateLabel}</div>
           <h1 className="text-3xl font-semibold tracking-tight mt-1">{greeting}, {firstName}</h1>
-          <p className="text-sm text-muted-foreground mt-1">Your operational cockpit — every active mandate, task and conversation in one place.</p>
+          <p className="text-sm text-muted-foreground mt-1">{isAdmin ? "Full agency view — every active mandate, recruiter and client." : "Your active mandates, tasks and conversations in one place."}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Status switcher */}
