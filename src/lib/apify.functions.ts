@@ -251,6 +251,14 @@ export const runApifyScout = createServerFn({ method: "POST" })
 
     // Upsert candidates
     const sourcedIds: string[] = [];
+    // Defense in depth: drop any profile flagged as hiring (recruiter, "we're hiring")
+    // unless they are also OTW themselves. Then sort OTW-first.
+    const filteredProfiles = allProfiles
+      .filter((p) => !(p.is_hiring && !p.open_to_work))
+      .sort((a, b) => Number(b.open_to_work) - Number(a.open_to_work));
+    // Replace allProfiles content downstream
+    allProfiles.length = 0;
+    allProfiles.push(...filteredProfiles);
     if (allProfiles.length) {
       const { data: upserted, error: upErr } = await supabase
         .from("sourced_candidates")
