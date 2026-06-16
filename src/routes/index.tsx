@@ -66,7 +66,7 @@ function LandingPage() {
             to="/login"
             className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 px-7 py-3.5 text-sm font-semibold text-black shadow-[0_12px_30px_-10px_rgba(255,120,40,0.8)] transition hover:brightness-110 sm:w-auto"
           >
-            Enter Workspace
+            I&apos;m agency
             <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
           </Link>
           <Link
