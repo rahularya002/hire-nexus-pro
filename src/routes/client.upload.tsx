@@ -216,11 +216,7 @@ function Page() {
 
       {/* JD format guide */}
       <div className="rounded-xl border border-border bg-card">
-        <button
-          type="button"
-          onClick={() => setGuideOpen((o) => !o)}
-          className="w-full flex items-center gap-3 p-4 text-left"
-        >
+        <div className="flex items-center gap-3 p-4">
           <div className="size-9 rounded-lg bg-primary/10 grid place-items-center text-primary">
             <FileText className="size-4" />
           </div>
@@ -228,24 +224,14 @@ function Page() {
             <div className="text-sm font-medium">How to format your JD for best auto-fill</div>
             <div className="text-xs text-muted-foreground">A clear structure helps us extract details automatically.</div>
           </div>
-          <ChevronDown className={cn("size-4 text-muted-foreground transition", guideOpen && "rotate-180")} />
-        </button>
-        {guideOpen && (
-          <div className="px-4 pb-4 -mt-1">
-            <div className="rounded-lg bg-secondary/40 border border-border p-4 text-sm">
-              <p className="text-muted-foreground mb-3">Include these sections, each on its own line with a label and colon:</p>
-              <ul className="space-y-1.5 text-foreground/90">
-                <li><span className="font-medium">Job title:</span> Senior React Engineer</li>
-                <li><span className="font-medium">Location:</span> Bengaluru / Remote</li>
-                <li><span className="font-medium">Experience:</span> 5–8 years</li>
-                <li><span className="font-medium">Salary:</span> ₹30–45 LPA (or $120k–150k)</li>
-                <li><span className="font-medium">Openings:</span> 2</li>
-                <li><span className="font-medium">Skills:</span> React, TypeScript, Node.js, AWS</li>
-                <li><span className="font-medium">Job description:</span> responsibilities, must-haves, nice-to-haves</li>
-              </ul>
-            </div>
-          </div>
-        )}
+          <a
+            href="/sample-jd.txt"
+            download
+            className="text-xs font-medium text-primary hover:underline shrink-0"
+          >
+            Download sample JD
+          </a>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

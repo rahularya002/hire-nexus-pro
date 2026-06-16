@@ -1,0 +1,29 @@
+Job Title: Senior React Engineer
+Location: Bengaluru / Remote
+Experience: 5–8 years
+Salary: ₹30–45 LPA
+Openings: 2
+Skills: React, TypeScript, Node.js, AWS
+
+About the Role:
+We are looking for a Senior React Engineer to join our growing product team. You will own the frontend architecture, mentor junior engineers, and collaborate closely with design and product to ship high-quality features.
+
+Responsibilities:
+- Lead frontend development for our core SaaS platform
+- Architect scalable component systems and design patterns
+- Mentor junior developers and conduct code reviews
+- Collaborate with backend teams on API design
+- Optimize application performance and user experience
+
+Must-Haves:
+- 5+ years of experience with React and modern JavaScript
+- Strong TypeScript proficiency
+- Experience with state management (Redux, Zustand, or similar)
+- Familiarity with testing frameworks (Jest, React Testing Library)
+- Good understanding of CI/CD pipelines
+
+Nice-to-Haves:
+- Experience with Next.js or similar SSR frameworks
+- Familiarity with Node.js backend development
+- Knowledge of cloud services (AWS, GCP, or Azure)
+- Open source contributions
