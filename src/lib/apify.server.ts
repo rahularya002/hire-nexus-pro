@@ -134,6 +134,8 @@ function normalizeGitHubApi(o: Record<string, unknown>): NormalizedProfile | nul
     phone: null,
     profile_url: pickString(o.html_url, o.url),
     avatar_url: pickString(o.avatar_url),
+    open_to_work: false,
+    is_hiring: false,
     raw: o,
   };
 }
@@ -191,15 +193,36 @@ export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
     [o.firstName, o.lastName].filter(Boolean).join(" "),
   );
   if (!id || !name) return null;
+  const openToWork = detectOpenToWork(o);
+  const isHiring = detectHiringProfile(o);
+  // Exclude recruiters / "we're hiring" posts entirely — unless the person is
+  // also open to work themselves (rare but legitimate).
+  if (isHiring && !openToWork) return null;
+
+  const firstExp = Array.isArray(o.experience) && o.experience.length
+    ? (o.experience[0] as Record<string, unknown>)
+    : null;
+
   return {
     source: "linkedin",
     source_profile_id: id,
     name,
-    headline: pickString(o.headline, o.subTitle, o.occupation),
+    headline: pickString(
+      o.headline,
+      o.subTitle,
+      o.occupation,
+      o.jobTitle,
+      o.position,
+      (o.currentPosition as Record<string, unknown> | undefined)?.title,
+      firstExp?.title,
+    ),
     current_company: pickString(
       o.companyName,
       (o.currentCompany as Record<string, unknown> | undefined)?.name,
       o.company,
+      (o.currentPosition as Record<string, unknown> | undefined)?.companyName,
+      firstExp?.companyName,
+      firstExp?.company,
     ),
     location: pickString(o.location, o.geoLocationName, o.addressWithCountry),
     experience_years: pickNumber(o.experienceYears, o.yearsOfExperience),
@@ -208,6 +231,8 @@ export function normalizeLinkedIn(item: unknown): NormalizedProfile | null {
     phone: pickString(o.phone, o.phoneNumber, o.mobile),
     profile_url: pickString(o.url, o.profileUrl, o.linkedinUrl),
     avatar_url: pickString(o.profilePicture, o.pictureUrl, o.avatar),
+    open_to_work: openToWork,
+    is_hiring: isHiring,
     raw: o,
   };
 }
@@ -231,6 +256,8 @@ export function normalizeGitHub(item: unknown): NormalizedProfile | null {
     phone: null,
     profile_url: pickString(o.htmlUrl, o.url, o.profileUrl),
     avatar_url: pickString(o.avatarUrl, o.avatar_url),
+    open_to_work: false,
+    is_hiring: false,
     raw: o,
   };
 }
