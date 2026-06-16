@@ -53,12 +53,17 @@ export function ScoutResults({
                   <div className="font-medium truncate">{c.name}</div>
                   {c.matchScore != null && <ScoreBadge score={c.matchScore} />}
                   <SourceBadge source={c.source} origin={c.origin} />
+                  {c.openToWork && (
+                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+                      Open to work
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  {c.headline && <span className="inline-flex items-center gap-1"><Briefcase className="size-3" /> {c.headline}</span>}
-                  {c.currentCompany && <span className="inline-flex items-center gap-1"><Building2 className="size-3" /> {c.currentCompany}</span>}
-                  {c.location && <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {c.location}</span>}
-                  {c.experienceYears != null && <span>{c.experienceYears}y</span>}
+                  <span className="inline-flex items-center gap-1"><Briefcase className="size-3" /> {c.headline ?? "—"}</span>
+                  <span className="inline-flex items-center gap-1"><Building2 className="size-3" /> {c.currentCompany ?? "—"}</span>
+                  <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {c.location ?? "—"}</span>
+                  <span>{c.experienceYears != null ? `${c.experienceYears}y` : "—"}</span>
                 </div>
                 {c.reasoning && <p className="text-xs text-foreground/80 mt-2">{c.reasoning}</p>}
                 <div className="mt-2 flex flex-wrap gap-1.5">
