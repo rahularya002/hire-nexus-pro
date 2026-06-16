@@ -1758,6 +1758,7 @@ export type Database = {
         | "task_sla_breach"
         | "invoice_overdue"
         | "system"
+        | "invoice_due"
       position_priority: "high" | "medium" | "low"
       position_status: "open" | "in_progress" | "interviews" | "closed"
       profile_status: "pending" | "active" | "rejected"
@@ -1979,6 +1980,7 @@ export const Constants = {
         "task_sla_breach",
         "invoice_overdue",
         "system",
+        "invoice_due",
       ],
       position_priority: ["high", "medium", "low"],
       position_status: ["open", "in_progress", "interviews", "closed"],
