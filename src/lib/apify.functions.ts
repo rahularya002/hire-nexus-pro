@@ -268,6 +268,8 @@ export const runApifyScout = createServerFn({ method: "POST" })
             phone: p.phone,
             profile_url: p.profile_url,
             avatar_url: p.avatar_url,
+            open_to_work: p.open_to_work,
+            is_hiring: p.is_hiring,
             raw: p.raw as unknown as Record<string, never>,
             last_seen_at: new Date().toISOString(),
           })) as never,
