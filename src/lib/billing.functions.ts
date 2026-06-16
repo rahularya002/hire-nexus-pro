@@ -554,6 +554,65 @@ export const listJoiningsLedger = createServerFn({ method: "GET" })
     });
   });
 
+/* ---------- Pending joinings (need invoice) ---------- */
+
+export type PendingJoiningRow = {
+  placement_id: string;
+  candidate_name: string;
+  client_id: string;
+  client_name: string;
+  position_title: string;
+  joining_date: string | null;
+  ctc_inr: number;
+  suggested_fee_inr: number;
+};
+
+export const listPendingJoinings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("placements")
+      .select("id, joining_date, ctc_inr, client_id, invoice_status, client:clients(id,name), candidate:candidates(name), position:positions(title)")
+      .not("joining_date", "is", null)
+      .in("invoice_status", ["draft"])
+      .order("joining_date", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    // Load terms map once
+    const { data: termsRows } = await supabase.from("client_billing_terms").select("*");
+    const termsByClient = new Map<string, BillingTerms>();
+    for (const r of (termsRows ?? []) as Record<string, unknown>[]) {
+      termsByClient.set(String(r.client_id), termsRowToTyped(r));
+    }
+
+    type Row = {
+      id: string;
+      joining_date: string | null;
+      ctc_inr: number | null;
+      client_id: string;
+      client: { id: string; name: string } | { id: string; name: string }[] | null;
+      candidate: { name: string } | { name: string }[] | null;
+      position: { title: string } | { title: string }[] | null;
+    };
+    return ((data ?? []) as Row[]).map((p) => {
+      const cli = Array.isArray(p.client) ? p.client[0] : p.client;
+      const ctc = Number(p.ctc_inr ?? 0);
+      const terms = termsByClient.get(p.client_id) ?? defaultTermsFor(p.client_id);
+      const fee = feeForCtc(terms, ctc);
+      return {
+        placement_id: p.id,
+        candidate_name: pickName(p.candidate as RawPlacement["candidate"]),
+        client_id: p.client_id,
+        client_name: cli?.name ?? "—",
+        position_title: pickTitle(p.position as RawPlacement["position"]),
+        joining_date: p.joining_date,
+        ctc_inr: ctc,
+        suggested_fee_inr: fee.amountInr,
+      } satisfies PendingJoiningRow;
+    });
+  });
+
 /* ---------- Client portal reports ---------- */
 
 export const getClientReports = createServerFn({ method: "GET" })

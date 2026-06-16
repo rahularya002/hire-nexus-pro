@@ -1,92 +1,99 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Workflow } from "lucide-react";
+import { Workflow, ChevronRight, Briefcase } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
   CLIENT_VISIBLE_STAGES,
-  STAGE_LABEL,
   listApplications,
-  type ApplicationStage,
 } from "@/lib/candidates.functions";
-import { initialsOf } from "@/lib/display";
+import { listPositions } from "@/lib/positions.functions";
 
 export const Route = createFileRoute("/client/pipeline")({
   component: () => <ClientShell><Page /></ClientShell>,
 });
 
-const COLUMNS: { id: ApplicationStage; label: string; tone: string }[] = [
-  { id: "shared_with_client",   label: "Shared",      tone: "border-warning/40 bg-warning/5" },
-  { id: "client_shortlist",     label: "Shortlisted", tone: "border-purple/40 bg-purple/5" },
-  { id: "interview_scheduled",  label: "Interview",   tone: "border-info/40 bg-info/5" },
-  { id: "rounds",               label: "Rounds",      tone: "border-info/40 bg-info/5" },
-  { id: "offered",              label: "Offered",     tone: "border-success/40 bg-success/5" },
-  { id: "closed",               label: "Closed",      tone: "border-destructive/30 bg-destructive/5" },
-];
-
 function Page() {
   const fetchApps = useServerFn(listApplications);
+  const fetchPositions = useServerFn(listPositions);
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["client-applications"],
     queryFn: () => fetchApps({ data: { stages: CLIENT_VISIBLE_STAGES } }),
   });
+  const { data: positions = [] } = useQuery({
+    queryKey: ["client-positions"],
+    queryFn: () => fetchPositions({ data: {} }),
+  });
+
+  const open = positions.filter((p) => p.status !== "closed");
+  const byPos = new Map<string, typeof apps>();
+  for (const a of apps) {
+    const arr = byPos.get(a.position_id) ?? [];
+    arr.push(a);
+    byPos.set(a.position_id, arr);
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Live candidate flow</div>
+        <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Open roles · candidate flow</div>
         <h1 className="text-2xl font-semibold tracking-tight mt-1 inline-flex items-center gap-2">
           <Workflow className="size-5 text-primary" /> Pipeline
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isLoading ? "\u00A0" : `${apps.length} candidates shared with you, grouped by stage.`}
+          {isLoading ? "\u00A0" : `${open.length} open position${open.length === 1 ? "" : "s"} · click a role to see candidates by stage.`}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {COLUMNS.map((col) => {
-          const items = apps.filter((a) => a.stage === col.id);
+      <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+        {open.length === 0 && (
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">No open positions yet.</div>
+        )}
+        {open.map((p) => {
+          const items = byPos.get(p.id) ?? [];
+          const shared = items.filter((a) => a.stage === "shared_with_client").length;
+          const shortlisted = items.filter((a) => a.stage === "client_shortlist").length;
+          const interview = items.filter((a) => a.stage === "interview_scheduled" || a.stage === "rounds").length;
+          const offered = items.filter((a) => a.stage === "offered").length;
           return (
-            <div key={col.id} className={`rounded-xl border ${col.tone} p-3`}>
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="text-xs font-semibold uppercase tracking-wider">{col.label}</div>
-                <span className="text-[11px] text-muted-foreground tabular-nums">{items.length}</span>
+            <Link
+              key={p.id}
+              to="/client/positions/$positionId"
+              params={{ positionId: p.id }}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition"
+            >
+              <div className="size-9 rounded-lg bg-primary/10 grid place-items-center text-primary shrink-0">
+                <Briefcase className="size-4" />
               </div>
-              <div className="space-y-2">
-                {items.length === 0 && (
-                  <div className="rounded-md border border-dashed border-border bg-card/40 px-3 py-6 text-center text-[11px] text-muted-foreground">
-                    Nothing here yet
-                  </div>
-                )}
-                {items.map((a) => (
-                  <Link
-                    key={a.id}
-                    to="/client/positions/$positionId"
-                    params={{ positionId: a.position_id }}
-                    className="block rounded-lg border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition"
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="size-8 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-[11px] font-semibold shrink-0">
-                        {initialsOf(a.candidate?.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium truncate">{a.candidate?.name ?? "Unknown"}</div>
-                        <div className="text-[11px] text-muted-foreground truncate">{a.candidate?.role ?? "—"}</div>
-                      </div>
-                      {a.match_score != null && (
-                        <div className="text-[11px] font-semibold text-success tabular-nums">{a.match_score}%</div>
-                      )}
-                    </div>
-                    <div className="mt-2 text-[10px] text-muted-foreground truncate">
-                      {a.position?.title} · {STAGE_LABEL[a.stage]}
-                    </div>
-                  </Link>
-                ))}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{p.title}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{p.location ?? "—"} · {items.length} candidate{items.length === 1 ? "" : "s"}</div>
               </div>
-            </div>
+              <div className="hidden sm:flex items-center gap-2 text-[11px]">
+                <Pill tone="warning" label="Shared" value={shared} />
+                <Pill tone="purple" label="Shortlist" value={shortlisted} />
+                <Pill tone="info" label="Interview" value={interview} />
+                <Pill tone="success" label="Offered" value={offered} />
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+            </Link>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function Pill({ tone, label, value }: { tone: "warning" | "purple" | "info" | "success"; label: string; value: number }) {
+  const toneCls =
+    tone === "warning" ? "bg-warning/15 text-warning"
+    : tone === "purple" ? "bg-purple/15 text-purple"
+    : tone === "info" ? "bg-info/15 text-info"
+    : "bg-success/15 text-success";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${toneCls}`}>
+      <span className="font-semibold tabular-nums">{value}</span>
+      <span className="opacity-80">{label}</span>
+    </span>
   );
 }

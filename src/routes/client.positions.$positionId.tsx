@@ -239,10 +239,15 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
               {c.notes && <p className="text-sm text-foreground/80 mt-3 leading-relaxed">{c.notes}</p>}
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                <Mini label="Current" value={c.current_company ?? "—"} />
+                <Mini label="Current Org" value={c.current_company ?? "—"} />
+                <Mini label="Experience" value={c.experience ?? "—"} />
+                <Mini label="Salary" value={formatSalary((c as unknown as { salary?: string | null }).salary ?? null) || "—"} />
+                <Mini label="Location" value={c.location ?? "—"} />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
                 <Mini label="Email" value={c.email ?? "—"} />
                 <Mini label="Phone" value={c.phone ?? "—"} />
-                <Mini label="Location" value={c.location ?? "—"} />
+                {a.match_score != null && <Mini label="Match" value={`${a.match_score}%`} />}
               </div>
 
               <div className="flex flex-wrap gap-1.5 mt-4">
@@ -257,7 +262,7 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                 )}
                 {c.linkedin_url && (
                   <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-sm font-medium hover:bg-[#0A66C2]/20">
-                    <Linkedin className="size-4" /> Message on LinkedIn
+                    <Linkedin className="size-4" /> View LinkedIn profile
                   </a>
                 )}
                 <div className="flex-1" />
