@@ -202,10 +202,7 @@ function Page() {
                       >
                         <Icon className="size-3" />
                       </span>
-                      <div className={cn(
-                        "ml-3 rounded-xl border border-border bg-card p-4 hover:bg-secondary/40 transition group ring-1 ring-transparent hover:ring-1",
-                        "hover:" + meta.ring,
-                      )}>
+                      <div className="ml-3 rounded-xl border border-border bg-card p-4 hover:bg-secondary/40 transition">
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
