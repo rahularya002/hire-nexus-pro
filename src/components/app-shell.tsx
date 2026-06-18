@@ -105,7 +105,6 @@ const recruiterNav: NavSection[] = [
   {
     label: "Team",
     items: [
-      { to: "/team",     label: "Recruiter Roster", icon: UsersRound, perm: "team.view" },
       { to: "/activity", label: "My Activity",      icon: Activity },
     ],
   },
