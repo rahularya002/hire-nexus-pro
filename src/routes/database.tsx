@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   listApplications,
   STAGE_LABEL,
   type ApplicationRow,
+  type ApplicationStage,
   type CandidateRow,
 } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
@@ -217,7 +218,14 @@ function CandidateDetailSheet({
             <Tabs defaultValue="profile" className="mt-5">
               <TabsList>
                 <TabsTrigger value="profile">Profile</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
+                <TabsTrigger value="history" className="gap-1.5">
+                  History
+                  {apps.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                      {apps.length}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="profile" className="space-y-2 text-sm">
                 <Row k="Email" v={candidate.email} />
@@ -232,42 +240,23 @@ function CandidateDetailSheet({
                     className="text-primary text-xs underline">View LinkedIn profile</a>
                 )}
               </TabsContent>
-              <TabsContent value="history">
+              <TabsContent value="history" className="space-y-3">
                 {isLoading && <div className="text-xs text-muted-foreground py-6">Loading history…</div>}
                 {!isLoading && apps.length === 0 && (
-                  <div className="text-xs text-muted-foreground py-6">
-                    This candidate hasn't been shared with any client yet.
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                    <HistoryIcon className="size-6 text-muted-foreground mx-auto mb-2" />
+                    <div className="text-xs text-muted-foreground">
+                      This candidate hasn't been shared with any client yet.
+                    </div>
                   </div>
                 )}
-                <ul className="divide-y divide-border">
-                  {apps.map((a: ApplicationRow) => {
-                    const rejected = a.stage === "client_rejected";
-                    return (
-                      <li key={a.id} className="py-3 space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="text-sm font-medium">
-                            {a.position?.client?.name ?? "Client"}
-                          </div>
-                          <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            rejected ? "bg-destructive/15 text-destructive"
-                            : a.stage === "offered" ? "bg-emerald-500/15 text-emerald-600"
-                            : "bg-secondary text-secondary-foreground"
-                          }`}>
-                            {STAGE_LABEL[a.stage] ?? a.stage}
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {a.position?.title ?? "—"}
-                          {a.match_score != null && <> · {a.match_score}% match</>}
-                        </div>
-                        {rejected && a.notes && (
-                          <div className="text-xs text-destructive/90 mt-1">
-                            <span className="font-medium">Reason:</span> {a.notes}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
+                {!isLoading && apps.length > 0 && <HistorySummary apps={apps} />}
+                <ul className="space-y-2">
+                  {[...apps]
+                    .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
+                    .map((a: ApplicationRow) => (
+                      <HistoryItem key={a.id} app={a} />
+                    ))}
                 </ul>
               </TabsContent>
             </Tabs>
@@ -284,6 +273,70 @@ function Row({ k, v }: { k: string; v: string | null | undefined }) {
       <span className="text-xs text-muted-foreground w-32 shrink-0">{k}</span>
       <span className="text-xs">{v ?? "—"}</span>
     </div>
+  );
+}
+
+const STAGE_META: Partial<Record<ApplicationStage, { tone: string; Icon: typeof Send }>> = {
+  shared_with_client:   { tone: "bg-info/15 text-info",          Icon: Send },
+  client_shortlist:     { tone: "bg-emerald-500/15 text-emerald-600", Icon: CheckCircle2 },
+  client_rejected:      { tone: "bg-destructive/15 text-destructive", Icon: XCircle },
+  interview_scheduled:  { tone: "bg-purple/15 text-purple",      Icon: CalendarClock },
+  rounds:               { tone: "bg-purple/15 text-purple",      Icon: CalendarClock },
+  offered:              { tone: "bg-emerald-500/15 text-emerald-600", Icon: Trophy },
+  closed:               { tone: "bg-secondary text-secondary-foreground", Icon: CheckCircle2 },
+};
+
+function HistorySummary({ apps }: { apps: ApplicationRow[] }) {
+  const clients = new Set(apps.map((a) => a.position?.client?.id).filter(Boolean));
+  const shortlisted = apps.filter((a) => ["client_shortlist", "interview_scheduled", "rounds", "offered"].includes(a.stage)).length;
+  const rejected = apps.filter((a) => a.stage === "client_rejected").length;
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <Stat label="Clients" value={clients.size} />
+      <Stat label="Shortlisted" value={shortlisted} tone="text-emerald-600" />
+      <Stat label="Rejected" value={rejected} tone="text-destructive" />
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2">
+      <div className={`text-lg font-semibold leading-none ${tone ?? ""}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{label}</div>
+    </div>
+  );
+}
+
+function HistoryItem({ app: a }: { app: ApplicationRow }) {
+  const meta = STAGE_META[a.stage] ?? { tone: "bg-secondary text-secondary-foreground", Icon: Send };
+  const Icon = meta.Icon;
+  const dot = a.position?.client?.color ?? "hsl(var(--muted-foreground))";
+  const rejected = a.stage === "client_rejected";
+  const date = new Date(a.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <li className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="size-2 rounded-full shrink-0" style={{ background: dot }} />
+          <div className="text-sm font-medium truncate">{a.position?.client?.name ?? "Client"}</div>
+        </div>
+        <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${meta.tone}`}>
+          <Icon className="size-3" />
+          {STAGE_LABEL[a.stage] ?? a.stage}
+        </span>
+      </div>
+      <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+        <span className="truncate">{a.position?.title ?? "—"}</span>
+        {a.match_score != null && <span>· {a.match_score}% match</span>}
+        <span>· {date}</span>
+      </div>
+      {rejected && a.notes && (
+        <div className="text-xs text-destructive/90 rounded-md bg-destructive/5 border border-destructive/15 px-2 py-1.5">
+          <span className="font-medium">Reason:</span> {a.notes}
+        </div>
+      )}
+    </li>
   );
 }
 
