@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -217,7 +217,14 @@ function CandidateDetailSheet({
             <Tabs defaultValue="profile" className="mt-5">
               <TabsList>
                 <TabsTrigger value="profile">Profile</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
+                <TabsTrigger value="history" className="gap-1.5">
+                  History
+                  {apps.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                      {apps.length}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="profile" className="space-y-2 text-sm">
                 <Row k="Email" v={candidate.email} />
@@ -232,42 +239,23 @@ function CandidateDetailSheet({
                     className="text-primary text-xs underline">View LinkedIn profile</a>
                 )}
               </TabsContent>
-              <TabsContent value="history">
+              <TabsContent value="history" className="space-y-3">
                 {isLoading && <div className="text-xs text-muted-foreground py-6">Loading history…</div>}
                 {!isLoading && apps.length === 0 && (
-                  <div className="text-xs text-muted-foreground py-6">
-                    This candidate hasn't been shared with any client yet.
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                    <HistoryIcon className="size-6 text-muted-foreground mx-auto mb-2" />
+                    <div className="text-xs text-muted-foreground">
+                      This candidate hasn't been shared with any client yet.
+                    </div>
                   </div>
                 )}
-                <ul className="divide-y divide-border">
-                  {apps.map((a: ApplicationRow) => {
-                    const rejected = a.stage === "client_rejected";
-                    return (
-                      <li key={a.id} className="py-3 space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="text-sm font-medium">
-                            {a.position?.client?.name ?? "Client"}
-                          </div>
-                          <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            rejected ? "bg-destructive/15 text-destructive"
-                            : a.stage === "offered" ? "bg-emerald-500/15 text-emerald-600"
-                            : "bg-secondary text-secondary-foreground"
-                          }`}>
-                            {STAGE_LABEL[a.stage] ?? a.stage}
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {a.position?.title ?? "—"}
-                          {a.match_score != null && <> · {a.match_score}% match</>}
-                        </div>
-                        {rejected && a.notes && (
-                          <div className="text-xs text-destructive/90 mt-1">
-                            <span className="font-medium">Reason:</span> {a.notes}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
+                {!isLoading && apps.length > 0 && <HistorySummary apps={apps} />}
+                <ul className="space-y-2">
+                  {[...apps]
+                    .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
+                    .map((a: ApplicationRow) => (
+                      <HistoryItem key={a.id} app={a} />
+                    ))}
                 </ul>
               </TabsContent>
             </Tabs>
