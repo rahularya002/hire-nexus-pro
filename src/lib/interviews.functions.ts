@@ -335,7 +335,16 @@ export const requestClientInterview = createServerFn({ method: "POST" })
       .object({
         application_id: z.string().uuid(),
         scheduled_at: z.string().datetime(),
-        rounds: z.number().int().min(1).max(10),
+        rounds: z
+          .array(
+            z.object({
+              kind: z.enum(INTERVIEW_KINDS),
+              custom_kind_label: z.string().max(120).nullable().optional(),
+              interviewer: z.string().max(200).nullable().optional(),
+            }),
+          )
+          .min(1)
+          .max(10),
       })
       .parse(d),
   )
@@ -351,12 +360,14 @@ export const requestClientInterview = createServerFn({ method: "POST" })
     if (!app) throw new Error("Application not found or not accessible");
 
     // Admin-client writes (clients aren't in the staff insert RLS for interviews)
-    const rows = Array.from({ length: data.rounds }, (_, i) => ({
+    const rows = data.rounds.map((r, i) => ({
       application_id: app.id,
       candidate_id: app.candidate_id,
       position_id: app.position_id,
       round_index: i + 1,
-      kind: "hr_screen" as const,
+      kind: r.kind,
+      custom_kind_label: r.custom_kind_label?.trim() || null,
+      interviewer: r.interviewer?.trim() || null,
       conducted_by: "client" as const,
       scheduled_at: i === 0 ? data.scheduled_at : null,
       status: "pending_confirmation" as const,
@@ -383,7 +394,7 @@ export const requestClientInterview = createServerFn({ method: "POST" })
 
     await logActivity(supabaseAdmin, userId, {
       kind: "interview_scheduled",
-      title: `Client requested interview · ${data.rounds} round${data.rounds > 1 ? "s" : ""}`,
+      title: `Client requested interview · ${data.rounds.length} round${data.rounds.length > 1 ? "s" : ""}`,
       detail: app.position?.title ?? null,
       application_id: app.id,
       candidate_id: app.candidate_id,

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -26,7 +26,13 @@ import {
   listApplications, updateApplicationStage,
   CLIENT_VISIBLE_STAGES, STAGE_LABEL, type ApplicationRow, type ApplicationStage,
 } from "@/lib/candidates.functions";
-import { requestClientInterview } from "@/lib/interviews.functions";
+import {
+  requestClientInterview,
+  INTERVIEW_KINDS,
+  INTERVIEW_KIND_LABEL,
+  type InterviewKind,
+} from "@/lib/interviews.functions";
+import { listClientMembers } from "@/lib/client-team.functions";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -94,7 +100,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: number }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[] }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
@@ -329,31 +335,63 @@ function ScheduleInterviewDialog({
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
-  onSubmit: (scheduled_at: string, rounds: number) => void;
+  onSubmit: (scheduled_at: string, rounds: RoundDraft[]) => void;
   pending: boolean;
 }) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("10:00");
-  const [rounds, setRounds] = useState("1");
+  const [rounds, setRounds] = useState<RoundDraft[]>([
+    { kind: "hr_screen", custom_kind_label: null, interviewer: "" },
+  ]);
+  const fetchMembers = useServerFn(listClientMembers);
+  const membersQ = useQuery({
+    queryKey: ["client-members"],
+    queryFn: () => fetchMembers(),
+    enabled: !!app,
+  });
+  const memberOptions = (membersQ.data?.members ?? [])
+    .filter((m) => m.status === "active")
+    .map((m) => m.full_name || m.invited_email || "Unnamed")
+    .filter((v): v is string => !!v);
 
   useEffect(() => {
-    if (app) { setDate(undefined); setTime("10:00"); setRounds("1"); }
+    if (app) {
+      setDate(undefined);
+      setTime("10:00");
+      setRounds([{ kind: "hr_screen", custom_kind_label: null, interviewer: "" }]);
+    }
   }, [app?.id]);
 
   const canSubmit = !!date && !pending;
 
+  const defaultKindFor = (i: number): InterviewKind =>
+    i === 0 ? "hr_screen" : i === 1 ? "technical" : i === 2 ? "hiring_manager" : "technical";
+
+  const addRound = () => {
+    setRounds((rs) =>
+      rs.length >= 10
+        ? rs
+        : [...rs, { kind: defaultKindFor(rs.length), custom_kind_label: null, interviewer: "" }],
+    );
+  };
+  const removeRound = (idx: number) =>
+    setRounds((rs) => (rs.length <= 1 ? rs : rs.filter((_, i) => i !== idx)));
+  const updateRound = (idx: number, patch: Partial<RoundDraft>) =>
+    setRounds((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+
   return (
     <Dialog open={!!app} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Schedule interview</DialogTitle>
           <DialogDescription>
-            {app?.candidate?.name ? `For ${app.candidate.name}.` : null} Pick a preferred date, time and number of rounds. The recruiter will confirm.
+            {app?.candidate?.name ? `For ${app.candidate.name}.` : null} Pick a preferred date and time for round 1, then configure the rounds and interviewers. The recruiter will confirm.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <Label>Preferred date</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label>Preferred date</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("justify-start text-left font-normal", !date && "text-muted-foreground")}>
@@ -372,32 +410,37 @@ function ScheduleInterviewDialog({
                 />
               </PopoverContent>
             </Popover>
+            </div>
+            <div className="grid gap-2">
+              <Label>Preferred time</Label>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
           </div>
+
           <div className="grid gap-2">
-            <Label>Preferred time</Label>
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <Label>Number of rounds</Label>
-            <div className="flex flex-wrap gap-2">
-              {[1,2,3,4,5].map(n => {
-                const active = rounds === String(n);
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setRounds(String(n))}
-                    className={cn(
-                      "h-9 px-4 rounded-full border text-sm font-medium transition-colors",
-                      active
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card border-border hover:bg-secondary",
-                    )}
-                  >
-                    {n} round{n>1?"s":""}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <Label>Rounds ({rounds.length})</Label>
+              <button
+                type="button"
+                onClick={addRound}
+                disabled={rounds.length >= 10}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium border border-border hover:bg-secondary disabled:opacity-50"
+              >
+                <Plus className="size-3.5" /> Add round
+              </button>
+            </div>
+            <div className="grid gap-2">
+              {rounds.map((r, i) => (
+                <RoundRow
+                  key={i}
+                  index={i}
+                  round={r}
+                  memberOptions={memberOptions}
+                  canRemove={rounds.length > 1}
+                  onChange={(patch) => updateRound(i, patch)}
+                  onRemove={() => removeRound(i)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -410,7 +453,15 @@ function ScheduleInterviewDialog({
               const [h, mi] = time.split(":").map(Number);
               const dt = new Date(date);
               dt.setHours(h || 10, mi || 0, 0, 0);
-              onSubmit(dt.toISOString(), Number(rounds));
+              const cleaned: RoundDraft[] = rounds.map((r) => ({
+                kind: r.kind,
+                custom_kind_label:
+                  r.kind === "case_study" || r.custom_kind_label
+                    ? r.custom_kind_label?.trim() || null
+                    : null,
+                interviewer: r.interviewer?.trim() || null,
+              }));
+              onSubmit(dt.toISOString(), cleaned);
             }}
           >
             {pending ? "Requesting…" : "Request interview"}
@@ -418,6 +469,103 @@ function ScheduleInterviewDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type RoundDraft = {
+  kind: InterviewKind;
+  custom_kind_label: string | null;
+  interviewer: string | null;
+};
+
+const OTHER_INTERVIEWER = "__other__";
+
+function RoundRow({
+  index, round, memberOptions, canRemove, onChange, onRemove,
+}: {
+  index: number;
+  round: RoundDraft;
+  memberOptions: string[];
+  canRemove: boolean;
+  onChange: (patch: Partial<RoundDraft>) => void;
+  onRemove: () => void;
+}) {
+  const interviewerValue = round.interviewer ?? "";
+  const isKnown = interviewerValue !== "" && memberOptions.includes(interviewerValue);
+  const [other, setOther] = useState(!isKnown && interviewerValue !== "");
+  const selectValue = other || (!isKnown && interviewerValue !== "")
+    ? OTHER_INTERVIEWER
+    : interviewerValue || "__none__";
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-muted-foreground">Round {index + 1}</div>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="size-3.5" /> Remove
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-1">
+          <Label className="text-[11px] text-muted-foreground">Type</Label>
+          <Select value={round.kind} onValueChange={(v) => onChange({ kind: v as InterviewKind })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {INTERVIEW_KINDS.map((k) => (
+                <SelectItem key={k} value={k}>{INTERVIEW_KIND_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-[11px] text-muted-foreground">Interviewer</Label>
+          <Select
+            value={selectValue}
+            onValueChange={(v) => {
+              if (v === OTHER_INTERVIEWER) {
+                setOther(true);
+                onChange({ interviewer: "" });
+              } else if (v === "__none__") {
+                setOther(false);
+                onChange({ interviewer: null });
+              } else {
+                setOther(false);
+                onChange({ interviewer: v });
+              }
+            }}
+          >
+            <SelectTrigger><SelectValue placeholder="Assign…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Unassigned</SelectItem>
+              {memberOptions.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
+              <SelectItem value={OTHER_INTERVIEWER}>Someone else…</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {other && (
+        <Input
+          placeholder="Interviewer name"
+          value={round.interviewer ?? ""}
+          onChange={(e) => onChange({ interviewer: e.target.value })}
+        />
+      )}
+      {round.kind === "case_study" && (
+        <Input
+          placeholder="Optional: custom label (e.g. Take-home assignment)"
+          value={round.custom_kind_label ?? ""}
+          onChange={(e) => onChange({ custom_kind_label: e.target.value })}
+        />
+      )}
+    </div>
   );
 }
 
