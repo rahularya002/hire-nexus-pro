@@ -13,6 +13,7 @@ import {
   listApplications,
   STAGE_LABEL,
   type ApplicationRow,
+  type ApplicationStage,
   type CandidateRow,
 } from "@/lib/candidates.functions";
 import { initialsOf } from "@/lib/display";
