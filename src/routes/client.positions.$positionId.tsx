@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -26,7 +26,13 @@ import {
   listApplications, updateApplicationStage,
   CLIENT_VISIBLE_STAGES, STAGE_LABEL, type ApplicationRow, type ApplicationStage,
 } from "@/lib/candidates.functions";
-import { requestClientInterview } from "@/lib/interviews.functions";
+import {
+  requestClientInterview,
+  INTERVIEW_KINDS,
+  INTERVIEW_KIND_LABEL,
+  type InterviewKind,
+} from "@/lib/interviews.functions";
+import { listClientMembers } from "@/lib/client-team.functions";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -94,7 +100,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: number }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[] }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
