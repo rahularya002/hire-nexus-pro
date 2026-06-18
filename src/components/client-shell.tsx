@@ -16,20 +16,48 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-const nav = [
-  { to: "/client",            label: "Overview",        icon: LayoutDashboard, exact: true },
-  { to: "/client/positions",  label: "My Requirements", icon: Briefcase },
-  { to: "/client/pipeline",   label: "Pipeline",        icon: Workflow },
-  { to: "/client/interviews", label: "Interviews",      icon: CalendarClock },
-  { to: "/client/placements", label: "Placements",      icon: CheckCircle2 },
-  { to: "/client/invoices",   label: "Invoices",        icon: ReceiptText },
-  { to: "/client/reports",    label: "Reports",         icon: BarChart3 },
-  { to: "/client/activity",   label: "Activity",        icon: ActivityIcon },
-  { to: "/client/team",       label: "Account Team",    icon: UsersRound },
-  { to: "/client/my-team",    label: "My Team",         icon: Users2 },
-  { to: "/client/messages",   label: "Messages",        icon: MessageSquare },
-  { to: "/client/upload",     label: "Upload JD",       icon: Upload },
-  { to: "/client/documents",  label: "Documents",       icon: FileText },
+type ClientNavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
+type ClientNavSection = { label: string; items: ClientNavItem[] };
+
+const navSections: ClientNavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/client",          label: "Overview", icon: LayoutDashboard, exact: true },
+      { to: "/client/activity", label: "Activity", icon: ActivityIcon },
+      { to: "/client/messages", label: "Messages", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Hiring Pipeline",
+    items: [
+      { to: "/client/positions",  label: "My Requirements", icon: Briefcase },
+      { to: "/client/pipeline",   label: "Pipeline",        icon: Workflow },
+      { to: "/client/interviews", label: "Interviews",      icon: CalendarClock },
+      { to: "/client/placements", label: "Placements",      icon: CheckCircle2 },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { to: "/client/invoices", label: "Invoices", icon: ReceiptText },
+      { to: "/client/reports",  label: "Reports",  icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Team",
+    items: [
+      { to: "/client/team",    label: "Account Team", icon: UsersRound },
+      { to: "/client/my-team", label: "My Team",      icon: Users2 },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      { to: "/client/upload",    label: "Upload JD", icon: Upload },
+      { to: "/client/documents", label: "Documents", icon: FileText },
+    ],
+  },
 ];
 
 // Map an agency route path to a human-readable page name.
@@ -113,20 +141,37 @@ function ClientShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          <div className="px-2 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</div>
-          {nav.map((item) => {
-            const active = pathname === item.to || (!item.exact && pathname.startsWith(item.to + "/"));
-            const Icon = item.icon;
-            return (
-              <Link key={item.to} to={item.to}
-                className={cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm transition",
-                  active ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60")}>
-                <Icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {navSections.map((section, idx) => (
+            <div key={section.label} className={cn(idx > 0 && "mt-5")}>
+              <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                {section.label}
+              </div>
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = item.exact
+                    ? pathname === item.to
+                    : pathname === item.to || pathname.startsWith(item.to + "/");
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {canSwitchToAgency && (
