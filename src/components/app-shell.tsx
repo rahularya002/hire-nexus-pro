@@ -64,6 +64,12 @@ const agencyNav: NavSection[] = [
     ],
   },
   {
+    label: "Sourcing",
+    items: [
+      { to: "/sourcing", label: "Scouting & Posting", icon: Sparkles },
+    ],
+  },
+  {
     label: "Talent & Clients",
     items: [
       { to: "/database",      label: "Candidate DB", icon: Database },
@@ -100,6 +106,7 @@ const recruiterNav: NavSection[] = [
     label: "Talent",
     items: [
       { to: "/database", label: "Candidate DB", icon: Database, perm: "candidates.view" },
+      { to: "/sourcing", label: "Sourcing",     icon: Sparkles, perm: "candidates.view" },
     ],
   },
   {
@@ -222,8 +229,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-muted-foreground mt-1">
               Auto-source matched candidates for any open role.
             </p>
-            <Link to="/scout" className="mt-3 w-full inline-flex items-center justify-center text-xs font-medium bg-primary text-primary-foreground rounded-md py-1.5 hover:bg-primary/90 transition">
-              Try Scout
+            <Link to="/sourcing" className="mt-3 w-full inline-flex items-center justify-center text-xs font-medium bg-primary text-primary-foreground rounded-md py-1.5 hover:bg-primary/90 transition">
+              Open Sourcing
             </Link>
           </div>
         </div>
