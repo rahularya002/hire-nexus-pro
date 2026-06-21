@@ -42,6 +42,7 @@ import { Route as SuperadminSupportRouteImport } from './routes/superadmin.suppo
 import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
 import { Route as SuperadminSettingsRouteImport } from './routes/superadmin.settings'
 import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.revenue'
+import { Route as PostingNewRouteImport } from './routes/posting.new'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
@@ -234,6 +235,11 @@ const SuperadminRevenueRoute = SuperadminRevenueRouteImport.update({
   path: '/revenue',
   getParentRoute: () => SuperadminRoute,
 } as any)
+const PostingNewRoute = PostingNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => PostingRoute,
+} as any)
 const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   id: '/$positionId',
   path: '/$positionId',
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -467,6 +474,7 @@ export interface FileRoutesByTo {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -529,6 +537,7 @@ export interface FileRoutesById {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -592,6 +601,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -649,6 +659,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -710,6 +721,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -1007,6 +1019,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminRevenueRouteImport
       parentRoute: typeof SuperadminRoute
     }
+    '/posting/new': {
+      id: '/posting/new'
+      path: '/new'
+      fullPath: '/posting/new'
+      preLoaderRoute: typeof PostingNewRouteImport
+      parentRoute: typeof PostingRoute
+    }
     '/positions/$positionId': {
       id: '/positions/$positionId'
       path: '/$positionId'
@@ -1232,10 +1251,12 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
 )
 
 interface PostingRouteChildren {
+  PostingNewRoute: typeof PostingNewRoute
   PostingIndexRoute: typeof PostingIndexRoute
 }
 
 const PostingRouteChildren: PostingRouteChildren = {
+  PostingNewRoute: PostingNewRoute,
   PostingIndexRoute: PostingIndexRoute,
 }
 
