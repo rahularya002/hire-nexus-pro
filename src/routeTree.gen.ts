@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SuperadminRouteImport } from './routes/superadmin'
+import { Route as SourcingRouteImport } from './routes/sourcing'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScoutRouteImport } from './routes/scout'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PostingRouteImport } from './routes/posting'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingRouteImport } from './routes/pending'
@@ -31,6 +33,8 @@ import { Route as BillingRouteImport } from './routes/billing'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
+import { Route as SourcingIndexRouteImport } from './routes/sourcing.index'
+import { Route as PostingIndexRouteImport } from './routes/posting.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as BillingIndexRouteImport } from './routes/billing.index'
 import { Route as SuperadminUsageRouteImport } from './routes/superadmin.usage'
@@ -38,7 +42,10 @@ import { Route as SuperadminSupportRouteImport } from './routes/superadmin.suppo
 import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin.subscriptions'
 import { Route as SuperadminSettingsRouteImport } from './routes/superadmin.settings'
 import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.revenue'
+import { Route as PostingNewRouteImport } from './routes/posting.new'
+import { Route as PostingPostIdRouteImport } from './routes/posting.$postId'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
+import { Route as JobsSlugRouteImport } from './routes/jobs.$slug'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
@@ -80,6 +87,11 @@ const SuperadminRoute = SuperadminRouteImport.update({
   path: '/superadmin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SourcingRoute = SourcingRouteImport.update({
+  id: '/sourcing',
+  path: '/sourcing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -98,6 +110,11 @@ const ScoutRoute = ScoutRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostingRoute = PostingRouteImport.update({
+  id: '/posting',
+  path: '/posting',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PositionsRoute = PositionsRouteImport.update({
@@ -175,6 +192,16 @@ const SuperadminIndexRoute = SuperadminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SuperadminRoute,
 } as any)
+const SourcingIndexRoute = SourcingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SourcingRoute,
+} as any)
+const PostingIndexRoute = PostingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PostingRoute,
+} as any)
 const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
   path: '/client/',
@@ -210,10 +237,25 @@ const SuperadminRevenueRoute = SuperadminRevenueRouteImport.update({
   path: '/revenue',
   getParentRoute: () => SuperadminRoute,
 } as any)
+const PostingNewRoute = PostingNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => PostingRoute,
+} as any)
+const PostingPostIdRoute = PostingPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => PostingRoute,
+} as any)
 const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   id: '/$positionId',
   path: '/$positionId',
   getParentRoute: () => PositionsRoute,
+} as any)
+const JobsSlugRoute = JobsSlugRouteImport.update({
+  id: '/jobs/$slug',
+  path: '/jobs/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InterviewsProcessIdRoute = InterviewsProcessIdRouteImport.update({
   id: '/$processId',
@@ -358,10 +400,12 @@ export interface FileRoutesByFullPath {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/posting': typeof PostingRouteWithChildren
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/sourcing': typeof SourcingRouteWithChildren
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -383,7 +427,10 @@ export interface FileRoutesByFullPath {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -391,6 +438,8 @@ export interface FileRoutesByFullPath {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/posting/': typeof PostingIndexRoute
+  '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -438,7 +487,10 @@ export interface FileRoutesByTo {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -446,6 +498,8 @@ export interface FileRoutesByTo {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing': typeof BillingIndexRoute
   '/client': typeof ClientIndexRoute
+  '/posting': typeof PostingIndexRoute
+  '/sourcing': typeof SourcingIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -471,10 +525,12 @@ export interface FileRoutesById {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/posting': typeof PostingRouteWithChildren
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/sourcing': typeof SourcingRouteWithChildren
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -496,7 +552,10 @@ export interface FileRoutesById {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
+  '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
   '/superadmin/subscriptions': typeof SuperadminSubscriptionsRoute
@@ -504,6 +563,8 @@ export interface FileRoutesById {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/posting/': typeof PostingIndexRoute
+  '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -530,10 +591,12 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
     | '/signup'
+    | '/sourcing'
     | '/superadmin'
     | '/tasks'
     | '/team'
@@ -555,7 +618,10 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
+    | '/posting/$postId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -563,6 +629,8 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/posting/'
+    | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -610,7 +678,10 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
+    | '/posting/$postId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -618,6 +689,8 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing'
     | '/client'
+    | '/posting'
+    | '/sourcing'
     | '/superadmin'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -642,10 +715,12 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
     | '/signup'
+    | '/sourcing'
     | '/superadmin'
     | '/tasks'
     | '/team'
@@ -667,7 +742,10 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
+    | '/posting/$postId'
+    | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
     | '/superadmin/subscriptions'
@@ -675,6 +753,8 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/posting/'
+    | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -700,10 +780,12 @@ export interface RootRouteChildren {
   PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
+  PostingRoute: typeof PostingRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  SourcingRoute: typeof SourcingRouteWithChildren
   SuperadminRoute: typeof SuperadminRouteWithChildren
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
@@ -724,6 +806,7 @@ export interface RootRouteChildren {
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
+  JobsSlugRoute: typeof JobsSlugRoute
   ClientIndexRoute: typeof ClientIndexRoute
   ApiPublicCronRoute: typeof ApiPublicCronRoute
 }
@@ -749,6 +832,13 @@ declare module '@tanstack/react-router' {
       path: '/superadmin'
       fullPath: '/superadmin'
       preLoaderRoute: typeof SuperadminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sourcing': {
+      id: '/sourcing'
+      path: '/sourcing'
+      fullPath: '/sourcing'
+      preLoaderRoute: typeof SourcingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -777,6 +867,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posting': {
+      id: '/posting'
+      path: '/posting'
+      fullPath: '/posting'
+      preLoaderRoute: typeof PostingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/positions': {
@@ -884,6 +981,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminIndexRouteImport
       parentRoute: typeof SuperadminRoute
     }
+    '/sourcing/': {
+      id: '/sourcing/'
+      path: '/'
+      fullPath: '/sourcing/'
+      preLoaderRoute: typeof SourcingIndexRouteImport
+      parentRoute: typeof SourcingRoute
+    }
+    '/posting/': {
+      id: '/posting/'
+      path: '/'
+      fullPath: '/posting/'
+      preLoaderRoute: typeof PostingIndexRouteImport
+      parentRoute: typeof PostingRoute
+    }
     '/client/': {
       id: '/client/'
       path: '/client'
@@ -933,12 +1044,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminRevenueRouteImport
       parentRoute: typeof SuperadminRoute
     }
+    '/posting/new': {
+      id: '/posting/new'
+      path: '/new'
+      fullPath: '/posting/new'
+      preLoaderRoute: typeof PostingNewRouteImport
+      parentRoute: typeof PostingRoute
+    }
+    '/posting/$postId': {
+      id: '/posting/$postId'
+      path: '/$postId'
+      fullPath: '/posting/$postId'
+      preLoaderRoute: typeof PostingPostIdRouteImport
+      parentRoute: typeof PostingRoute
+    }
     '/positions/$positionId': {
       id: '/positions/$positionId'
       path: '/$positionId'
       fullPath: '/positions/$positionId'
       preLoaderRoute: typeof PositionsPositionIdRouteImport
       parentRoute: typeof PositionsRoute
+    }
+    '/jobs/$slug': {
+      id: '/jobs/$slug'
+      path: '/jobs/$slug'
+      fullPath: '/jobs/$slug'
+      preLoaderRoute: typeof JobsSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/interviews/$processId': {
       id: '/interviews/$processId'
@@ -1157,6 +1289,33 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
   PositionsRouteChildren,
 )
 
+interface PostingRouteChildren {
+  PostingPostIdRoute: typeof PostingPostIdRoute
+  PostingNewRoute: typeof PostingNewRoute
+  PostingIndexRoute: typeof PostingIndexRoute
+}
+
+const PostingRouteChildren: PostingRouteChildren = {
+  PostingPostIdRoute: PostingPostIdRoute,
+  PostingNewRoute: PostingNewRoute,
+  PostingIndexRoute: PostingIndexRoute,
+}
+
+const PostingRouteWithChildren =
+  PostingRoute._addFileChildren(PostingRouteChildren)
+
+interface SourcingRouteChildren {
+  SourcingIndexRoute: typeof SourcingIndexRoute
+}
+
+const SourcingRouteChildren: SourcingRouteChildren = {
+  SourcingIndexRoute: SourcingIndexRoute,
+}
+
+const SourcingRouteWithChildren = SourcingRoute._addFileChildren(
+  SourcingRouteChildren,
+)
+
 interface SuperadminRouteChildren {
   SuperadminRevenueRoute: typeof SuperadminRevenueRoute
   SuperadminSettingsRoute: typeof SuperadminSettingsRoute
@@ -1212,10 +1371,12 @@ const rootRouteChildren: RootRouteChildren = {
   PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
+  PostingRoute: PostingRouteWithChildren,
   ProfileRoute: ProfileRoute,
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  SourcingRoute: SourcingRouteWithChildren,
   SuperadminRoute: SuperadminRouteWithChildren,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
@@ -1236,6 +1397,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
+  JobsSlugRoute: JobsSlugRoute,
   ClientIndexRoute: ClientIndexRoute,
   ApiPublicCronRoute: ApiPublicCronRoute,
 }

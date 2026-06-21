@@ -925,6 +925,227 @@ export type Database = {
           },
         ]
       }
+      job_applications: {
+        Row: {
+          agency_id: string
+          applicant_name: string
+          candidate_id: string | null
+          channel: Database["public"]["Enums"]["job_post_channel"]
+          cover_note: string | null
+          created_at: string
+          email: string | null
+          id: string
+          job_post_id: string
+          phone: string | null
+          raw: Json | null
+          resume_doc_id: string | null
+          resume_url: string | null
+          source_url: string | null
+          status: Database["public"]["Enums"]["job_application_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          applicant_name: string
+          candidate_id?: string | null
+          channel?: Database["public"]["Enums"]["job_post_channel"]
+          cover_note?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_post_id: string
+          phone?: string | null
+          raw?: Json | null
+          resume_doc_id?: string | null
+          resume_url?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["job_application_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          applicant_name?: string
+          candidate_id?: string | null
+          channel?: Database["public"]["Enums"]["job_post_channel"]
+          cover_note?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_post_id?: string
+          phone?: string | null
+          raw?: Json | null
+          resume_doc_id?: string | null
+          resume_url?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["job_application_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_applications_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_job_post_id_fkey"
+            columns: ["job_post_id"]
+            isOneToOne: false
+            referencedRelation: "job_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_resume_doc_id_fkey"
+            columns: ["resume_doc_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_post_channels: {
+        Row: {
+          agency_id: string
+          channel: Database["public"]["Enums"]["job_post_channel"]
+          created_at: string
+          error: string | null
+          external_post_id: string | null
+          external_url: string | null
+          id: string
+          job_post_id: string
+          last_synced_at: string | null
+          published_at: string | null
+          status: Database["public"]["Enums"]["job_post_channel_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          channel: Database["public"]["Enums"]["job_post_channel"]
+          created_at?: string
+          error?: string | null
+          external_post_id?: string | null
+          external_url?: string | null
+          id?: string
+          job_post_id: string
+          last_synced_at?: string | null
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["job_post_channel_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          channel?: Database["public"]["Enums"]["job_post_channel"]
+          created_at?: string
+          error?: string | null
+          external_post_id?: string | null
+          external_url?: string | null
+          id?: string
+          job_post_id?: string
+          last_synced_at?: string | null
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["job_post_channel_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_post_channels_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_post_channels_job_post_id_fkey"
+            columns: ["job_post_id"]
+            isOneToOne: false
+            referencedRelation: "job_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_posts: {
+        Row: {
+          agency_id: string
+          comp_max: number | null
+          comp_min: number | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description_md: string
+          employment_type: string | null
+          id: string
+          is_public: boolean
+          location: string | null
+          position_id: string | null
+          slug: string
+          status: Database["public"]["Enums"]["job_post_status"]
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          comp_max?: number | null
+          comp_min?: number | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description_md?: string
+          employment_type?: string | null
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          position_id?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["job_post_status"]
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          comp_max?: number | null
+          comp_min?: number | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description_md?: string
+          employment_type?: string | null
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          position_id?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["job_post_status"]
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_posts_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_posts_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_threads: {
         Row: {
           agency_id: string
@@ -1758,6 +1979,15 @@ export type Database = {
         | "replacement_covered"
         | "credit_left_in_window"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      job_application_status: "new" | "reviewed" | "converted" | "rejected"
+      job_post_channel: "linkedin" | "naukri" | "indeed" | "internal"
+      job_post_channel_status:
+        | "pending"
+        | "publishing"
+        | "published"
+        | "failed"
+        | "manual"
+      job_post_status: "draft" | "published" | "closed"
       message_sender_role: "staff" | "client"
       notification_kind:
         | "interview_reminder"
@@ -1980,6 +2210,16 @@ export const Constants = {
         "credit_left_in_window",
       ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      job_application_status: ["new", "reviewed", "converted", "rejected"],
+      job_post_channel: ["linkedin", "naukri", "indeed", "internal"],
+      job_post_channel_status: [
+        "pending",
+        "publishing",
+        "published",
+        "failed",
+        "manual",
+      ],
+      job_post_status: ["draft", "published", "closed"],
       message_sender_role: ["staff", "client"],
       notification_kind: [
         "interview_reminder",
