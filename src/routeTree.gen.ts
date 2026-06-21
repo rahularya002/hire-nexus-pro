@@ -43,6 +43,7 @@ import { Route as SuperadminSubscriptionsRouteImport } from './routes/superadmin
 import { Route as SuperadminSettingsRouteImport } from './routes/superadmin.settings'
 import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.revenue'
 import { Route as PostingNewRouteImport } from './routes/posting.new'
+import { Route as PostingPostIdRouteImport } from './routes/posting.$postId'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
@@ -240,6 +241,11 @@ const PostingNewRoute = PostingNewRouteImport.update({
   path: '/new',
   getParentRoute: () => PostingRoute,
 } as any)
+const PostingPostIdRoute = PostingPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => PostingRoute,
+} as any)
 const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   id: '/$positionId',
   path: '/$positionId',
@@ -416,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
@@ -474,6 +481,7 @@ export interface FileRoutesByTo {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
@@ -537,6 +545,7 @@ export interface FileRoutesById {
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
+  '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
   '/superadmin/revenue': typeof SuperadminRevenueRoute
   '/superadmin/settings': typeof SuperadminSettingsRoute
@@ -601,6 +610,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/$postId'
     | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
@@ -659,6 +669,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/$postId'
     | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
@@ -721,6 +732,7 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/interviews/$processId'
     | '/positions/$positionId'
+    | '/posting/$postId'
     | '/posting/new'
     | '/superadmin/revenue'
     | '/superadmin/settings'
@@ -1026,6 +1038,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostingNewRouteImport
       parentRoute: typeof PostingRoute
     }
+    '/posting/$postId': {
+      id: '/posting/$postId'
+      path: '/$postId'
+      fullPath: '/posting/$postId'
+      preLoaderRoute: typeof PostingPostIdRouteImport
+      parentRoute: typeof PostingRoute
+    }
     '/positions/$positionId': {
       id: '/positions/$positionId'
       path: '/$positionId'
@@ -1251,11 +1270,13 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
 )
 
 interface PostingRouteChildren {
+  PostingPostIdRoute: typeof PostingPostIdRoute
   PostingNewRoute: typeof PostingNewRoute
   PostingIndexRoute: typeof PostingIndexRoute
 }
 
 const PostingRouteChildren: PostingRouteChildren = {
+  PostingPostIdRoute: PostingPostIdRoute,
   PostingNewRoute: PostingNewRoute,
   PostingIndexRoute: PostingIndexRoute,
 }
