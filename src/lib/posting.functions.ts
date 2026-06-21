@@ -133,14 +133,14 @@ export const createJobPost = createServerFn({ method: "POST" })
         is_public: data.is_public,
         status: "draft",
         created_by: userId,
-      })
+      } as any)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
 
     if (data.channels?.length) {
       const rows = data.channels.map((ch) => ({ job_post_id: post.id, channel: ch, status: "pending" as const }));
-      const { error: chErr } = await supabase.from("job_post_channels").insert(rows);
+      const { error: chErr } = await supabase.from("job_post_channels").insert(rows as any);
       if (chErr) throw new Error(chErr.message);
     }
     return post as JobPostRow;
@@ -326,7 +326,7 @@ export const convertJobApplicationToCandidate = createServerFn({ method: "POST" 
         source: "inbound",
         created_by: userId,
         notes: app.cover_note,
-      })
+      } as any)
       .select("id").single();
     if (cErr) throw new Error(cErr.message);
 
@@ -334,9 +334,9 @@ export const convertJobApplicationToCandidate = createServerFn({ method: "POST" 
       await supabase.from("applications").insert({
         candidate_id: cand.id,
         position_id: data.positionId,
-        stage: "applied",
+        stage: "sourcing",
         created_by: userId,
-      });
+      } as any);
     }
     await supabase.from("job_applications").update({
       status: "converted",
