@@ -1,48 +1,29 @@
-# Refocus the agency Team page on people activity
+## Goal
 
-Right now `/team` (Recruiter roster) is a productivity scoreboard — shares today, closures MTD, conversion %. You want the opposite: a view that answers "who's on my team, when did they log in, which clients are they handling, and what have they been doing?"
+On the admin clients list (`/admin/clients`), surface three new data points per client so low-priority accounts are easy to spot:
 
-## What changes on the Team page
+1. **Joined on** — when the client account was created (`clients.created_at`).
+2. **Closed positions** — count of positions where status = `closed`.
+3. **Last billing** — date + amount of the most recent invoice for that client.
 
-Replace the current roster table and summary tiles with three connected views:
+Detail page is unchanged for now.
 
-### 1. Header tiles (replace existing 5)
-- Team size (total members)
-- Online now (with green pulse)
-- Logged in today
-- Active in last 24h (anyone with ≥1 activity)
+## Changes
 
-### 2. Team members list (replaces the productivity table)
-One row per teammate showing only people-focused info:
-- Avatar, name, role, joined date
-- Status dot + "Last login" (e.g. "Today 09:42", "2 days ago")
-- Clients they're working with — small colored chips of client names (from positions where they're the assigned recruiter); "+3 more" overflow
-- Activity in last 7 days (count, e.g. "47 actions")
-- Click row → expands an inline activity drawer (see #3)
+### `src/lib/clients.functions.ts` — extend `listClients`
+- Already aggregates open positions from `positions`. Extend the same query to also count `status === "closed"` per client.
+- Add a second aggregation: fetch `invoices` (`client_id, total_amount, issue_date, created_at`) ordered by date desc, group-by client to pick each client's latest invoice (date + amount + currency).
+- Extend `ClientRow` with: `closed_positions?: number`, `last_invoice_at?: string | null`, `last_invoice_amount?: number | null`, `last_invoice_currency?: string | null`.
 
-### 3. Per-person activity drawer (inline expand, or right-side sheet)
-When a teammate row is clicked:
-- Login timeline: last 10 sign-in timestamps
-- Clients & positions they own (full list, grouped by client)
-- Activity feed: their last 50 actions from the `activities` table (shares, calls, interviews scheduled, offers, notes…) — same card style as the global Activity page, filtered to `actor_id = member.id`
+### `src/routes/admin.clients.tsx` — render new columns
+In the `ClientItem` row's stats strip (next to "Open positions"):
+- Add **Joined** — formatted from `created_at` (e.g. "Mar 2025" or `Xd ago` for recent).
+- Add **Closed** — `c.closed_positions ?? 0`.
+- Replace/augment "Last activity" with **Last billing** — `<amount> · <Xd ago>`, or muted "No invoices" when null.
+- Add a subtle low-priority hint: if `closed_positions === 0` AND no invoice in the last 90 days, show a small muted "Low priority" chip on the row.
 
-### 4. Keep
-- "Add teammate" dialog (unchanged)
-- "Roles & Permissions" tab (unchanged)
+No schema migration needed — `invoices` table already exists.
 
-### Remove
-- Shares today / Closures MTD / Conversion % columns and tiles — these belong on a performance/analytics page, not here.
-
-## Technical notes
-
-- Extend `getTeamMembers` in `src/lib/team.functions.ts` to also return, per member:
-  - `lastLoginAt` (from `auth.users.last_sign_in_at` via `supabaseAdmin.auth.admin.listUsers`)
-  - `clients`: list of `{ id, name, color }` derived from `positions.assigned_recruiter_id` → `clients`
-  - `activityCount7d`: `count` from `activities` where `actor_id = member.id` and `occurred_at >= now() - 7d`
-- New server fn `getTeamMemberActivity({ userId })` returning recent activities + login history + owned positions for the drawer (reuses `listActivities` filter by `actorId`, already supported).
-- Rewrite `src/routes/team.tsx` roster tab: new tiles, new table, expandable row using existing `activities` data and `KIND_META` styling pattern from `src/routes/activity.tsx` for consistency.
-- No schema changes; no new tables.
-
-## Files touched
-- `src/lib/team.functions.ts` — extend `getTeamMembers`, add `getTeamMemberActivity`
-- `src/routes/team.tsx` — rewrite roster tab UI; keep Add teammate + Roles tabs intact
+## Out of scope
+- Client detail page changes.
+- Sorting/filtering by these new fields (can follow up).

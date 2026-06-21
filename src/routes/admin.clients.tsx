@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, AlertCircle, Mail, Phone, Loader2, Check, Trash2, Copy, KeyRound, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Plus, Building2, AlertCircle, Loader2, Check, Trash2, Copy, KeyRound, Eye, EyeOff, RefreshCw, CalendarDays, CheckCircle2, Receipt, Snowflake } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -75,8 +75,10 @@ function Page() {
 function ClientItem({ c, isAdmin }: { c: ClientRow; isAdmin: boolean }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteClient);
-  const lastActivity = daysSince(c.last_activity_at ?? c.created_at);
   const color = colorFor(c.id, c.color);
+  const joinedDays = daysSince(c.created_at);
+  const billingDays = daysSince(c.last_invoice_at ?? null);
+  const isLowPriority = (c.closed_positions ?? 0) === 0 && (billingDays === null || billingDays > 90);
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
@@ -105,29 +107,32 @@ function ClientItem({ c, isAdmin }: { c: ClientRow; isAdmin: boolean }) {
         </div>
         <div className="hidden md:flex items-center gap-6 text-xs">
           <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Open positions</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><CalendarDays className="size-3" /> Joined</div>
+            <div className="text-sm tabular-nums">{formatJoined(c.created_at, joinedDays)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Open</div>
             <div className="text-sm font-semibold tabular-nums">{c.open_positions ?? 0}</div>
           </div>
-          {c.contact_email && (
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><Mail className="size-3" /> Email</div>
-              <div className="text-sm truncate max-w-[180px]">{c.contact_email}</div>
+          <div className="text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Closed</div>
+            <div className="text-sm font-semibold tabular-nums">{c.closed_positions ?? 0}</div>
+          </div>
+          <div className="text-center min-w-[120px]">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><Receipt className="size-3" /> Last billing</div>
+            <div className="text-sm tabular-nums">
+              {c.last_invoice_at
+                ? <>{formatAmount(c.last_invoice_amount)} <span className="text-muted-foreground">· {billingDays === 0 ? "today" : `${billingDays}d ago`}</span></>
+                : <span className="text-muted-foreground">No invoices</span>}
             </div>
-          )}
-          {c.contact_phone && (
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1"><Phone className="size-3" /> Phone</div>
-              <div className="text-sm">{c.contact_phone}</div>
-            </div>
-          )}
-          {lastActivity !== null && (
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Last activity</div>
-              <div className="text-sm">{lastActivity === 0 ? "Today" : `${lastActivity}d ago`}</div>
-            </div>
-          )}
+          </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
+          {isLowPriority && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium px-2 py-1 rounded bg-secondary/60 border border-border" title="No closed positions and no billing in 90+ days">
+              <Snowflake className="size-3" /> Low priority
+            </span>
+          )}
           {c.status === "inactive" ? (
             <span className="inline-flex items-center gap-1 text-xs text-warning font-medium px-2 py-1 rounded bg-warning/10 border border-warning/20"><AlertCircle className="size-3" /> Inactive</span>
           ) : (
@@ -360,6 +365,20 @@ function generatePassword(len = 14) {
   let out = "";
   for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
   return out;
+}
+
+function formatJoined(iso: string | null | undefined, days: number | null): string {
+  if (!iso) return "—";
+  if (days !== null && days < 30) return days === 0 ? "Today" : `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
+
+function formatAmount(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
+  return `₹${n}`;
 }
 
 function Field({
