@@ -1,45 +1,48 @@
-## Goal
-Replace the static rounds + missing interviewer in the client's "Schedule interview" dialog with a dynamic, per-round configuration.
+# Refocus the agency Team page on people activity
 
-## Dialog UX (`ScheduleInterviewDialog` in `src/routes/client.positions.$positionId.tsx`)
+Right now `/team` (Recruiter roster) is a productivity scoreboard — shares today, closures MTD, conversion %. You want the opposite: a view that answers "who's on my team, when did they log in, which clients are they handling, and what have they been doing?"
 
-Top fields (unchanged):
-- Preferred date for round 1
-- Preferred time for round 1
+## What changes on the Team page
 
-New "Rounds" section — a list of round rows. Each row has:
-- Round number badge (auto: R1, R2, …)
-- **Type** select (`kind`): HR Screen, Technical, Behavioural, System Design, Case Study, Hiring Manager, CEO/Founder, Culture Fit, Other (→ free-text label)
-- **Interviewer** select: dropdown sourced from `listClientMembers` (active members only), plus a "Someone else…" option that reveals a free-text input. Optional.
-- **Remove** button (hidden when only one round remains)
+Replace the current roster table and summary tiles with three connected views:
 
-Below the list:
-- "+ Add round" button (no hard cap; soft cap 10 to match backend `z.number().int().min(1).max(10)`).
+### 1. Header tiles (replace existing 5)
+- Team size (total members)
+- Online now (with green pulse)
+- Logged in today
+- Active in last 24h (anyone with ≥1 activity)
 
-Defaults when adding rounds: R1 = HR Screen, R2 = Technical, R3 = Hiring Manager, then Technical for any further additions. Interviewer empty by default.
+### 2. Team members list (replaces the productivity table)
+One row per teammate showing only people-focused info:
+- Avatar, name, role, joined date
+- Status dot + "Last login" (e.g. "Today 09:42", "2 days ago")
+- Clients they're working with — small colored chips of client names (from positions where they're the assigned recruiter); "+3 more" overflow
+- Activity in last 7 days (count, e.g. "47 actions")
+- Click row → expands an inline activity drawer (see #3)
 
-Client team is fetched once via `useQuery(["client-members"], listClientMembers)` and cached.
+### 3. Per-person activity drawer (inline expand, or right-side sheet)
+When a teammate row is clicked:
+- Login timeline: last 10 sign-in timestamps
+- Clients & positions they own (full list, grouped by client)
+- Activity feed: their last 50 actions from the `activities` table (shares, calls, interviews scheduled, offers, notes…) — same card style as the global Activity page, filtered to `actor_id = member.id`
 
-## Backend (`requestClientInterview` in `src/lib/interviews.functions.ts`)
+### 4. Keep
+- "Add teammate" dialog (unchanged)
+- "Roles & Permissions" tab (unchanged)
 
-Extend the input schema — replace the scalar `rounds: number` with an optional structured `rounds` array, while keeping back-compat:
+### Remove
+- Shares today / Closures MTD / Conversion % columns and tiles — these belong on a performance/analytics page, not here.
 
-```
-rounds: z.array(z.object({
-  kind: z.enum(INTERVIEW_KINDS),
-  custom_kind_label: z.string().max(120).nullable().optional(),
-  interviewer: z.string().max(200).nullable().optional(),
-})).min(1).max(10)
-```
+## Technical notes
 
-Behaviour:
-- Insert one `interviews` row per array entry; `round_index = i + 1`.
-- `scheduled_at` set only on round 1 (existing behaviour).
-- `conducted_by = "client"`, `provider = "google_meet"`, `status = "pending_confirmation"` — unchanged.
-- Activity log: `${rounds.length} round(s)` (existing message format works).
+- Extend `getTeamMembers` in `src/lib/team.functions.ts` to also return, per member:
+  - `lastLoginAt` (from `auth.users.last_sign_in_at` via `supabaseAdmin.auth.admin.listUsers`)
+  - `clients`: list of `{ id, name, color }` derived from `positions.assigned_recruiter_id` → `clients`
+  - `activityCount7d`: `count` from `activities` where `actor_id = member.id` and `occurred_at >= now() - 7d`
+- New server fn `getTeamMemberActivity({ userId })` returning recent activities + login history + owned positions for the drawer (reuses `listActivities` filter by `actorId`, already supported).
+- Rewrite `src/routes/team.tsx` roster tab: new tiles, new table, expandable row using existing `activities` data and `KIND_META` styling pattern from `src/routes/activity.tsx` for consistency.
+- No schema changes; no new tables.
 
-## Out of scope
-- Per-round date/time pickers (still only round 1 has a time; subsequent rounds remain "to be confirmed").
-- Notifying/emailing the chosen interviewer.
-- Editing rounds from this dialog after submission (handled elsewhere in the recruiter view).
-- Permission gating — any client user who can currently request interviews keeps that ability.
+## Files touched
+- `src/lib/team.functions.ts` — extend `getTeamMembers`, add `getTeamMemberActivity`
+- `src/routes/team.tsx` — rewrite roster tab UI; keep Add teammate + Roles tabs intact
