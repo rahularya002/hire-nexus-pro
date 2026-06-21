@@ -32,6 +32,7 @@ import { Route as BillingRouteImport } from './routes/billing'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
+import { Route as SourcingIndexRouteImport } from './routes/sourcing.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as BillingIndexRouteImport } from './routes/billing.index'
 import { Route as SuperadminUsageRouteImport } from './routes/superadmin.usage'
@@ -180,6 +181,11 @@ const SuperadminIndexRoute = SuperadminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SuperadminRoute,
+} as any)
+const SourcingIndexRoute = SourcingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SourcingRoute,
 } as any)
 const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
@@ -368,7 +374,7 @@ export interface FileRoutesByFullPath {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/sourcing': typeof SourcingRoute
+  '/sourcing': typeof SourcingRouteWithChildren
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -398,6 +404,7 @@ export interface FileRoutesByFullPath {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -425,7 +432,6 @@ export interface FileRoutesByTo {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/sourcing': typeof SourcingRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
@@ -454,6 +460,7 @@ export interface FileRoutesByTo {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing': typeof BillingIndexRoute
   '/client': typeof ClientIndexRoute
+  '/sourcing': typeof SourcingIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -483,7 +490,7 @@ export interface FileRoutesById {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/sourcing': typeof SourcingRoute
+  '/sourcing': typeof SourcingRouteWithChildren
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -513,6 +520,7 @@ export interface FileRoutesById {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
@@ -573,6 +581,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -600,7 +609,6 @@ export interface FileRouteTypes {
     | '/scout'
     | '/settings'
     | '/signup'
-    | '/sourcing'
     | '/tasks'
     | '/team'
     | '/admin/clients'
@@ -629,6 +637,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing'
     | '/client'
+    | '/sourcing'
     | '/superadmin'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -687,6 +696,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
     | '/billing/clients/$clientId'
@@ -716,7 +726,7 @@ export interface RootRouteChildren {
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
-  SourcingRoute: typeof SourcingRoute
+  SourcingRoute: typeof SourcingRouteWithChildren
   SuperadminRoute: typeof SuperadminRouteWithChildren
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
@@ -903,6 +913,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/superadmin/'
       preLoaderRoute: typeof SuperadminIndexRouteImport
       parentRoute: typeof SuperadminRoute
+    }
+    '/sourcing/': {
+      id: '/sourcing/'
+      path: '/'
+      fullPath: '/sourcing/'
+      preLoaderRoute: typeof SourcingIndexRouteImport
+      parentRoute: typeof SourcingRoute
     }
     '/client/': {
       id: '/client/'
@@ -1177,6 +1194,18 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
   PositionsRouteChildren,
 )
 
+interface SourcingRouteChildren {
+  SourcingIndexRoute: typeof SourcingIndexRoute
+}
+
+const SourcingRouteChildren: SourcingRouteChildren = {
+  SourcingIndexRoute: SourcingIndexRoute,
+}
+
+const SourcingRouteWithChildren = SourcingRoute._addFileChildren(
+  SourcingRouteChildren,
+)
+
 interface SuperadminRouteChildren {
   SuperadminRevenueRoute: typeof SuperadminRevenueRoute
   SuperadminSettingsRoute: typeof SuperadminSettingsRoute
@@ -1236,7 +1265,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
-  SourcingRoute: SourcingRoute,
+  SourcingRoute: SourcingRouteWithChildren,
   SuperadminRoute: SuperadminRouteWithChildren,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
