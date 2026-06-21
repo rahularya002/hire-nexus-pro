@@ -354,3 +354,56 @@ export const getClientAccountTeam = createServerFn({ method: "GET" })
     });
     return { members };
   });
+
+const MemberActivitySchema = z.object({ userId: z.string().uuid(), limit: z.number().int().min(1).max(200).optional() });
+
+export const getTeamMemberActivity = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => MemberActivitySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    // Ensure caller and target belong to the same agency.
+    const { data: caller } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!caller?.agency_id) throw new Error("No agency.");
+    const { data: target } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", data.userId)
+      .maybeSingle();
+    if (!target?.agency_id || target.agency_id !== caller.agency_id) {
+      throw new Error("Forbidden");
+    }
+
+    const [{ data: activities }, { data: positions }] = await Promise.all([
+      supabaseAdmin
+        .from("activities")
+        .select("id, kind, title, detail, occurred_at, client_id, position_id, candidate_id")
+        .eq("actor_id", data.userId)
+        .order("occurred_at", { ascending: false })
+        .limit(data.limit ?? 50),
+      supabaseAdmin
+        .from("positions")
+        .select("id, title, location, status, client:clients(id, name, color)")
+        .eq("assigned_recruiter_id", data.userId),
+    ]);
+
+    let lastLoginAt: string | null = null;
+    const logins: string[] = [];
+    try {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+      lastLoginAt = u?.user?.last_sign_in_at ?? null;
+      if (lastLoginAt) logins.push(lastLoginAt);
+    } catch {
+      // ignore
+    }
+
+    return {
+      lastLoginAt,
+      logins,
+      activities: activities ?? [],
+      positions: positions ?? [],
+    };
+  });
