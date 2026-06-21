@@ -35,7 +35,7 @@ export const INTERVIEW_PROVIDER_LABEL: Record<InterviewProvider, string> = {
   google_meet: "Google Meet",
   microsoft_teams: "Microsoft Teams",
   zoom: "Zoom",
-  on_site: "On-site",
+  on_site: "Offline / In-person",
   phone: "Phone",
 };
 
