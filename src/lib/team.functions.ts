@@ -39,17 +39,76 @@ export const getTeamMembers = createServerFn({ method: "GET" })
       .filter((id) => id !== context.userId);
     if (memberIds.length === 0) return { members: [] };
 
-    const [{ data: profiles, error: profErr }, { data: roles, error: roleErr }] = await Promise.all([
+    const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [
+      { data: profiles, error: profErr },
+      { data: roles, error: roleErr },
+      { data: positions, error: posErr },
+      { data: activities, error: actErr },
+    ] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, full_name, email, status, created_at")
         .in("id", memberIds),
       supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", memberIds),
+      supabaseAdmin
+        .from("positions")
+        .select("id, title, assigned_recruiter_id, client:clients(id, name, color)")
+        .in("assigned_recruiter_id", memberIds),
+      supabaseAdmin
+        .from("activities")
+        .select("actor_id, occurred_at")
+        .in("actor_id", memberIds)
+        .gte("occurred_at", sinceIso),
     ]);
     if (profErr) throw new Error(profErr.message);
     if (roleErr) throw new Error(roleErr.message);
+    if (posErr) throw new Error(posErr.message);
+    if (actErr) throw new Error(actErr.message);
+
+    // Fetch last_sign_in_at via auth admin listUsers (paged)
+    const loginMap = new Map<string, string | null>();
+    try {
+      let page = 1;
+      while (page <= 10) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
+        if (error) break;
+        for (const u of data.users) {
+          if (memberIds.includes(u.id)) loginMap.set(u.id, u.last_sign_in_at ?? null);
+        }
+        if (data.users.length < 200) break;
+        page++;
+      }
+    } catch {
+      // ignore login fetch failures
+    }
 
     const roleMap = new Map(roles?.map((r) => [r.user_id, r.role as TeamRole | "client"]) ?? []);
+
+    const clientsByUser = new Map<string, Map<string, { id: string; name: string; color: string | null; positions: number }>>();
+    const positionsByUser = new Map<string, { id: string; title: string; client_id: string | null }[]>();
+    for (const p of positions ?? []) {
+      const uid = (p as any).assigned_recruiter_id as string | null;
+      if (!uid) continue;
+      const c = (p as any).client as { id: string; name: string; color: string | null } | null;
+      const cmap = clientsByUser.get(uid) ?? new Map();
+      if (c) {
+        const cur = cmap.get(c.id) ?? { id: c.id, name: c.name, color: c.color, positions: 0 };
+        cur.positions++;
+        cmap.set(c.id, cur);
+      }
+      clientsByUser.set(uid, cmap);
+      const plist = positionsByUser.get(uid) ?? [];
+      plist.push({ id: (p as any).id, title: (p as any).title, client_id: c?.id ?? null });
+      positionsByUser.set(uid, plist);
+    }
+
+    const activity7dByUser = new Map<string, number>();
+    for (const a of activities ?? []) {
+      const uid = (a as any).actor_id as string | null;
+      if (!uid) continue;
+      activity7dByUser.set(uid, (activity7dByUser.get(uid) ?? 0) + 1);
+    }
 
     const members = (profiles ?? [])
       .filter((p) => {
@@ -63,19 +122,29 @@ export const getTeamMembers = createServerFn({ method: "GET" })
         const joinedOn = p.created_at
           ? new Date(p.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
           : "—";
-        const status = p.status === "active" ? "Active" : p.status === "pending" ? "Available" : "Offline";
+        const lastLoginAt = loginMap.get(p.id) ?? null;
+        const onlineCutoff = Date.now() - 15 * 60 * 1000;
+        const isOnline = lastLoginAt ? new Date(lastLoginAt).getTime() >= onlineCutoff : false;
+        const status = isOnline
+          ? "Active"
+          : p.status === "active"
+          ? "Available"
+          : "Offline";
+        const clientList = Array.from(clientsByUser.get(p.id)?.values() ?? []);
+        const ownedPositions = positionsByUser.get(p.id) ?? [];
         return {
           id: p.id,
           name,
+          email: p.email ?? null,
           initials,
           role: role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
           status,
-          loginAt: "—",
-          assignedClients: 0,
-          assignedPositions: 0,
-          sharesToday: 0,
-          closuresMtd: 0,
-          conversionPct: 0,
+          lastLoginAt,
+          clients: clientList,
+          assignedClients: clientList.length,
+          assignedPositions: ownedPositions.length,
+          ownedPositions,
+          activity7d: activity7dByUser.get(p.id) ?? 0,
           joinedOn,
         };
       });
