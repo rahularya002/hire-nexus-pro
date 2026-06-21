@@ -17,6 +17,9 @@ export type ClientRow = {
   created_at: string;
   user_id?: string | null;
   open_positions?: number;
+  closed_positions?: number;
+  last_invoice_at?: string | null;
+  last_invoice_amount?: number | null;
   pan_number?: string | null;
   gst_number?: string | null;
   registered_address?: string | null;
@@ -60,14 +63,33 @@ export const listClients = createServerFn({ method: "GET" })
       .from("positions")
       .select("client_id, status");
     const openCounts = new Map<string, number>();
+    const closedCounts = new Map<string, number>();
     for (const p of positions ?? []) {
-      if (p.status !== "closed") {
+      if (p.status === "closed") {
+        closedCounts.set(p.client_id, (closedCounts.get(p.client_id) ?? 0) + 1);
+      } else {
         openCounts.set(p.client_id, (openCounts.get(p.client_id) ?? 0) + 1);
       }
+    }
+    const { data: invoices } = await supabase
+      .from("invoices")
+      .select("client_id, total_inr, issue_date, created_at")
+      .order("issue_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+    const lastInvoice = new Map<string, { at: string | null; amount: number | null }>();
+    for (const inv of invoices ?? []) {
+      if (!inv.client_id || lastInvoice.has(inv.client_id)) continue;
+      lastInvoice.set(inv.client_id, {
+        at: (inv.issue_date as string | null) ?? (inv.created_at as string | null),
+        amount: inv.total_inr === null || inv.total_inr === undefined ? null : Number(inv.total_inr),
+      });
     }
     return (clients ?? []).map((c) => ({
       ...c,
       open_positions: openCounts.get(c.id) ?? 0,
+      closed_positions: closedCounts.get(c.id) ?? 0,
+      last_invoice_at: lastInvoice.get(c.id)?.at ?? null,
+      last_invoice_amount: lastInvoice.get(c.id)?.amount ?? null,
     })) as ClientRow[];
   });
 
