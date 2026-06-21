@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { type RecruiterStatus } from "@/lib/ops/store";
-import { Users, TrendingUp, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
+import { Users, Activity, Coffee, CircleOff, UserPlus, Shield, Copy, Eye, EyeOff, RefreshCw, Lock, ChevronDown, ChevronRight, Clock, Briefcase, Phone, Star, Share2, CalendarClock, CheckCircle2, Award, FileText, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions } from "@/lib/team.functions";
+import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions, getTeamMemberActivity } from "@/lib/team.functions";
 import { useAuth } from "@/lib/auth/auth-context";
+import { formatRelative, type ActivityKind } from "@/lib/activities.functions";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
 
@@ -24,6 +25,36 @@ function statusMeta(s: RecruiterStatus) {
   if (s === "Available") return { dot: "bg-info", label: "Available", Icon: Users, cls: "text-info" };
   if (s === "Break") return { dot: "bg-warning", label: "Break", Icon: Coffee, cls: "text-warning" };
   return { dot: "bg-muted-foreground", label: "Offline", Icon: CircleOff, cls: "text-muted-foreground" };
+}
+
+const KIND_META: Record<ActivityKind, { icon: typeof Phone; tone: string; label: string }> = {
+  call:                 { icon: Phone,         tone: "bg-info/15 text-info",         label: "Call" },
+  shortlist:            { icon: Star,          tone: "bg-purple/15 text-purple",     label: "Shortlist" },
+  share:                { icon: Share2,        tone: "bg-primary/15 text-primary",   label: "Shared" },
+  interview_scheduled:  { icon: CalendarClock, tone: "bg-warning/15 text-warning",   label: "Interview" },
+  interview_completed:  { icon: CheckCircle2,  tone: "bg-info/15 text-info",         label: "Interview done" },
+  offer:                { icon: Award,         tone: "bg-success/15 text-success",   label: "Offer" },
+  closure:              { icon: CheckCircle2,  tone: "bg-success/20 text-success",   label: "Closure" },
+  note:                 { icon: FileText,      tone: "bg-secondary text-foreground", label: "Note" },
+  submission:           { icon: UserPlus,      tone: "bg-info/15 text-info",         label: "Submission" },
+  document:             { icon: FileText,      tone: "bg-warning/15 text-warning",   label: "Document" },
+  message:              { icon: MessageSquare, tone: "bg-secondary text-foreground", label: "Message" },
+  stage_change:         { icon: CheckCircle2,  tone: "bg-primary/15 text-primary",   label: "Stage change" },
+};
+
+function formatLogin(iso: string | null | undefined): string {
+  if (!iso) return "Never";
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  const isYest = d.toDateString() === yest.toDateString();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (sameDay) return `Today ${time}`;
+  if (isYest) return `Yesterday ${time}`;
+  const days = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
 }
 
 const ALL_PERMISSIONS = [
@@ -66,19 +97,20 @@ function TeamPage() {
   const [team, setTeam] = useState<{
     id: string;
     name: string;
+    email?: string | null;
     initials: string;
     role: string;
     status: RecruiterStatus;
-    loginAt: string;
+    lastLoginAt: string | null;
+    clients: { id: string; name: string; color: string | null; positions: number }[];
     assignedClients: number;
     assignedPositions: number;
-    sharesToday: number;
-    closuresMtd: number;
-    conversionPct: number;
+    activity7d: number;
     joinedOn: string;
   }[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const { can, roles: myRoles } = useAuth();
   const isAdmin = myRoles.includes("admin");
   const fetchTeam = useServerFn(getTeamMembers);
@@ -92,20 +124,23 @@ function TeamPage() {
       .finally(() => setLoading(false));
   }, [fetchTeam]);
 
-  const summary = useMemo(() => ({
-    online: team.filter((r) => r.status !== "Offline").length,
-    active: team.filter((r) => r.status === "Active").length,
-    sharesToday: team.reduce((s, r) => s + r.sharesToday, 0),
-    closuresMtd: team.reduce((s, r) => s + r.closuresMtd, 0),
-    avgConv: team.length ? Math.round(team.reduce((s, r) => s + r.conversionPct, 0) / team.length) : 0,
-  }), [team]);
+  const summary = useMemo(() => {
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const t = startOfToday.getTime();
+    return {
+      size: team.length,
+      online: team.filter((r) => r.status === "Active").length,
+      loggedInToday: team.filter((r) => r.lastLoginAt && new Date(r.lastLoginAt).getTime() >= t).length,
+      activeWeek: team.filter((r) => (r.activity7d ?? 0) > 0).length,
+    };
+  }, [team]);
 
   function addRecruiter(data: { name: string; role: string; status: RecruiterStatus }) {
     const initials = data.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "??";
     const id = `r${Date.now()}`;
     setTeam((t) => [
       ...t,
-      { id, name: data.name, initials, role: data.role, status: data.status, loginAt: "—", assignedClients: 0, assignedPositions: 0, sharesToday: 0, closuresMtd: 0, conversionPct: 0, joinedOn: new Date().toLocaleString("en-US",{month:"short",year:"numeric"}) },
+      { id, name: data.name, initials, role: data.role, status: data.status, lastLoginAt: null, clients: [], assignedClients: 0, assignedPositions: 0, activity7d: 0, joinedOn: new Date().toLocaleString("en-US",{month:"short",year:"numeric"}) },
     ]);
   }
 
@@ -116,16 +151,16 @@ function TeamPage() {
           <div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Operations</div>
             <h1 className="text-2xl font-semibold tracking-tight mt-1 inline-flex items-center gap-2">
-              <Users className="size-5 text-primary" /> Recruiter roster
+              <Users className="size-5 text-primary" /> Team
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Live activity, attendance and productivity across the desk.</p>
+            <p className="text-sm text-muted-foreground mt-1">Who's on your team, when they last logged in, which clients they handle, and everything they've been doing.</p>
           </div>
           {isAdmin && <AddRecruiterDialog open={addOpen} onOpenChange={setAddOpen} onAdd={addRecruiter} />}
         </div>
 
         <Tabs defaultValue="roster" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="roster"><Users className="size-3.5 mr-1.5" />Roster</TabsTrigger>
+            <TabsTrigger value="roster"><Users className="size-3.5 mr-1.5" />Members</TabsTrigger>
             {can("roles.manage") && (
               <TabsTrigger value="roles"><Shield className="size-3.5 mr-1.5" />Roles & Permissions</TabsTrigger>
             )}
@@ -133,13 +168,12 @@ function TeamPage() {
 
           <TabsContent value="roster" className="space-y-6 mt-0">
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Online", value: summary.online },
-            { label: "Actively working", value: summary.active },
-            { label: "Shares today", value: summary.sharesToday },
-            { label: "Closures MTD", value: summary.closuresMtd },
-            { label: "Avg. conversion", value: `${summary.avgConv}%` },
+            { label: "Team size", value: summary.size },
+            { label: "Online now", value: summary.online },
+            { label: "Logged in today", value: summary.loggedInToday },
+            { label: "Active this week", value: summary.activeWeek },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-border bg-card p-4">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
@@ -148,59 +182,21 @@ function TeamPage() {
           ))}
         </div>
 
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-[11px] uppercase tracking-wider text-muted-foreground bg-secondary/40">
-                <tr>
-                  <th className="text-left font-medium px-4 py-2.5">Recruiter</th>
-                  <th className="text-left font-medium px-2 py-2.5">Status</th>
-                  <th className="text-left font-medium px-2 py-2.5">Login</th>
-                  <th className="text-right font-medium px-2 py-2.5">Clients</th>
-                  <th className="text-right font-medium px-2 py-2.5">Positions</th>
-                  <th className="text-right font-medium px-2 py-2.5">Shares today</th>
-                  <th className="text-right font-medium px-2 py-2.5">Closures MTD</th>
-                  <th className="text-right font-medium px-4 py-2.5">Conversion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {team.map((r) => {
-                  const m = statusMeta(r.status);
-                  return (
-                    <tr key={r.id} className="hover:bg-secondary/30 transition">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="size-9 rounded-full bg-gradient-to-br from-primary/30 to-purple/30 grid place-items-center text-xs font-semibold">
-                            {r.initials}
-                          </div>
-                          <div className="leading-tight">
-                            <div className="font-medium">{r.name}</div>
-                            <div className="text-[11px] text-muted-foreground">{r.role} · joined {r.joinedOn}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-2 py-3">
-                        <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", m.cls)}>
-                          <span className={cn("size-1.5 rounded-full", m.dot, r.status === "Active" && "animate-pulse")} />
-                          {m.label}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted-foreground tabular-nums">{r.loginAt}</td>
-                      <td className="px-2 py-3 text-right tabular-nums">{r.assignedClients}</td>
-                      <td className="px-2 py-3 text-right tabular-nums">{r.assignedPositions}</td>
-                      <td className="px-2 py-3 text-right tabular-nums font-medium">{r.sharesToday}</td>
-                      <td className="px-2 py-3 text-right tabular-nums">{r.closuresMtd}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="inline-flex items-center gap-1 tabular-nums font-semibold text-success">
-                          <TrendingUp className="size-3" />{r.conversionPct}%
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+          {loading && (
+            <div className="p-10 text-center text-sm text-muted-foreground">Loading team…</div>
+          )}
+          {!loading && team.length === 0 && (
+            <div className="p-10 text-center text-sm text-muted-foreground">No teammates yet. Add one to get started.</div>
+          )}
+          {team.map((r) => (
+            <MemberRow
+              key={r.id}
+              member={r}
+              isOpen={expanded === r.id}
+              onToggle={() => setExpanded((e) => (e === r.id ? null : r.id))}
+            />
+          ))}
         </div>
           </TabsContent>
 
@@ -212,6 +208,157 @@ function TeamPage() {
         </Tabs>
       </div>
     </AppShell>
+  );
+}
+
+function MemberRow({
+  member,
+  isOpen,
+  onToggle,
+}: {
+  member: {
+    id: string; name: string; email?: string | null; initials: string; role: string;
+    status: RecruiterStatus; lastLoginAt: string | null;
+    clients: { id: string; name: string; color: string | null; positions: number }[];
+    assignedPositions: number; activity7d: number; joinedOn: string;
+  };
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const m = statusMeta(member.status);
+  const visibleClients = member.clients.slice(0, 4);
+  const moreClients = member.clients.length - visibleClients.length;
+  return (
+    <div>
+      <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-secondary/30 transition flex items-center gap-3">
+        <div className="size-10 rounded-full bg-gradient-to-br from-primary/30 to-purple/30 grid place-items-center text-xs font-semibold shrink-0">
+          {member.initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <div className="font-medium truncate">{member.name}</div>
+            <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium", m.cls)}>
+              <span className={cn("size-1.5 rounded-full", m.dot, member.status === "Active" && "animate-pulse")} />
+              {m.label}
+            </span>
+          </div>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+            <span>{member.role}</span>
+            <span className="opacity-50">·</span>
+            <span className="inline-flex items-center gap-1"><Clock className="size-3" />{formatLogin(member.lastLoginAt)}</span>
+            <span className="opacity-50">·</span>
+            <span className="inline-flex items-center gap-1"><Briefcase className="size-3" />{member.assignedPositions} positions</span>
+            <span className="opacity-50">·</span>
+            <span>{member.activity7d} actions / 7d</span>
+          </div>
+        </div>
+        <div className="hidden md:flex items-center gap-1.5 max-w-[40%] flex-wrap justify-end">
+          {visibleClients.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/40 px-2 py-0.5 text-[11px]">
+              <span className="size-1.5 rounded-full" style={{ background: c.color ?? "var(--muted-foreground)" }} />
+              {c.name}
+            </span>
+          ))}
+          {moreClients > 0 && <span className="text-[11px] text-muted-foreground">+{moreClients} more</span>}
+          {member.clients.length === 0 && <span className="text-[11px] text-muted-foreground italic">No clients assigned</span>}
+        </div>
+        {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
+      </button>
+      {isOpen && <MemberActivityDrawer userId={member.id} />}
+    </div>
+  );
+}
+
+function MemberActivityDrawer({ userId }: { userId: string }) {
+  const fetchDetail = useServerFn(getTeamMemberActivity);
+  const [state, setState] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof getTeamMemberActivity>> | null }>({ loading: true, data: null });
+
+  useEffect(() => {
+    let cancel = false;
+    fetchDetail({ data: { userId, limit: 50 } })
+      .then((d) => { if (!cancel) setState({ loading: false, data: d as any }); })
+      .catch(() => { if (!cancel) setState({ loading: false, data: null }); });
+    return () => { cancel = true; };
+  }, [fetchDetail, userId]);
+
+  if (state.loading) {
+    return <div className="px-6 pb-5 pt-1 text-xs text-muted-foreground">Loading activity…</div>;
+  }
+  const d = state.data;
+  if (!d) return <div className="px-6 pb-5 pt-1 text-xs text-muted-foreground">Couldn't load activity.</div>;
+
+  const positionsByClient = new Map<string, { client: { id: string; name: string; color: string | null } | null; items: { id: string; title: string; location: string | null; status: string }[] }>();
+  for (const p of d.positions as any[]) {
+    const key = p.client?.id ?? "unassigned";
+    const bucket = positionsByClient.get(key) ?? { client: p.client ?? null, items: [] };
+    bucket.items.push({ id: p.id, title: p.title, location: p.location, status: p.status });
+    positionsByClient.set(key, bucket);
+  }
+
+  return (
+    <div className="border-t border-border bg-secondary/20 px-6 py-5 grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-6">
+      <div className="space-y-5">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
+            <Clock className="size-3" /> Last sign-in
+          </div>
+          <div className="text-sm">{formatLogin(d.lastLoginAt)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
+            <Briefcase className="size-3" /> Clients & positions
+          </div>
+          {positionsByClient.size === 0 ? (
+            <div className="text-xs text-muted-foreground italic">Not assigned to any positions yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {[...positionsByClient.values()].map((b) => (
+                <div key={b.client?.id ?? "unassigned"} className="rounded-lg border border-border bg-card p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="size-2 rounded-full" style={{ background: b.client?.color ?? "var(--muted-foreground)" }} />
+                    <div className="text-sm font-medium">{b.client?.name ?? "Unassigned"}</div>
+                    <Badge variant="secondary" className="text-[10px]">{b.items.length}</Badge>
+                  </div>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 pl-4">
+                    {b.items.map((it) => (
+                      <li key={it.id} className="truncate">• {it.title}{it.location ? ` — ${it.location}` : ""}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
+          <Activity className="size-3" /> Recent activity
+        </div>
+        {d.activities.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic">No recent activity.</div>
+        ) : (
+          <div className="rounded-lg border border-border bg-card divide-y divide-border max-h-[420px] overflow-y-auto">
+            {(d.activities as any[]).map((a) => {
+              const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
+              const Icon = meta.icon;
+              return (
+                <div key={a.id} className="flex items-start gap-3 p-3">
+                  <div className={cn("size-8 rounded-full grid place-items-center shrink-0", meta.tone)}>
+                    <Icon className="size-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{a.title}</div>
+                    {a.detail && <div className="text-xs text-muted-foreground truncate">{a.detail}</div>}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(a.occurred_at)}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
