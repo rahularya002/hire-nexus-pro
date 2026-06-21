@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SuperadminRouteImport } from './routes/superadmin'
+import { Route as SourcingRouteImport } from './routes/sourcing'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScoutRouteImport } from './routes/scout'
@@ -78,6 +79,11 @@ const TasksRoute = TasksRouteImport.update({
 const SuperadminRoute = SuperadminRouteImport.update({
   id: '/superadmin',
   path: '/superadmin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SourcingRoute = SourcingRouteImport.update({
+  id: '/sourcing',
+  path: '/sourcing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -362,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/sourcing': typeof SourcingRoute
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -418,6 +425,7 @@ export interface FileRoutesByTo {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/sourcing': typeof SourcingRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/admin/clients': typeof AdminClientsRoute
@@ -475,6 +483,7 @@ export interface FileRoutesById {
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/sourcing': typeof SourcingRoute
   '/superadmin': typeof SuperadminRouteWithChildren
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
@@ -534,6 +543,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/settings'
     | '/signup'
+    | '/sourcing'
     | '/superadmin'
     | '/tasks'
     | '/team'
@@ -590,6 +600,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/settings'
     | '/signup'
+    | '/sourcing'
     | '/tasks'
     | '/team'
     | '/admin/clients'
@@ -646,6 +657,7 @@ export interface FileRouteTypes {
     | '/scout'
     | '/settings'
     | '/signup'
+    | '/sourcing'
     | '/superadmin'
     | '/tasks'
     | '/team'
@@ -704,6 +716,7 @@ export interface RootRouteChildren {
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  SourcingRoute: typeof SourcingRoute
   SuperadminRoute: typeof SuperadminRouteWithChildren
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
@@ -749,6 +762,13 @@ declare module '@tanstack/react-router' {
       path: '/superadmin'
       fullPath: '/superadmin'
       preLoaderRoute: typeof SuperadminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sourcing': {
+      id: '/sourcing'
+      path: '/sourcing'
+      fullPath: '/sourcing'
+      preLoaderRoute: typeof SourcingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -1216,6 +1236,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  SourcingRoute: SourcingRoute,
   SuperadminRoute: SuperadminRouteWithChildren,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
