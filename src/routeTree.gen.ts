@@ -34,6 +34,7 @@ import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperadminIndexRouteImport } from './routes/superadmin.index'
 import { Route as SourcingIndexRouteImport } from './routes/sourcing.index'
+import { Route as PostingIndexRouteImport } from './routes/posting.index'
 import { Route as ClientIndexRouteImport } from './routes/client.index'
 import { Route as BillingIndexRouteImport } from './routes/billing.index'
 import { Route as SuperadminUsageRouteImport } from './routes/superadmin.usage'
@@ -192,6 +193,11 @@ const SourcingIndexRoute = SourcingIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SourcingRoute,
+} as any)
+const PostingIndexRoute = PostingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PostingRoute,
 } as any)
 const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/client/',
@@ -376,7 +382,7 @@ export interface FileRoutesByFullPath {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
-  '/posting': typeof PostingRoute
+  '/posting': typeof PostingRouteWithChildren
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -411,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/posting/': typeof PostingIndexRoute
   '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -435,7 +442,6 @@ export interface FileRoutesByTo {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
-  '/posting': typeof PostingRoute
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -468,6 +474,7 @@ export interface FileRoutesByTo {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing': typeof BillingIndexRoute
   '/client': typeof ClientIndexRoute
+  '/posting': typeof PostingIndexRoute
   '/sourcing': typeof SourcingIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -494,7 +501,7 @@ export interface FileRoutesById {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
-  '/posting': typeof PostingRoute
+  '/posting': typeof PostingRouteWithChildren
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -529,6 +536,7 @@ export interface FileRoutesById {
   '/superadmin/usage': typeof SuperadminUsageRoute
   '/billing/': typeof BillingIndexRoute
   '/client/': typeof ClientIndexRoute
+  '/posting/': typeof PostingIndexRoute
   '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
@@ -591,6 +599,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/posting/'
     | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -615,7 +624,6 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
-    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
@@ -648,6 +656,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing'
     | '/client'
+    | '/posting'
     | '/sourcing'
     | '/superadmin'
     | '/api/public/cron'
@@ -708,6 +717,7 @@ export interface FileRouteTypes {
     | '/superadmin/usage'
     | '/billing/'
     | '/client/'
+    | '/posting/'
     | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
@@ -734,7 +744,7 @@ export interface RootRouteChildren {
   PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
-  PostingRoute: typeof PostingRoute
+  PostingRoute: typeof PostingRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
@@ -940,6 +950,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sourcing/'
       preLoaderRoute: typeof SourcingIndexRouteImport
       parentRoute: typeof SourcingRoute
+    }
+    '/posting/': {
+      id: '/posting/'
+      path: '/'
+      fullPath: '/posting/'
+      preLoaderRoute: typeof PostingIndexRouteImport
+      parentRoute: typeof PostingRoute
     }
     '/client/': {
       id: '/client/'
@@ -1214,6 +1231,17 @@ const PositionsRouteWithChildren = PositionsRoute._addFileChildren(
   PositionsRouteChildren,
 )
 
+interface PostingRouteChildren {
+  PostingIndexRoute: typeof PostingIndexRoute
+}
+
+const PostingRouteChildren: PostingRouteChildren = {
+  PostingIndexRoute: PostingIndexRoute,
+}
+
+const PostingRouteWithChildren =
+  PostingRoute._addFileChildren(PostingRouteChildren)
+
 interface SourcingRouteChildren {
   SourcingIndexRoute: typeof SourcingIndexRoute
 }
@@ -1281,7 +1309,7 @@ const rootRouteChildren: RootRouteChildren = {
   PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
-  PostingRoute: PostingRoute,
+  PostingRoute: PostingRouteWithChildren,
   ProfileRoute: ProfileRoute,
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
