@@ -287,10 +287,11 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
   const d = state.data;
   if (!d) return <div className="px-6 pb-5 pt-1 text-xs text-muted-foreground">Couldn't load activity.</div>;
 
-  const positionsByClient = new Map<string, { client: { id: string; name: string; color: string | null } | null; items: { id: string; title: string; location: string | null; status: string }[] }>();
+  type Bucket = { client: { id: string; name: string; color: string | null } | null; items: { id: string; title: string; location: string | null; status: string }[] };
+  const positionsByClient = new Map<string, Bucket>();
   for (const p of d.positions as any[]) {
     const key = p.client?.id ?? "unassigned";
-    const bucket = positionsByClient.get(key) ?? { client: p.client ?? null, items: [] };
+    const bucket: Bucket = positionsByClient.get(key) ?? { client: p.client ?? null, items: [] };
     bucket.items.push({ id: p.id, title: p.title, location: p.location, status: p.status });
     positionsByClient.set(key, bucket);
   }
