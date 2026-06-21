@@ -17,6 +17,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScoutRouteImport } from './routes/scout'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PostingRouteImport } from './routes/posting'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingRouteImport } from './routes/pending'
@@ -105,6 +106,11 @@ const ScoutRoute = ScoutRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostingRoute = PostingRouteImport.update({
+  id: '/posting',
+  path: '/posting',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PositionsRoute = PositionsRouteImport.update({
@@ -370,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/posting': typeof PostingRoute
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -428,6 +435,7 @@ export interface FileRoutesByTo {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/posting': typeof PostingRoute
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -486,6 +494,7 @@ export interface FileRoutesById {
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
+  '/posting': typeof PostingRoute
   '/profile': typeof ProfileRoute
   '/scout': typeof ScoutRoute
   '/settings': typeof SettingsRoute
@@ -547,6 +556,7 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
@@ -605,6 +615,7 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
@@ -662,6 +673,7 @@ export interface FileRouteTypes {
     | '/pending'
     | '/pipeline'
     | '/positions'
+    | '/posting'
     | '/profile'
     | '/scout'
     | '/settings'
@@ -722,6 +734,7 @@ export interface RootRouteChildren {
   PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
+  PostingRoute: typeof PostingRoute
   ProfileRoute: typeof ProfileRoute
   ScoutRoute: typeof ScoutRoute
   SettingsRoute: typeof SettingsRoute
@@ -807,6 +820,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/posting': {
+      id: '/posting'
+      path: '/posting'
+      fullPath: '/posting'
+      preLoaderRoute: typeof PostingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/positions': {
@@ -1261,6 +1281,7 @@ const rootRouteChildren: RootRouteChildren = {
   PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
+  PostingRoute: PostingRoute,
   ProfileRoute: ProfileRoute,
   ScoutRoute: ScoutRoute,
   SettingsRoute: SettingsRoute,
