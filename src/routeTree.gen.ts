@@ -45,6 +45,7 @@ import { Route as SuperadminRevenueRouteImport } from './routes/superadmin.reven
 import { Route as PostingNewRouteImport } from './routes/posting.new'
 import { Route as PostingPostIdRouteImport } from './routes/posting.$postId'
 import { Route as PositionsPositionIdRouteImport } from './routes/positions.$positionId'
+import { Route as JobsSlugRouteImport } from './routes/jobs.$slug'
 import { Route as InterviewsProcessIdRouteImport } from './routes/interviews.$processId'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
@@ -251,6 +252,11 @@ const PositionsPositionIdRoute = PositionsPositionIdRouteImport.update({
   path: '/$positionId',
   getParentRoute: () => PositionsRoute,
 } as any)
+const JobsSlugRoute = JobsSlugRouteImport.update({
+  id: '/jobs/$slug',
+  path: '/jobs/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InterviewsProcessIdRoute = InterviewsProcessIdRouteImport.update({
   id: '/$processId',
   path: '/$processId',
@@ -421,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
@@ -480,6 +487,7 @@ export interface FileRoutesByTo {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
@@ -544,6 +552,7 @@ export interface FileRoutesById {
   '/client/upload': typeof ClientUploadRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/interviews/$processId': typeof InterviewsProcessIdRoute
+  '/jobs/$slug': typeof JobsSlugRoute
   '/positions/$positionId': typeof PositionsPositionIdRoute
   '/posting/$postId': typeof PostingPostIdRoute
   '/posting/new': typeof PostingNewRoute
@@ -609,6 +618,7 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
     | '/posting/$postId'
     | '/posting/new'
@@ -668,6 +678,7 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
     | '/posting/$postId'
     | '/posting/new'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '/client/upload'
     | '/clients/$clientId'
     | '/interviews/$processId'
+    | '/jobs/$slug'
     | '/positions/$positionId'
     | '/posting/$postId'
     | '/posting/new'
@@ -794,6 +806,7 @@ export interface RootRouteChildren {
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
+  JobsSlugRoute: typeof JobsSlugRoute
   ClientIndexRoute: typeof ClientIndexRoute
   ApiPublicCronRoute: typeof ApiPublicCronRoute
 }
@@ -1051,6 +1064,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/positions/$positionId'
       preLoaderRoute: typeof PositionsPositionIdRouteImport
       parentRoute: typeof PositionsRoute
+    }
+    '/jobs/$slug': {
+      id: '/jobs/$slug'
+      path: '/jobs/$slug'
+      fullPath: '/jobs/$slug'
+      preLoaderRoute: typeof JobsSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/interviews/$processId': {
       id: '/interviews/$processId'
@@ -1377,6 +1397,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
+  JobsSlugRoute: JobsSlugRoute,
   ClientIndexRoute: ClientIndexRoute,
   ApiPublicCronRoute: ApiPublicCronRoute,
 }
