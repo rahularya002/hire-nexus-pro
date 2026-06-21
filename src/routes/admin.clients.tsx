@@ -367,6 +367,20 @@ function generatePassword(len = 14) {
   return out;
 }
 
+function formatJoined(iso: string | null | undefined, days: number | null): string {
+  if (!iso) return "—";
+  if (days !== null && days < 30) return days === 0 ? "Today" : `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
+
+function formatAmount(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
+  return `₹${n}`;
+}
+
 function Field({
   label,
   placeholder,
