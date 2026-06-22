@@ -38,41 +38,39 @@ type AuthState = {
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
 
-async function loadProfileAndRoles(userId: string): Promise<{ profile: Profile | null; roles: AppRole[]; permissions: string[]; clientContext: MyClientContext | null }> {
+// Essential gate-data: profile + roles. AuthGate only needs these two to
+// decide where to send the user, so we keep this fast (2 parallel queries).
+async function loadEssential(userId: string): Promise<{ profile: Profile | null; roles: AppRole[] }> {
   const [pRes, rRes] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email, company_name, status").eq("id", userId).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
   ]);
   const roles = ((rRes.data ?? []) as { role: AppRole }[]).map((r) => r.role);
+  return { profile: (pRes.data as Profile | null) ?? null, roles };
+}
 
-  let permissions: string[] = [];
-  if (roles.length) {
-    const { data: rpRows } = await supabase
-      .from("role_permissions")
-      .select("role, permissions")
-      .in("role", roles);
-    const set = new Set<string>();
-    ((rpRows ?? []) as { role: AppRole; permissions: string[] }[]).forEach((r) =>
-      r.permissions.forEach((p) => set.add(p))
-    );
-    permissions = [...set];
-  }
-
-  let clientContext: MyClientContext | null = null;
-  if (roles.includes("client")) {
-    try {
-      clientContext = await getMyClientContext();
-    } catch {
-      clientContext = null;
-    }
-  }
-
-  return {
-    profile: (pRes.data as Profile | null) ?? null,
-    roles,
-    permissions,
-    clientContext,
-  };
+// Secondary data — permissions + client context. Loaded in the background
+// so the dashboard / portal can render immediately.
+async function loadSecondary(roles: AppRole[]): Promise<{ permissions: string[]; clientContext: MyClientContext | null }> {
+  const [permissions, clientContext] = await Promise.all([
+    (async () => {
+      if (!roles.length) return [] as string[];
+      const { data: rpRows } = await supabase
+        .from("role_permissions")
+        .select("role, permissions")
+        .in("role", roles);
+      const set = new Set<string>();
+      ((rpRows ?? []) as { role: AppRole; permissions: string[] }[]).forEach((r) =>
+        r.permissions.forEach((p) => set.add(p))
+      );
+      return [...set];
+    })(),
+    (async () => {
+      if (!roles.includes("client")) return null;
+      try { return await getMyClientContext(); } catch { return null; }
+    })(),
+  ]);
+  return { permissions, clientContext };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -100,12 +98,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoaded(false);
         // Defer the supabase calls so we don't deadlock the callback.
         setTimeout(() => {
-          loadProfileAndRoles(sess.user.id).then(({ profile, roles, permissions, clientContext }) => {
+          loadEssential(sess.user.id).then(({ profile, roles }) => {
             setProfile(profile);
             setRoles(roles);
-            setPermissions(permissions);
-            setClientContext(clientContext);
             setProfileLoaded(true);
+            // Fire secondary in the background — doesn't block the gate.
+            loadSecondary(roles).then(({ permissions, clientContext }) => {
+              setPermissions(permissions);
+              setClientContext(clientContext);
+            });
           });
         }, 0);
       } else {
@@ -123,12 +124,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session?.user) {
-        const { profile, roles, permissions, clientContext } = await loadProfileAndRoles(data.session.user.id);
+        const { profile, roles } = await loadEssential(data.session.user.id);
         setProfile(profile);
         setRoles(roles);
-        setPermissions(permissions);
-        setClientContext(clientContext);
         setProfileLoaded(true);
+        setLoading(false);
+        // Background — non-blocking.
+        loadSecondary(roles).then(({ permissions, clientContext }) => {
+          setPermissions(permissions);
+          setClientContext(clientContext);
+        });
+        return;
       } else {
         setProfileLoaded(true);
       }
@@ -155,12 +161,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     refresh: async () => {
       if (!session?.user) return;
-      const { profile, roles, permissions, clientContext } = await loadProfileAndRoles(session.user.id);
+      const { profile, roles } = await loadEssential(session.user.id);
       setProfile(profile);
       setRoles(roles);
+      setProfileLoaded(true);
+      const { permissions, clientContext } = await loadSecondary(roles);
       setPermissions(permissions);
       setClientContext(clientContext);
-      setProfileLoaded(true);
     },
   };
 
