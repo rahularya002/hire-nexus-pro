@@ -267,7 +267,6 @@ function MemberRow({
         {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
       </button>
       {isOpen && <MemberActivityDrawer userId={member.id} />}
-      <ActivityDialog userId={member.id} open={activityOpen} onOpenChange={setActivityOpen} userName={member.name} />
     </div>
   );
 }
