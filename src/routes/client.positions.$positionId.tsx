@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil, Pencil as PencilIcon,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil, Pencil as PencilIcon, Pause, Play,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -94,6 +94,8 @@ function Detail() {
         vars.stage === "client_rejected" ? "Candidate rejected. The recruiter has been notified."
         : vars.stage === "client_shortlist" ? "Candidate shortlisted."
         : vars.stage === "interview_scheduled" ? "Interview requested. The recruiter will reach out to confirm a time."
+        : vars.stage === "on_hold" ? "Candidate put on hold."
+        : vars.stage === "shared_with_client" ? "Candidate resumed for review."
         : "Updated.";
       toast.success(msg);
     },
@@ -298,6 +300,30 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                   <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-destructive/10 text-destructive text-sm font-medium">
                     <X className="size-4" /> Rejected
                   </span>
+                ) : a.stage === "on_hold" ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-warning/15 text-warning text-sm font-medium border border-warning/25">
+                      <Pause className="size-4" /> On hold
+                    </span>
+                    <button
+                      onClick={() => onUpdate(a.id, "shared_with_client")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary disabled:opacity-50">
+                      <Play className="size-4" /> Resume review
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_rejected")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 disabled:opacity-50">
+                      <X className="size-4" /> Reject
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_shortlist")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                      <Check className="size-4" /> Shortlist
+                    </button>
+                  </>
                 ) : canSchedule ? (
                   <>
                     <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-success/10 text-success text-sm font-medium">
@@ -324,6 +350,12 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
                       <Check className="size-4" /> Shortlist
                     </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "on_hold")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary disabled:opacity-50">
+                      <Pause className="size-4" /> Put on hold
+                    </button>
                   </>
                 )}
               </div>
@@ -348,6 +380,7 @@ function StageBadge({ stage }: { stage: ApplicationStage }) {
     shared_with_client: "bg-warning/15 text-warning",
     client_shortlist: "bg-purple/15 text-purple",
     client_rejected: "bg-destructive/15 text-destructive",
+    on_hold: "bg-warning/15 text-warning",
     interview_scheduled: "bg-info/15 text-info",
     rounds: "bg-info/15 text-info",
     offered: "bg-success/15 text-success",
