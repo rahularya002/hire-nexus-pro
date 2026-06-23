@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin } from "lucide-react";
+import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin, Briefcase } from "lucide-react";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { ClientTeamDashboard } from "@/components/client-team-dashboard";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
@@ -58,7 +58,10 @@ function Dashboard() {
   const companyName = profile?.company_name || profile?.full_name || "there";
   const loading = posQ.isLoading || appQ.isLoading;
 
+  const openPositions = positions.filter((p) => p.status !== "closed").length;
+
   const kpis = [
+    { label: "Open positions",  value: openPositions,      icon: Briefcase,    tone: "from-warning/15 to-warning/5 text-warning" },
     { label: "Profiles shared", value: totals.shared,      icon: Send,         tone: "from-primary/15 to-primary/5 text-primary" },
     { label: "Shortlisted",     value: totals.shortlisted, icon: Star,         tone: "from-purple/15 to-purple/5 text-purple" },
     { label: "Interviewed",     value: totals.interview,   icon: CalendarCheck,tone: "from-info/15 to-info/5 text-info" },
