@@ -334,6 +334,16 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
         </div>
       </div>
 
+      <div className="space-y-5">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
+          <Activity className="size-3" /> Recent activity
+        </div>
+        {(d.activities as any[]).length === 0 ? (
+          <div className="text-xs text-muted-foreground italic">No recent activity.</div>
+        ) : (
+          <ActivityTimeline activities={d.activities as any[]} />
+        )}
+      </div>
     </div>
   );
 }
