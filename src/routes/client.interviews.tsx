@@ -39,6 +39,10 @@ function bucketize(scheduledAt: string | null): Tab | null {
   return "today";
 }
 
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 function Page() {
   const [tab, setTab] = useState<Tab>("today");
   const [rescheduleFor, setRescheduleFor] = useState<InterviewRow | null>(null);
