@@ -65,14 +65,34 @@ function timeOf(iso: string) {
 }
 
 function Page() {
+  const { clientContext } = useAuth();
+  const clientId = clientContext?.clientId ?? null;
+
   const fetchActivities = useServerFn(listActivities);
-  const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
-    queryKey: ["client-activities"],
-    queryFn: () => fetchActivities({ data: { limit: 200 } }),
+  const fetchPositions = useServerFn(listPositions);
+
+  const { data: positions = [] } = useQuery({
+    queryKey: ["client-activity-positions", clientId],
+    queryFn: () => fetchPositions({ data: { clientId: clientId! } }),
+    enabled: !!clientId,
   });
 
+  const [positionId, setPositionId] = useState<string>("all");
   const [filter, setFilter] = useState<"all" | ActivityKind>("all");
   const [q, setQ] = useState("");
+
+  const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
+    queryKey: ["client-activities", clientId, positionId],
+    queryFn: () =>
+      fetchActivities({
+        data: {
+          limit: 200,
+          clientId: clientId ?? undefined,
+          positionId: positionId === "all" ? undefined : positionId,
+        },
+      }),
+    enabled: !!clientId,
+  });
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -102,6 +122,7 @@ function Page() {
     for (const e of events) c[e.kind] = (c[e.kind] ?? 0) + 1;
     return c;
   }, [events]);
+
 
   return (
     <div className="space-y-6 max-w-4xl">
