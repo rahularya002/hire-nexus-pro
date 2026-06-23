@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare } from "lucide-react";
+import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare, ArrowRight } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
   listInterviews,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/interviews.functions";
 import { cn } from "@/lib/utils";
 import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
+import { Calendar } from "@/components/ui/calendar";
 
 export const Route = createFileRoute("/client/interviews")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -38,9 +39,14 @@ function bucketize(scheduledAt: string | null): Tab | null {
   return "today";
 }
 
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 function Page() {
   const [tab, setTab] = useState<Tab>("today");
   const [rescheduleFor, setRescheduleFor] = useState<InterviewRow | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | undefined>(undefined);
   const fetchInterviews = useServerFn(listInterviews);
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["client-interviews"],
@@ -49,7 +55,25 @@ function Page() {
 
   const counts = { today: 0, upcoming: 0, past: 0 } as Record<Tab, number>;
   for (const i of all) { const b = bucketize(i.scheduled_at); if (b) counts[b]++; }
-  const rows = all.filter((i) => bucketize(i.scheduled_at) === tab);
+  const tabRows = all.filter((i) => bucketize(i.scheduled_at) === tab);
+  const rows = selectedDay
+    ? all.filter((i) => i.scheduled_at && sameDay(new Date(i.scheduled_at), selectedDay))
+    : tabRows;
+
+  const { interviewDays, nextInterview } = useMemo(() => {
+    const now = Date.now();
+    const days: Date[] = [];
+    let next: InterviewRow | null = null;
+    let nextT = Infinity;
+    for (const i of all) {
+      if (!i.scheduled_at) continue;
+      const d = new Date(i.scheduled_at);
+      days.push(d);
+      const t = d.getTime();
+      if (t >= now && t < nextT) { nextT = t; next = i; }
+    }
+    return { interviewDays: days, nextInterview: next };
+  }, [all]);
 
   return (
     <div className="space-y-6">
@@ -63,18 +87,84 @@ function Page() {
         </p>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
+        <div className="rounded-xl border border-border bg-card p-2 w-fit">
+          <Calendar
+            mode="single"
+            selected={selectedDay}
+            onSelect={setSelectedDay}
+            modifiers={{ hasInterview: interviewDays }}
+            modifiersClassNames={{
+              hasInterview: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:size-1 after:rounded-full after:bg-primary",
+            }}
+            className="p-2 pointer-events-auto"
+          />
+          {selectedDay && (
+            <button
+              onClick={() => setSelectedDay(undefined)}
+              className="w-full text-[11px] text-muted-foreground hover:text-foreground py-1.5"
+            >
+              Clear date filter
+            </button>
+          )}
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5 flex flex-col">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Next interview</div>
+          {nextInterview ? (
+            <>
+              <div className="mt-2 text-2xl font-semibold tracking-tight">
+                {formatInterviewWhen(nextInterview.scheduled_at)}
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {nextInterview.candidate?.name ?? "Unknown"} · {nextInterview.position?.title ?? "—"}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                R{nextInterview.round_index} · {interviewRoundLabel(nextInterview)} · {INTERVIEW_PROVIDER_LABEL[nextInterview.provider]}
+              </div>
+              <div className="mt-auto pt-4 flex gap-2">
+                <a
+                  href={nextInterview.meeting_link ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(
+                    "h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1",
+                    !nextInterview.meeting_link && "opacity-50 pointer-events-none",
+                  )}
+                >
+                  <Video className="size-3.5" /> Join
+                </a>
+                <Link
+                  to="/client/positions/$positionId"
+                  params={{ positionId: nextInterview.position_id }}
+                  className="h-9 px-3 rounded-md border border-border text-xs font-medium hover:bg-secondary inline-flex items-center gap-1"
+                >
+                  View role <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 text-sm text-muted-foreground">No upcoming interviews scheduled.</div>
+          )}
+        </div>
+      </div>
+
       <div className="flex gap-1 p-1 rounded-lg bg-secondary/60 w-fit">
         {([
           { id: "today",    label: `Today (${counts.today})` },
           { id: "upcoming", label: `Upcoming (${counts.upcoming})` },
           { id: "past",     label: `Past (${counts.past})` },
         ] as { id: Tab; label: string }[]).map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); setSelectedDay(undefined); }}
             className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition",
               tab === t.id ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
             {t.label}
           </button>
         ))}
+        {selectedDay && (
+          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary/10 text-primary inline-flex items-center gap-1">
+            {selectedDay.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          </span>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card divide-y divide-border">
