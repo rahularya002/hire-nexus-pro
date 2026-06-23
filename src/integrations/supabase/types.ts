@@ -1616,6 +1616,41 @@ export type Database = {
         }
         Relationships: []
       }
+      recruiter_login_events: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          login_date: string
+          occurred_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          login_date?: string
+          occurred_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          login_date?: string
+          occurred_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruiter_login_events_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           permissions: string[]
