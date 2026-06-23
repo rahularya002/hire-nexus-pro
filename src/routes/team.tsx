@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions, getTeamMemberActivity } from "@/lib/team.functions";
-import { listActivities } from "@/lib/activities.functions";
+
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatRelative, type ActivityKind } from "@/lib/activities.functions";
 
@@ -229,7 +229,7 @@ function MemberRow({
   const m = statusMeta(member.status);
   const visibleClients = member.clients.slice(0, 4);
   const moreClients = member.clients.length - visibleClients.length;
-  const [activityOpen, setActivityOpen] = useState(false);
+  
   return (
     <div>
       <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-secondary/30 transition flex items-center gap-3">
@@ -263,19 +263,70 @@ function MemberRow({
           ))}
           {moreClients > 0 && <span className="text-[11px] text-muted-foreground">+{moreClients} more</span>}
           {member.clients.length === 0 && <span className="text-[11px] text-muted-foreground italic">No clients assigned</span>}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={(e) => { e.stopPropagation(); setActivityOpen(true); }}
-          >
-            <Eye className="size-3.5 mr-1" /> View Activity
-          </Button>
         </div>
         {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
       </button>
       {isOpen && <MemberActivityDrawer userId={member.id} />}
-      <ActivityDialog userId={member.id} open={activityOpen} onOpenChange={setActivityOpen} userName={member.name} />
+    </div>
+  );
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dateBucket(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  if (sameDay(d, now)) return "Today";
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (sameDay(d, yest)) return "Yesterday";
+  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diff < 7) return "This week";
+  return "Earlier";
+}
+
+function ActivityTimeline({ activities }: { activities: any[] }) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of activities) {
+      const bucket = dateBucket(a.occurred_at);
+      const arr = map.get(bucket) ?? [];
+      arr.push(a);
+      map.set(bucket, arr);
+    }
+    return [...map.entries()];
+  }, [activities]);
+
+  return (
+    <div className="space-y-6">
+      {grouped.map(([bucket, items]) => (
+        <div key={bucket}>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">{bucket}</div>
+          <div className="relative pl-4 space-y-4">
+            <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+            {items.map((a) => {
+              const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
+              const Icon = meta.icon;
+              return (
+                <div key={a.id} className="relative">
+                  <div className={cn("absolute -left-[9px] top-1 size-2 rounded-full border-2 border-background", meta.tone.split(" ")[0])} />
+                  <div className="flex items-start gap-2.5">
+                    <div className={cn("size-7 rounded-full grid place-items-center shrink-0", meta.tone)}>
+                      <Icon className="size-3" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium leading-tight">{a.title}</div>
+                      {a.detail && <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{a.detail}</div>}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(a.occurred_at)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -343,62 +394,20 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
         </div>
       </div>
 
+      <div className="space-y-5">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
+          <Activity className="size-3" /> Recent activity
+        </div>
+        {(d.activities as any[]).length === 0 ? (
+          <div className="text-xs text-muted-foreground italic">No recent activity.</div>
+        ) : (
+          <ActivityTimeline activities={d.activities as any[]} />
+        )}
+      </div>
     </div>
   );
 }
 
-function ActivityDialog({ userId, open, onOpenChange, userName }: { userId: string; open: boolean; onOpenChange: (b: boolean) => void; userName: string }) {
-  const fetchActivities = useServerFn(listActivities);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    fetchActivities({ data: { actorId: userId, limit: 50 } })
-      .then((data) => setActivities(data as any[]))
-      .catch(() => toast.error("Failed to load activity"))
-      .finally(() => setLoading(false));
-  }, [open, fetchActivities, userId]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="inline-flex items-center gap-2">
-            <Activity className="size-4 text-primary" />
-            {userName} — Activity
-          </DialogTitle>
-          <DialogDescription>Recent actions and updates from this recruiter.</DialogDescription>
-        </DialogHeader>
-        {loading ? (
-          <div className="text-xs text-muted-foreground py-6 text-center">Loading activity…</div>
-        ) : activities.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic py-6 text-center">No recent activity.</div>
-        ) : (
-          <div className="rounded-lg border border-border bg-card divide-y divide-border">
-            {activities.map((a) => {
-              const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
-              const Icon = meta.icon;
-              return (
-                <div key={a.id} className="flex items-start gap-3 p-3">
-                  <div className={cn("size-8 rounded-full grid place-items-center shrink-0", meta.tone)}>
-                    <Icon className="size-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{a.title}</div>
-                    {a.detail && <div className="text-xs text-muted-foreground truncate">{a.detail}</div>}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(a.occurred_at)}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function generatePassword(length = 14): string {
   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
