@@ -338,58 +338,6 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
   );
 }
 
-function ActivityDialog({ userId, open, onOpenChange, userName }: { userId: string; open: boolean; onOpenChange: (b: boolean) => void; userName: string }) {
-  const fetchActivities = useServerFn(listActivities);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    fetchActivities({ data: { actorId: userId, limit: 50 } })
-      .then((data) => setActivities(data as any[]))
-      .catch(() => toast.error("Failed to load activity"))
-      .finally(() => setLoading(false));
-  }, [open, fetchActivities, userId]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="inline-flex items-center gap-2">
-            <Activity className="size-4 text-primary" />
-            {userName} — Activity
-          </DialogTitle>
-          <DialogDescription>Recent actions and updates from this recruiter.</DialogDescription>
-        </DialogHeader>
-        {loading ? (
-          <div className="text-xs text-muted-foreground py-6 text-center">Loading activity…</div>
-        ) : activities.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic py-6 text-center">No recent activity.</div>
-        ) : (
-          <div className="rounded-lg border border-border bg-card divide-y divide-border">
-            {activities.map((a) => {
-              const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
-              const Icon = meta.icon;
-              return (
-                <div key={a.id} className="flex items-start gap-3 p-3">
-                  <div className={cn("size-8 rounded-full grid place-items-center shrink-0", meta.tone)}>
-                    <Icon className="size-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{a.title}</div>
-                    {a.detail && <div className="text-xs text-muted-foreground truncate">{a.detail}</div>}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(a.occurred_at)}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function generatePassword(length = 14): string {
   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
