@@ -47,6 +47,7 @@ export function EditCandidateDialog({
     setEmail(candidate.email ?? "");
     setPhone(candidate.phone ?? "");
     setLinkedinUrl(candidate.linkedin_url ?? "");
+    setSalary(candidate.salary ?? "");
     setNotes(candidate.notes ?? "");
     setSkills(candidate.skills ?? []);
     setSkillInput("");
