@@ -271,6 +271,66 @@ function MemberRow({
   );
 }
 
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dateBucket(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  if (sameDay(d, now)) return "Today";
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (sameDay(d, yest)) return "Yesterday";
+  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diff < 7) return "This week";
+  return "Earlier";
+}
+
+function ActivityTimeline({ activities }: { activities: any[] }) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of activities) {
+      const bucket = dateBucket(a.occurred_at);
+      const arr = map.get(bucket) ?? [];
+      arr.push(a);
+      map.set(bucket, arr);
+    }
+    return [...map.entries()];
+  }, [activities]);
+
+  return (
+    <div className="space-y-6">
+      {grouped.map(([bucket, items]) => (
+        <div key={bucket}>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">{bucket}</div>
+          <div className="relative pl-4 space-y-4">
+            <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+            {items.map((a) => {
+              const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
+              const Icon = meta.icon;
+              return (
+                <div key={a.id} className="relative">
+                  <div className={cn("absolute -left-[9px] top-1 size-2 rounded-full border-2 border-background", meta.tone.split(" ")[0])} />
+                  <div className="flex items-start gap-2.5">
+                    <div className={cn("size-7 rounded-full grid place-items-center shrink-0", meta.tone)}>
+                      <Icon className="size-3" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium leading-tight">{a.title}</div>
+                      {a.detail && <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{a.detail}</div>}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground whitespace-nowrap">{formatRelative(a.occurred_at)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MemberActivityDrawer({ userId }: { userId: string }) {
   const fetchDetail = useServerFn(getTeamMemberActivity);
   const [state, setState] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof getTeamMemberActivity>> | null }>({ loading: true, data: null });
