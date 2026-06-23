@@ -229,6 +229,7 @@ function MemberRow({
   const m = statusMeta(member.status);
   const visibleClients = member.clients.slice(0, 4);
   const moreClients = member.clients.length - visibleClients.length;
+  const [activityOpen, setActivityOpen] = useState(false);
   return (
     <div>
       <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-secondary/30 transition flex items-center gap-3">
@@ -253,7 +254,7 @@ function MemberRow({
             <span>{member.activity7d} actions / 7d</span>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-1.5 max-w-[40%] flex-wrap justify-end">
+        <div className="hidden md:flex items-center gap-2 max-w-[40%] flex-wrap justify-end">
           {visibleClients.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/40 px-2 py-0.5 text-[11px]">
               <span className="size-1.5 rounded-full" style={{ background: c.color ?? "var(--muted-foreground)" }} />
@@ -262,10 +263,19 @@ function MemberRow({
           ))}
           {moreClients > 0 && <span className="text-[11px] text-muted-foreground">+{moreClients} more</span>}
           {member.clients.length === 0 && <span className="text-[11px] text-muted-foreground italic">No clients assigned</span>}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={(e) => { e.stopPropagation(); setActivityOpen(true); }}
+          >
+            <Eye className="size-3.5 mr-1" /> View Activity
+          </Button>
         </div>
         {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
       </button>
       {isOpen && <MemberActivityDrawer userId={member.id} />}
+      <ActivityDialog userId={member.id} open={activityOpen} onOpenChange={setActivityOpen} userName={member.name} />
     </div>
   );
 }
