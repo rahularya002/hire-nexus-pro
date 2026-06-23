@@ -96,6 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(sess);
       if (sess?.user) {
         setProfileLoaded(false);
+        // Record a daily login event (idempotent per UTC day, throttled
+        // client-side so we don't hit the server on every tab focus).
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const key = `recruiter-login-recorded:${sess.user.id}`;
+          if (typeof window !== "undefined" && window.localStorage.getItem(key) !== today) {
+            window.localStorage.setItem(key, today);
+            import("@/lib/logins.functions").then(({ recordLogin }) => {
+              recordLogin().catch(() => {});
+            }).catch(() => {});
+          }
+        } catch { /* ignore */ }
         // Defer the supabase calls so we don't deadlock the callback.
         setTimeout(() => {
           loadEssential(sess.user.id).then(({ profile, roles }) => {
@@ -124,6 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session?.user) {
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const key = `recruiter-login-recorded:${data.session.user.id}`;
+          if (typeof window !== "undefined" && window.localStorage.getItem(key) !== today) {
+            window.localStorage.setItem(key, today);
+            import("@/lib/logins.functions").then(({ recordLogin }) => {
+              recordLogin().catch(() => {});
+            }).catch(() => {});
+          }
+        } catch { /* ignore */ }
         const { profile, roles } = await loadEssential(data.session.user.id);
         setProfile(profile);
         setRoles(roles);
