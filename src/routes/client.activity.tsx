@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity as ActivityIcon, UserPlus, Star, Calendar, FileText,
   MessageSquare, CheckCircle2, Phone, Share2, CalendarClock, Award,
-  Search, Filter,
+  Search, Filter, Briefcase,
 } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
@@ -15,7 +15,10 @@ import {
   type ActivityKind,
   type ActivityRow,
 } from "@/lib/activities.functions";
+import { listPositions } from "@/lib/positions.functions";
+import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/client/activity")({
   component: () => <ClientShell><Page /></ClientShell>,
