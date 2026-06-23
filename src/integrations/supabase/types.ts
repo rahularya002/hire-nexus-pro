@@ -224,6 +224,7 @@ export type Database = {
           phone: string | null
           resume_url: string | null
           role: string | null
+          salary: string | null
           skills: string[]
           source: Database["public"]["Enums"]["candidate_source"]
           updated_at: string
@@ -243,6 +244,7 @@ export type Database = {
           phone?: string | null
           resume_url?: string | null
           role?: string | null
+          salary?: string | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           updated_at?: string
@@ -262,6 +264,7 @@ export type Database = {
           phone?: string | null
           resume_url?: string | null
           role?: string | null
+          salary?: string | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           updated_at?: string
