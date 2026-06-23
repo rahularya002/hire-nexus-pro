@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil, Pencil as PencilIcon,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil, Pencil as PencilIcon, Pause, Play,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -94,6 +94,8 @@ function Detail() {
         vars.stage === "client_rejected" ? "Candidate rejected. The recruiter has been notified."
         : vars.stage === "client_shortlist" ? "Candidate shortlisted."
         : vars.stage === "interview_scheduled" ? "Interview requested. The recruiter will reach out to confirm a time."
+        : vars.stage === "on_hold" ? "Candidate put on hold."
+        : vars.stage === "shared_with_client" ? "Candidate resumed for review."
         : "Updated.";
       toast.success(msg);
     },
@@ -348,6 +350,7 @@ function StageBadge({ stage }: { stage: ApplicationStage }) {
     shared_with_client: "bg-warning/15 text-warning",
     client_shortlist: "bg-purple/15 text-purple",
     client_rejected: "bg-destructive/15 text-destructive",
+    on_hold: "bg-warning/15 text-warning",
     interview_scheduled: "bg-info/15 text-info",
     rounds: "bg-info/15 text-info",
     offered: "bg-success/15 text-success",
