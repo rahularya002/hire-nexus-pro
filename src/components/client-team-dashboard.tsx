@@ -28,7 +28,7 @@ export function ClientTeamDashboard() {
   const company = clientContext?.companyName || profile?.company_name || "your team";
 
   const kpis = [
-    { label: "Awaiting your review", value: awaitingReview, icon: Inbox, tone: "from-primary/15 to-primary/5 text-primary", to: "/client/pipeline" as const },
+    { label: "Awaiting your review", value: awaitingReview, icon: Inbox, tone: "from-primary/15 to-primary/5 text-primary", to: "/client/positions" as const },
     { label: "Interviews scheduled", value: interviewsScheduled, icon: CalendarCheck, tone: "from-info/15 to-info/5 text-info", to: "/client/interviews" as const },
     { label: "Open positions", value: openPositions, icon: Briefcase, tone: "from-purple/15 to-purple/5 text-purple", to: "/client/positions" as const },
   ];
