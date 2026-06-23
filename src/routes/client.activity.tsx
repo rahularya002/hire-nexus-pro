@@ -150,15 +150,30 @@ function Page() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search activity…"
-            className="w-full h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search activity…"
+              className="w-full h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <Briefcase className="size-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={positionId}
+              onChange={(e) => setPositionId(e.target.value)}
+              className="h-10 rounded-lg border border-input bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40 min-w-[12rem]"
+            >
+              <option value="all">All positions</option>
+              {positions.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
           <Filter className="size-3.5 text-muted-foreground shrink-0" />
