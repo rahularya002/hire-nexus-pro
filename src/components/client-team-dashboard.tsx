@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Inbox, CalendarCheck, Briefcase, MessageSquare, Workflow, ArrowUpRight, MapPin } from "lucide-react";
+import { Inbox, CalendarCheck, Briefcase, MessageSquare, ArrowUpRight, MapPin } from "lucide-react";
 import { ClientStatusBadge } from "@/components/client-shell";
 import { listPositions } from "@/lib/positions.functions";
 import { listApplications } from "@/lib/candidates.functions";
