@@ -229,7 +229,7 @@ function MemberRow({
   const m = statusMeta(member.status);
   const visibleClients = member.clients.slice(0, 4);
   const moreClients = member.clients.length - visibleClients.length;
-  const [activityOpen, setActivityOpen] = useState(false);
+  
   return (
     <div>
       <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-secondary/30 transition flex items-center gap-3">
