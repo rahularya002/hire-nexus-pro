@@ -53,11 +53,38 @@ function clean<T extends Record<string, any>>(o: T): T {
 export const listClients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data: clients, error } = await supabase
+    const { supabase, userId } = context;
+
+    // Recruiters only see clients that have a position assigned to them.
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    const isPrivileged =
+      roleNames.includes("admin") ||
+      roleNames.includes("lead_recruiter") ||
+      roleNames.includes("senior_recruiter");
+
+    let allowedClientIds: string[] | null = null;
+    if (!isPrivileged) {
+      const { data: assigned, error: aErr } = await supabase
+        .from("positions")
+        .select("client_id")
+        .eq("assigned_recruiter_id", userId);
+      if (aErr) throw new Error(aErr.message);
+      allowedClientIds = Array.from(
+        new Set((assigned ?? []).map((p) => p.client_id).filter(Boolean) as string[]),
+      );
+      if (allowedClientIds.length === 0) return [] as ClientRow[];
+    }
+
+    let clientsQ = supabase
       .from("clients")
       .select("*")
       .order("created_at", { ascending: false });
+    if (allowedClientIds) clientsQ = clientsQ.in("id", allowedClientIds);
+    const { data: clients, error } = await clientsQ;
     if (error) throw new Error(error.message);
     const { data: positions } = await supabase
       .from("positions")
