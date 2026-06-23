@@ -343,15 +343,41 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
         </div>
       </div>
 
-      <div>
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
-          <Activity className="size-3" /> Recent activity
-        </div>
-        {d.activities.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic">No recent activity.</div>
+    </div>
+  );
+}
+
+function ActivityDialog({ userId, open, onOpenChange, userName }: { userId: string; open: boolean; onOpenChange: (b: boolean) => void; userName: string }) {
+  const fetchActivities = useServerFn(listActivities);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    fetchActivities({ data: { actorId: userId, limit: 50 } })
+      .then((data) => setActivities(data as any[]))
+      .catch(() => toast.error("Failed to load activity"))
+      .finally(() => setLoading(false));
+  }, [open, fetchActivities, userId]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="inline-flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            {userName} — Activity
+          </DialogTitle>
+          <DialogDescription>Recent actions and updates from this recruiter.</DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="text-xs text-muted-foreground py-6 text-center">Loading activity…</div>
+        ) : activities.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-6 text-center">No recent activity.</div>
         ) : (
-          <div className="rounded-lg border border-border bg-card divide-y divide-border max-h-[420px] overflow-y-auto">
-            {(d.activities as any[]).map((a) => {
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {activities.map((a) => {
               const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
               const Icon = meta.icon;
               return (
@@ -369,8 +395,8 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
             })}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
