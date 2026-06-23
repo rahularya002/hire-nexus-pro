@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions, getTeamMemberActivity } from "@/lib/team.functions";
+import { listActivities } from "@/lib/activities.functions";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatRelative, type ActivityKind } from "@/lib/activities.functions";
 
@@ -228,6 +229,7 @@ function MemberRow({
   const m = statusMeta(member.status);
   const visibleClients = member.clients.slice(0, 4);
   const moreClients = member.clients.length - visibleClients.length;
+  const [activityOpen, setActivityOpen] = useState(false);
   return (
     <div>
       <button onClick={onToggle} className="w-full text-left px-4 py-3 hover:bg-secondary/30 transition flex items-center gap-3">
@@ -252,7 +254,7 @@ function MemberRow({
             <span>{member.activity7d} actions / 7d</span>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-1.5 max-w-[40%] flex-wrap justify-end">
+        <div className="hidden md:flex items-center gap-2 max-w-[40%] flex-wrap justify-end">
           {visibleClients.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/40 px-2 py-0.5 text-[11px]">
               <span className="size-1.5 rounded-full" style={{ background: c.color ?? "var(--muted-foreground)" }} />
@@ -261,10 +263,19 @@ function MemberRow({
           ))}
           {moreClients > 0 && <span className="text-[11px] text-muted-foreground">+{moreClients} more</span>}
           {member.clients.length === 0 && <span className="text-[11px] text-muted-foreground italic">No clients assigned</span>}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={(e) => { e.stopPropagation(); setActivityOpen(true); }}
+          >
+            <Eye className="size-3.5 mr-1" /> View Activity
+          </Button>
         </div>
         {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
       </button>
       {isOpen && <MemberActivityDrawer userId={member.id} />}
+      <ActivityDialog userId={member.id} open={activityOpen} onOpenChange={setActivityOpen} userName={member.name} />
     </div>
   );
 }
@@ -332,15 +343,41 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
         </div>
       </div>
 
-      <div>
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 inline-flex items-center gap-1.5">
-          <Activity className="size-3" /> Recent activity
-        </div>
-        {d.activities.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic">No recent activity.</div>
+    </div>
+  );
+}
+
+function ActivityDialog({ userId, open, onOpenChange, userName }: { userId: string; open: boolean; onOpenChange: (b: boolean) => void; userName: string }) {
+  const fetchActivities = useServerFn(listActivities);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    fetchActivities({ data: { actorId: userId, limit: 50 } })
+      .then((data) => setActivities(data as any[]))
+      .catch(() => toast.error("Failed to load activity"))
+      .finally(() => setLoading(false));
+  }, [open, fetchActivities, userId]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="inline-flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            {userName} — Activity
+          </DialogTitle>
+          <DialogDescription>Recent actions and updates from this recruiter.</DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="text-xs text-muted-foreground py-6 text-center">Loading activity…</div>
+        ) : activities.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-6 text-center">No recent activity.</div>
         ) : (
-          <div className="rounded-lg border border-border bg-card divide-y divide-border max-h-[420px] overflow-y-auto">
-            {(d.activities as any[]).map((a) => {
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {activities.map((a) => {
               const meta = KIND_META[a.kind as ActivityKind] ?? KIND_META.note;
               const Icon = meta.icon;
               return (
@@ -358,8 +395,8 @@ function MemberActivityDrawer({ userId }: { userId: string }) {
             })}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
