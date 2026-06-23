@@ -8,6 +8,7 @@ export const APPLICATION_STAGES = [
   "shared_with_client",
   "client_shortlist",
   "client_rejected",
+  "on_hold",
   "interview_scheduled",
   "rounds",
   "offered",
