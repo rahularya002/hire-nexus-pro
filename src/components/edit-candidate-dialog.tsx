@@ -66,6 +66,7 @@ export function EditCandidateDialog({
           email: email.trim() || null,
           phone: phone.trim() || null,
           linkedin_url: linkedinUrl.trim() || null,
+          salary: salary.trim() || null,
           notes: notes.trim() || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
         },
