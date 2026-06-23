@@ -32,6 +32,7 @@ export function EditCandidateDialog({
   const [email, setEmail] = useState(candidate.email ?? "");
   const [phone, setPhone] = useState(candidate.phone ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedin_url ?? "");
+  const [salary, setSalary] = useState(candidate.salary ?? "");
   const [notes, setNotes] = useState(candidate.notes ?? "");
   const [skills, setSkills] = useState<string[]>(candidate.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
@@ -46,6 +47,7 @@ export function EditCandidateDialog({
     setEmail(candidate.email ?? "");
     setPhone(candidate.phone ?? "");
     setLinkedinUrl(candidate.linkedin_url ?? "");
+    setSalary(candidate.salary ?? "");
     setNotes(candidate.notes ?? "");
     setSkills(candidate.skills ?? []);
     setSkillInput("");
@@ -64,6 +66,7 @@ export function EditCandidateDialog({
           email: email.trim() || null,
           phone: phone.trim() || null,
           linkedin_url: linkedinUrl.trim() || null,
+          salary: salary.trim() || null,
           notes: notes.trim() || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
         },
@@ -129,6 +132,10 @@ export function EditCandidateDialog({
             <div className="grid gap-1.5">
               <Label htmlFor="ec-li">LinkedIn URL</Label>
               <Input id="ec-li" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/…" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-salary">Salary / CTC</Label>
+              <Input id="ec-salary" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="₹50 LPA" />
             </div>
           </div>
 
