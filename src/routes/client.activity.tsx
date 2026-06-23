@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity as ActivityIcon, UserPlus, Star, Calendar, FileText,
   MessageSquare, CheckCircle2, Phone, Share2, CalendarClock, Award,
-  Search, Filter,
+  Search, Filter, Briefcase,
 } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
@@ -15,7 +15,10 @@ import {
   type ActivityKind,
   type ActivityRow,
 } from "@/lib/activities.functions";
+import { listPositions } from "@/lib/positions.functions";
+import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/client/activity")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -62,14 +65,34 @@ function timeOf(iso: string) {
 }
 
 function Page() {
+  const { clientContext } = useAuth();
+  const clientId = clientContext?.clientId ?? null;
+
   const fetchActivities = useServerFn(listActivities);
-  const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
-    queryKey: ["client-activities"],
-    queryFn: () => fetchActivities({ data: { limit: 200 } }),
+  const fetchPositions = useServerFn(listPositions);
+
+  const { data: positions = [] } = useQuery({
+    queryKey: ["client-activity-positions", clientId],
+    queryFn: () => fetchPositions({ data: { clientId: clientId! } }),
+    enabled: !!clientId,
   });
 
+  const [positionId, setPositionId] = useState<string>("all");
   const [filter, setFilter] = useState<"all" | ActivityKind>("all");
   const [q, setQ] = useState("");
+
+  const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
+    queryKey: ["client-activities", clientId, positionId],
+    queryFn: () =>
+      fetchActivities({
+        data: {
+          limit: 200,
+          clientId: clientId ?? undefined,
+          positionId: positionId === "all" ? undefined : positionId,
+        },
+      }),
+    enabled: !!clientId,
+  });
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -100,6 +123,7 @@ function Page() {
     return c;
   }, [events]);
 
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -126,15 +150,30 @@ function Page() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search activity…"
-            className="w-full h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search activity…"
+              className="w-full h-10 rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <Briefcase className="size-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={positionId}
+              onChange={(e) => setPositionId(e.target.value)}
+              className="h-10 rounded-lg border border-input bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40 min-w-[12rem]"
+            >
+              <option value="all">All positions</option>
+              {positions.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
           <Filter className="size-3.5 text-muted-foreground shrink-0" />
