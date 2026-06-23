@@ -32,6 +32,7 @@ export function EditCandidateDialog({
   const [email, setEmail] = useState(candidate.email ?? "");
   const [phone, setPhone] = useState(candidate.phone ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedin_url ?? "");
+  const [salary, setSalary] = useState(candidate.salary ?? "");
   const [notes, setNotes] = useState(candidate.notes ?? "");
   const [skills, setSkills] = useState<string[]>(candidate.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
