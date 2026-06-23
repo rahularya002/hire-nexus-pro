@@ -87,6 +87,7 @@ const candidateSchema = z.object({
   skills: z.array(z.string().min(1).max(60)).max(40).optional(),
   resume_url: z.string().url().max(500).optional().nullable(),
   linkedin_url: z.string().url().max(500).optional().nullable(),
+  salary: z.string().max(200).optional().nullable(),
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
   notes: z.string().max(10_000).optional().nullable(),
 });
