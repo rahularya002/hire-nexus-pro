@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil, Pencil as PencilIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/interviews.functions";
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
+import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -218,12 +219,18 @@ function Detail() {
 }
 
 function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: ApplicationRow[]; onUpdate: (id: string, stage: ApplicationStage) => void; pending: boolean; onSchedule: (a: ApplicationRow) => void }) {
+  const [editFor, setEditFor] = useState<ApplicationRow["candidate"] | null>(null);
   return (
     <div className="grid gap-3">
       {apps.map(a => {
         const c = a.candidate;
         if (!c) return null;
         const initials = (c.name.match(/\b\w/g) ?? ["?"]).slice(0, 2).join("").toUpperCase();
+        const canSchedule =
+          a.stage === "client_shortlist" ||
+          a.stage === "interview_scheduled" ||
+          a.stage === "rounds" ||
+          a.stage === "offered";
         return (
         <div key={a.id} className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-start gap-4">
@@ -239,14 +246,22 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                   </div>
                   <div className="text-sm text-muted-foreground mt-0.5">{c.role ?? "—"} · {c.experience ?? "—"} · {c.location ?? "—"}</div>
                 </div>
-                {a.match_score != null && (
-                  <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setEditFor(c)}
+                    className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    title="Edit candidate details"
+                  >
+                    <PencilIcon className="size-3.5" /> Edit
+                  </button>
+                  {a.match_score != null && (
                     <div className="text-right">
                       <div className="text-lg font-semibold tabular-nums text-success">{a.match_score}%</div>
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">match</div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {c.notes && <p className="text-sm text-foreground/80 mt-3 leading-relaxed">{c.notes}</p>}
@@ -297,12 +312,14 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
                       <Check className="size-4" /> Shortlist
                     </button>
-                    <button
-                      onClick={() => onSchedule(a)}
-                      disabled={pending || a.stage === "interview_scheduled"}
-                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-                      <Calendar className="size-4" /> Schedule interview
-                    </button>
+                    {canSchedule && (
+                      <button
+                        onClick={() => onSchedule(a)}
+                        disabled={pending || a.stage === "interview_scheduled"}
+                        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                        <Calendar className="size-4" /> {a.stage === "interview_scheduled" ? "Interview scheduled" : "Schedule interview"}
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -311,6 +328,13 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
         </div>
         );
       })}
+      {editFor && (
+        <EditCandidateDialog
+          open={!!editFor}
+          onOpenChange={(v) => { if (!v) setEditFor(null); }}
+          candidate={editFor}
+        />
+      )}
     </div>
   );
 }
