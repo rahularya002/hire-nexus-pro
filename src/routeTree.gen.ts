@@ -55,7 +55,6 @@ import { Route as ClientScoutRouteImport } from './routes/client.scout'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
 import { Route as ClientPlacementsRouteImport } from './routes/client.placements'
-import { Route as ClientPipelineRouteImport } from './routes/client.pipeline'
 import { Route as ClientMyTeamRouteImport } from './routes/client.my-team'
 import { Route as ClientMessagesRouteImport } from './routes/client.messages'
 import { Route as ClientLoginRouteImport } from './routes/client.login'
@@ -302,11 +301,6 @@ const ClientPlacementsRoute = ClientPlacementsRouteImport.update({
   path: '/client/placements',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientPipelineRoute = ClientPipelineRouteImport.update({
-  id: '/client/pipeline',
-  path: '/client/pipeline',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ClientMyTeamRoute = ClientMyTeamRouteImport.update({
   id: '/client/my-team',
   path: '/client/my-team',
@@ -417,7 +411,6 @@ export interface FileRoutesByFullPath {
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/my-team': typeof ClientMyTeamRoute
-  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -477,7 +470,6 @@ export interface FileRoutesByTo {
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/my-team': typeof ClientMyTeamRoute
-  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -542,7 +534,6 @@ export interface FileRoutesById {
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
   '/client/my-team': typeof ClientMyTeamRoute
-  '/client/pipeline': typeof ClientPipelineRoute
   '/client/placements': typeof ClientPlacementsRoute
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
@@ -608,7 +599,6 @@ export interface FileRouteTypes {
     | '/client/login'
     | '/client/messages'
     | '/client/my-team'
-    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -668,7 +658,6 @@ export interface FileRouteTypes {
     | '/client/login'
     | '/client/messages'
     | '/client/my-team'
-    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -732,7 +721,6 @@ export interface FileRouteTypes {
     | '/client/login'
     | '/client/messages'
     | '/client/my-team'
-    | '/client/pipeline'
     | '/client/placements'
     | '/client/positions'
     | '/client/reports'
@@ -797,7 +785,6 @@ export interface RootRouteChildren {
   ClientLoginRoute: typeof ClientLoginRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
   ClientMyTeamRoute: typeof ClientMyTeamRoute
-  ClientPipelineRoute: typeof ClientPipelineRoute
   ClientPlacementsRoute: typeof ClientPlacementsRoute
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
@@ -1135,13 +1122,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientPlacementsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/client/pipeline': {
-      id: '/client/pipeline'
-      path: '/client/pipeline'
-      fullPath: '/client/pipeline'
-      preLoaderRoute: typeof ClientPipelineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/client/my-team': {
       id: '/client/my-team'
       path: '/client/my-team'
@@ -1388,7 +1368,6 @@ const rootRouteChildren: RootRouteChildren = {
   ClientLoginRoute: ClientLoginRoute,
   ClientMessagesRoute: ClientMessagesRoute,
   ClientMyTeamRoute: ClientMyTeamRoute,
-  ClientPipelineRoute: ClientPipelineRoute,
   ClientPlacementsRoute: ClientPlacementsRoute,
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,

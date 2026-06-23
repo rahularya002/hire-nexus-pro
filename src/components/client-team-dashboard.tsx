@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Inbox, CalendarCheck, Briefcase, MessageSquare, Workflow, ArrowUpRight, MapPin } from "lucide-react";
+import { Inbox, CalendarCheck, Briefcase, MessageSquare, ArrowUpRight, MapPin } from "lucide-react";
 import { ClientStatusBadge } from "@/components/client-shell";
 import { listPositions } from "@/lib/positions.functions";
 import { listApplications } from "@/lib/candidates.functions";
@@ -28,7 +28,7 @@ export function ClientTeamDashboard() {
   const company = clientContext?.companyName || profile?.company_name || "your team";
 
   const kpis = [
-    { label: "Awaiting your review", value: awaitingReview, icon: Inbox, tone: "from-primary/15 to-primary/5 text-primary", to: "/client/pipeline" as const },
+    { label: "Awaiting your review", value: awaitingReview, icon: Inbox, tone: "from-primary/15 to-primary/5 text-primary", to: "/client/positions" as const },
     { label: "Interviews scheduled", value: interviewsScheduled, icon: CalendarCheck, tone: "from-info/15 to-info/5 text-info", to: "/client/interviews" as const },
     { label: "Open positions", value: openPositions, icon: Briefcase, tone: "from-purple/15 to-purple/5 text-purple", to: "/client/positions" as const },
   ];
@@ -104,16 +104,7 @@ export function ClientTeamDashboard() {
         </div>
       </section>
 
-      <section className="grid sm:grid-cols-2 gap-3">
-        <Link to="/client/pipeline" className="rounded-xl border border-border bg-card p-5 flex items-center gap-3 hover:border-primary/30 hover:shadow-md transition">
-          <div className="size-10 rounded-lg grid place-items-center bg-gradient-to-br from-primary/15 to-primary/5 text-primary">
-            <Workflow className="size-5" />
-          </div>
-          <div>
-            <div className="font-medium">Open the pipeline</div>
-            <div className="text-xs text-muted-foreground">Review shortlists and move candidates forward</div>
-          </div>
-        </Link>
+      <section>
         <Link to="/client/messages" className="rounded-xl border border-border bg-card p-5 flex items-center gap-3 hover:border-primary/30 hover:shadow-md transition">
           <div className="size-10 rounded-lg grid place-items-center bg-gradient-to-br from-info/15 to-info/5 text-info">
             <MessageSquare className="size-5" />
