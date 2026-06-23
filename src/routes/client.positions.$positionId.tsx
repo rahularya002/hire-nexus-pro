@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2,
+  ArrowLeft, MapPin, Check, X, Calendar, Eye, MessageSquare, Linkedin, Sparkles, Plus, Trash2, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -33,6 +33,7 @@ import {
   type InterviewKind,
 } from "@/lib/interviews.functions";
 import { listClientMembers } from "@/lib/client-team.functions";
+import { EditPositionDialog } from "@/components/edit-position-dialog";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -60,6 +61,7 @@ function Detail() {
   const updateStage = useServerFn(updateApplicationStage);
   const requestInterview = useServerFn(requestClientInterview);
   const [scheduleFor, setScheduleFor] = useState<ApplicationRow | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const posQ = useQuery({ queryKey: ["client-position", positionId], queryFn: () => fetchPos({ data: { id: positionId } }) });
   const appsQ = useQuery({
@@ -166,6 +168,9 @@ function Detail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => setEditOpen(true)} className="h-10">
+              <Pencil className="size-4" /> Edit
+            </Button>
             {(initial.recruitment_model === "self" || initial.recruitment_model === "hybrid") && (
               <Link
                 to="/client/scout"
@@ -206,6 +211,8 @@ function Detail() {
         }
         pending={scheduleM.isPending}
       />
+
+      <EditPositionDialog open={editOpen} onOpenChange={setEditOpen} position={initial} />
     </div>
   );
 }

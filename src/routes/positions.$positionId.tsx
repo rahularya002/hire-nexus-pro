@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, Calendar, Users, Loader2, Sparkles, UserCheck, UserX, Check } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Users, Loader2, Sparkles, UserCheck, UserX, Check, Pencil } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -10,6 +10,7 @@ import { getPositionById, assignPositionRecruiter, listAssignableRecruiters } fr
 import { daysSince, initialsOf } from "@/lib/display";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
+import { EditPositionDialog } from "@/components/edit-position-dialog";
 
 export const Route = createFileRoute("/positions/$positionId")({
   component: PositionDetail,
@@ -22,6 +23,8 @@ function PositionDetail() {
   const { roles } = useAuth();
   const canAssign = roles.includes("admin") || roles.includes("lead_recruiter");
   const canScout = canAssign || roles.includes("recruiter") || roles.includes("senior_recruiter");
+  const canEditRequirement = canScout;
+  const [editOpen, setEditOpen] = useState(false);
   const { data: position, isLoading } = useQuery({
     queryKey: ["position", positionId],
     queryFn: () => fetchPosition({ data: { id: positionId } }),
@@ -89,10 +92,19 @@ function PositionDetail() {
               </div>
             )}
           </div>
+          {canEditRequirement && (
+            <Button variant="outline" onClick={() => setEditOpen(true)} className="shrink-0">
+              <Pencil className="size-4" /> Edit
+            </Button>
+          )}
         </div>
       </div>
 
       <AssignmentCard positionId={positionId} assignedId={position.assigned_recruiter_id ?? null} canEdit={canAssign} />
+
+      {canEditRequirement && (
+        <EditPositionDialog open={editOpen} onOpenChange={setEditOpen} position={position} />
+      )}
 
       {canScout && (
         <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 via-card to-card p-5 flex items-center justify-between gap-4 flex-wrap">
