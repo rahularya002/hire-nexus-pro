@@ -300,6 +300,30 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                   <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-destructive/10 text-destructive text-sm font-medium">
                     <X className="size-4" /> Rejected
                   </span>
+                ) : a.stage === "on_hold" ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-warning/15 text-warning text-sm font-medium border border-warning/25">
+                      <Pause className="size-4" /> On hold
+                    </span>
+                    <button
+                      onClick={() => onUpdate(a.id, "shared_with_client")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary disabled:opacity-50">
+                      <Play className="size-4" /> Resume review
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_rejected")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 disabled:opacity-50">
+                      <X className="size-4" /> Reject
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "client_shortlist")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                      <Check className="size-4" /> Shortlist
+                    </button>
+                  </>
                 ) : canSchedule ? (
                   <>
                     <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-success/10 text-success text-sm font-medium">
@@ -325,6 +349,12 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                       disabled={pending || a.stage === "client_shortlist" || a.stage === "interview_scheduled" || a.stage === "rounds" || a.stage === "offered"}
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
                       <Check className="size-4" /> Shortlist
+                    </button>
+                    <button
+                      onClick={() => onUpdate(a.id, "on_hold")}
+                      disabled={pending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary disabled:opacity-50">
+                      <Pause className="size-4" /> Put on hold
                     </button>
                   </>
                 )}
