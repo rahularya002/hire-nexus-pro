@@ -263,14 +263,6 @@ function MemberRow({
           ))}
           {moreClients > 0 && <span className="text-[11px] text-muted-foreground">+{moreClients} more</span>}
           {member.clients.length === 0 && <span className="text-[11px] text-muted-foreground italic">No clients assigned</span>}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={(e) => { e.stopPropagation(); setActivityOpen(true); }}
-          >
-            <Eye className="size-3.5 mr-1" /> View Activity
-          </Button>
         </div>
         {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
       </button>
