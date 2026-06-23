@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin } from "lucide-react";
+import { Upload, Send, Star, CalendarCheck, Award, XCircle, ArrowUpRight, MapPin, Briefcase } from "lucide-react";
 import { ClientShell, ClientStatusBadge } from "@/components/client-shell";
 import { ClientTeamDashboard } from "@/components/client-team-dashboard";
 import { listPositions, type PositionRow } from "@/lib/positions.functions";
