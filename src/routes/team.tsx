@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTeamMember, getTeamMembers, getRolePermissions, updateRolePermissions, getTeamMemberActivity } from "@/lib/team.functions";
-import { listActivities } from "@/lib/activities.functions";
+
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatRelative, type ActivityKind } from "@/lib/activities.functions";
 
