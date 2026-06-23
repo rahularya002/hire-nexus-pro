@@ -133,6 +133,10 @@ export function EditCandidateDialog({
               <Label htmlFor="ec-li">LinkedIn URL</Label>
               <Input id="ec-li" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/…" />
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-salary">Salary / CTC</Label>
+              <Input id="ec-salary" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="₹50 LPA" />
+            </div>
           </div>
 
           <div className="grid gap-1.5">
