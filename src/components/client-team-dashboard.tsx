@@ -104,16 +104,7 @@ export function ClientTeamDashboard() {
         </div>
       </section>
 
-      <section className="grid sm:grid-cols-2 gap-3">
-        <Link to="/client/pipeline" className="rounded-xl border border-border bg-card p-5 flex items-center gap-3 hover:border-primary/30 hover:shadow-md transition">
-          <div className="size-10 rounded-lg grid place-items-center bg-gradient-to-br from-primary/15 to-primary/5 text-primary">
-            <Workflow className="size-5" />
-          </div>
-          <div>
-            <div className="font-medium">Open the pipeline</div>
-            <div className="text-xs text-muted-foreground">Review shortlists and move candidates forward</div>
-          </div>
-        </Link>
+      <section>
         <Link to="/client/messages" className="rounded-xl border border-border bg-card p-5 flex items-center gap-3 hover:border-primary/30 hover:shadow-md transition">
           <div className="size-10 rounded-lg grid place-items-center bg-gradient-to-br from-info/15 to-info/5 text-info">
             <MessageSquare className="size-5" />
