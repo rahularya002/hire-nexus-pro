@@ -17,6 +17,7 @@ import { listPositions, type PositionRow } from "@/lib/positions.functions";
 import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { listTasks, TASK_STATES, type TaskRow, type TaskState } from "@/lib/tasks.functions";
 import { listInterviews, formatInterviewWhen, type InterviewRow } from "@/lib/interviews.functions";
+import { listTodayRecruiterLogins, type RecruiterLoginToday } from "@/lib/logins.functions";
 import { colorFor, initialsOf } from "@/lib/display";
 import { ActivityStreamSkeleton } from "@/components/skeletons";
 
@@ -353,6 +354,12 @@ function Cockpit() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <DashboardActivityFeed />
       </div>
+
+      {isAdmin && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <RecruiterLoginsToday />
+        </div>
+      )}
     </div>
   );
 }
