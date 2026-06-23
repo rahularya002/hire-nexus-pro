@@ -57,13 +57,26 @@ export const listPositions = createServerFn({ method: "GET" })
     }).optional().parse(d) ?? {},
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+
+    // Recruiters only see positions assigned to them.
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    const isPrivileged =
+      roleNames.includes("admin") ||
+      roleNames.includes("lead_recruiter") ||
+      roleNames.includes("senior_recruiter");
+
     let q = supabase
       .from("positions")
       .select("*, client:clients(id, name, color, industry, contact_name)")
       .order("posted_at", { ascending: false });
     if (data?.clientId) q = q.eq("client_id", data.clientId);
     if (data?.recruitmentModel) q = q.eq("recruitment_model", data.recruitmentModel);
+    if (!isPrivileged) q = q.eq("assigned_recruiter_id", userId);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []) as PositionRow[];
