@@ -258,7 +258,7 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                   {a.match_score != null && (
                     <div className="text-right">
                       <div className="text-lg font-semibold tabular-nums text-success">{a.match_score}%</div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">match</div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">ai match</div>
                     </div>
                   )}
                 </div>
@@ -275,7 +275,7 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
                 <Mini label="Email" value={c.email ?? "—"} />
                 <Mini label="Phone" value={c.phone ?? "—"} />
-                {a.match_score != null && <Mini label="Match" value={`${a.match_score}%`} />}
+                {a.match_score != null && <Mini label="AI Match" value={`${a.match_score}%`} />}
               </div>
 
               <div className="flex flex-wrap gap-1.5 mt-4">
