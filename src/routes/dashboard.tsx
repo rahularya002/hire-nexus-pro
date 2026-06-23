@@ -439,6 +439,80 @@ function ChannelIcon({ channel }: { channel: "WhatsApp" | "Email" | "Call" }) {
 // Suppress unused import warning for Coffee (reserved for future Break visual)
 void Coffee;
 
+function RecruiterLoginsToday() {
+  const fetchLogins = useServerFn(listTodayRecruiterLogins);
+  const { data: rows = [], isLoading } = useQuery<RecruiterLoginToday[]>({
+    queryKey: ["recruiter-logins-today"],
+    queryFn: () => fetchLogins(),
+    refetchInterval: 60_000,
+  });
+
+  const loggedIn = rows.filter((r) => r.logged_in_today);
+  const offline = rows.filter((r) => !r.logged_in_today);
+
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  return (
+    <>
+      <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Clock className="size-4 text-primary" />
+          <h3 className="font-semibold tracking-tight">Recruiter logins today</h3>
+          <span className="text-[11px] text-muted-foreground">
+            {loggedIn.length}/{rows.length} signed in
+          </span>
+        </div>
+        <Link to="/team" className="text-xs text-primary font-medium inline-flex items-center gap-1">
+          Team roster <ArrowUpRight className="size-3" />
+        </Link>
+      </div>
+      <div className="divide-y divide-border">
+        {isLoading && (
+          <div className="p-6 text-sm text-muted-foreground text-center">Loading…</div>
+        )}
+        {!isLoading && rows.length === 0 && (
+          <div className="p-6 text-sm text-muted-foreground text-center">No teammates yet.</div>
+        )}
+        {[...loggedIn, ...offline].map((r) => {
+          const name = r.full_name || r.email || "Teammate";
+          return (
+            <div key={r.user_id} className="flex items-center gap-3 p-3 hover:bg-secondary/30 transition">
+              <div
+                className="size-8 rounded-md grid place-items-center text-[10px] font-semibold text-primary-foreground shrink-0"
+                style={{ background: colorFor(r.user_id) }}
+              >
+                {initialsOf(name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{name}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {r.role ?? "recruiter"} · {r.email ?? "—"}
+                </div>
+              </div>
+              {r.logged_in_today ? (
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-medium tabular-nums">
+                    <span className="inline-block size-1.5 rounded-full bg-success mr-1.5 align-middle" />
+                    First {fmt(r.first_login_at)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground tabular-nums">
+                    Last activity {fmt(r.last_login_at)}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-secondary text-muted-foreground shrink-0">
+                  Not signed in
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 function DashboardActivityFeed() {
   const fetchActivities = useServerFn(listActivities);
   const { data: events = [], isLoading } = useQuery<ActivityRow[]>({
