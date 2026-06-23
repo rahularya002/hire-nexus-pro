@@ -298,6 +298,18 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                   <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-destructive/10 text-destructive text-sm font-medium">
                     <X className="size-4" /> Rejected
                   </span>
+                ) : canSchedule ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-success/10 text-success text-sm font-medium">
+                      <Check className="size-4" /> Shortlisted
+                    </span>
+                    <button
+                      onClick={() => onSchedule(a)}
+                      disabled={pending || a.stage === "interview_scheduled"}
+                      className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                      <Calendar className="size-4" /> {a.stage === "interview_scheduled" ? "Interview scheduled" : "Schedule interview"}
+                    </button>
+                  </>
                 ) : (
                   <>
                     <button
@@ -312,14 +324,6 @@ function CandidateList({ apps, onUpdate, pending, onSchedule }: { apps: Applicat
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-success text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
                       <Check className="size-4" /> Shortlist
                     </button>
-                    {canSchedule && (
-                      <button
-                        onClick={() => onSchedule(a)}
-                        disabled={pending || a.stage === "interview_scheduled"}
-                        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-                        <Calendar className="size-4" /> {a.stage === "interview_scheduled" ? "Interview scheduled" : "Schedule interview"}
-                      </button>
-                    )}
                   </>
                 )}
               </div>
