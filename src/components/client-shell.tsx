@@ -56,6 +56,7 @@ const navSections: ClientNavSection[] = [
     items: [
       { to: "/client/upload",    label: "Upload JD", icon: Upload },
       { to: "/client/documents", label: "Documents", icon: FileText },
+      { to: "/client/settings",  label: "Settings",  icon: Settings },
     ],
   },
 ];
