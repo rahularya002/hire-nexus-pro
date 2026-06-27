@@ -17,6 +17,7 @@ import {
 import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { getTeamMembers } from "@/lib/team.functions";
 import { ClipboardList, Plus, Clock, CalendarIcon, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { KanbanCardSkeleton } from "@/components/skeletons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -31,6 +32,16 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/tasks")({ component: TasksPage });
 
 const COLUMNS: TaskState[] = [...TASK_STATES];
+const SEEN_KEY = "tasks.lastSeenByState.v1";
+
+function loadSeen(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}"); } catch { return {}; }
+}
+function saveSeen(map: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SEEN_KEY, JSON.stringify(map));
+}
 
 function TasksPage() {
   const qc = useQueryClient();
@@ -47,6 +58,33 @@ function TasksPage() {
   const recruiters = teamData?.members ?? [];
 
   const [open, setOpen] = useState(false);
+  const [activeState, setActiveState] = useState<TaskState>(COLUMNS[0]);
+  const [seen, setSeen] = useState<Record<string, string>>({});
+  useEffect(() => { setSeen(loadSeen()); }, []);
+
+  // Compute unseen counts per state (tasks created/updated after last visit to that pill)
+  const unseenByState = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const col of COLUMNS) {
+      const lastSeen = seen[col] ? new Date(seen[col]).getTime() : 0;
+      map[col] = tasks.filter((t) => {
+        if (t.state !== col) return false;
+        const ts = new Date((t as TaskRow & { updated_at?: string; created_at?: string }).updated_at || (t as TaskRow & { created_at?: string }).created_at || 0).getTime();
+        return ts > lastSeen;
+      }).length;
+    }
+    return map;
+  }, [tasks, seen]);
+
+  // Mark active pill as seen
+  useEffect(() => {
+    if (!tasks.length) return;
+    const next = { ...loadSeen(), [activeState]: new Date().toISOString() };
+    saveSeen(next);
+    setSeen(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeState, tasks.length]);
+
   const [kinds, setKinds] = useState<string[]>([...DEFAULT_TASK_KINDS]);
   const [manageKindsOpen, setManageKindsOpen] = useState(false);
   const [newKind, setNewKind] = useState("");
@@ -146,56 +184,86 @@ function TasksPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        {/* Pills */}
+        <div className="flex flex-wrap items-center gap-2">
           {COLUMNS.map((col) => {
-            const items = tasks.filter((t) => t.state === col);
+            const count = tasks.filter((t) => t.state === col).length;
+            const unseen = unseenByState[col] ?? 0;
+            const active = activeState === col;
             return (
-              <div key={col} className="rounded-xl border border-border bg-card flex flex-col min-h-[400px]">
-                <div className="p-3 border-b border-border flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wider">{col}</div>
-                  <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{items.length}</span>
-                </div>
-                <div className="p-2 space-y-2 flex-1">
-                  {isLoading && <KanbanCardSkeleton rows={2} />}
-                  {!isLoading && items.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No tasks</div>}
-                  {items.map((t: TaskRow) => {
-                    const c = t.client_id ? clientById.get(t.client_id) : null;
-                    const dueLabel = t.due_label ?? (t.due_at ? format(new Date(t.due_at), "PP") : "No due date");
-                    return (
-                    <div key={t.id} className="rounded-lg border border-border bg-background/40 p-2.5 hover:border-primary/40 transition group">
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t.kind}</div>
-                      <div className="text-sm font-medium leading-snug mt-1">{t.title}</div>
-                      {(c || t.notes) && (
-                        <div className="text-[11px] text-muted-foreground mt-1 truncate">
-                          {c?.name}{c && t.notes && " · "}{t.notes}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between mt-2.5">
-                        <span className={cn(
-                          "text-[10px] font-medium px-1.5 py-0.5 rounded inline-flex items-center gap-1",
-                          t.sla === "breach" ? "bg-destructive/10 text-destructive" : t.sla === "warning" ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"
-                        )}>
-                          <Clock className="size-2.5" /> {dueLabel}
-                        </span>
-                        <button
-                          title="Delete"
-                          onClick={() => deleteMut.mutate(t.id)}
-                          className="size-6 grid place-items-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60">
-                        <button onClick={() => move(t.id, -1)} className="text-[10px] text-muted-foreground hover:text-foreground">← Back</button>
-                        <button onClick={() => move(t.id, 1)} className="text-[10px] text-primary hover:underline font-medium">Advance →</button>
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <button
+                key={col}
+                onClick={() => setActiveState(col)}
+                className={cn(
+                  "relative inline-flex items-center gap-2 h-9 px-3.5 rounded-full text-xs font-medium transition border",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card text-foreground border-border hover:border-primary/40"
+                )}
+              >
+                <span>{col}</span>
+                <span className={cn(
+                  "tabular-nums text-[10px] px-1.5 py-0.5 rounded-full",
+                  active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-secondary text-muted-foreground"
+                )}>{count}</span>
+                {unseen > 0 && !active && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold tabular-nums shadow ring-2 ring-background">
+                    {unseen > 9 ? "9+" : unseen}
+                  </span>
+                )}
+              </button>
             );
           })}
+        </div>
+
+        {/* Active panel */}
+        <div className="rounded-xl border border-border bg-card">
+          <div className="p-3 border-b border-border flex items-center justify-between">
+            <div className="text-sm font-semibold">{activeState}</div>
+            <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+              {tasks.filter((t) => t.state === activeState).length} task(s)
+            </span>
+          </div>
+          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {isLoading && <KanbanCardSkeleton rows={3} />}
+            {!isLoading && tasks.filter((t) => t.state === activeState).length === 0 && (
+              <div className="text-xs text-muted-foreground text-center py-10 col-span-full">No tasks in {activeState}</div>
+            )}
+            {tasks.filter((t) => t.state === activeState).map((t: TaskRow) => {
+              const c = t.client_id ? clientById.get(t.client_id) : null;
+              const dueLabel = t.due_label ?? (t.due_at ? format(new Date(t.due_at), "PP") : "No due date");
+              return (
+                <div key={t.id} className="rounded-lg border border-border bg-background/40 p-3 hover:border-primary/40 transition group">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t.kind}</div>
+                  <div className="text-sm font-medium leading-snug mt-1">{t.title}</div>
+                  {(c || t.notes) && (
+                    <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                      {c?.name}{c && t.notes && " · "}{t.notes}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mt-2.5">
+                    <span className={cn(
+                      "text-[10px] font-medium px-1.5 py-0.5 rounded inline-flex items-center gap-1",
+                      t.sla === "breach" ? "bg-destructive/10 text-destructive" : t.sla === "warning" ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"
+                    )}>
+                      <Clock className="size-2.5" /> {dueLabel}
+                    </span>
+                    <button
+                      title="Delete"
+                      onClick={() => deleteMut.mutate(t.id)}
+                      className="size-6 grid place-items-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60">
+                    <button onClick={() => move(t.id, -1)} className="text-[10px] text-muted-foreground hover:text-foreground">← Back</button>
+                    <button onClick={() => move(t.id, 1)} className="text-[10px] text-primary hover:underline font-medium">Advance →</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
