@@ -190,6 +190,7 @@ function CandidateDetailSheet({
   onClose: () => void;
 }) {
   const fetchApps = useServerFn(listApplications);
+  const [editing, setEditing] = useState(false);
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["candidate-history", candidate?.id],
     queryFn: () => fetchApps({ data: { candidateId: candidate!.id } }),
@@ -212,6 +213,9 @@ function CandidateDetailSheet({
                     {candidate.role ?? "—"}
                   </div>
                 </div>
+                <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setEditing(true)}>
+                  <Pencil className="size-3.5" /> Edit
+                </Button>
               </SheetTitle>
               <SheetDescription className="sr-only">Candidate details and history</SheetDescription>
             </SheetHeader>
@@ -261,6 +265,12 @@ function CandidateDetailSheet({
                 </ul>
               </TabsContent>
             </Tabs>
+            <EditCandidateDialog
+              open={editing}
+              onOpenChange={setEditing}
+              candidate={candidate}
+              invalidateKeys={[["candidates"], ["candidate-history", candidate.id]]}
+            />
           </>
         )}
       </SheetContent>
