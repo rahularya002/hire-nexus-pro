@@ -84,6 +84,9 @@ export function ScoutResults({
                 </div>
               </div>
               <div className="flex sm:flex-col gap-2 shrink-0">
+                {c.source === "database" ? (
+                  <span className="h-8 px-3 rounded-md bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 text-xs font-medium inline-flex items-center">In your database</span>
+                ) : (
                 <button
                   type="button"
                   disabled={!onShortlist || busyId === c.sourcedCandidateId}
@@ -92,6 +95,8 @@ export function ScoutResults({
                 >
                   {busyId === c.sourcedCandidateId ? <Loader2 className="size-3 animate-spin" /> : "Shortlist"}
                 </button>
+                )}
+                {c.source !== "database" && (
                 <button
                   type="button"
                   disabled={!onReject || busyId === c.sourcedCandidateId}
@@ -100,6 +105,7 @@ export function ScoutResults({
                 >
                   <X className="size-3" /> Reject
                 </button>
+                )}
               </div>
             </li>
           ))}
