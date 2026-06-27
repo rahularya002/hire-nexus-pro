@@ -1992,6 +1992,14 @@ export type Database = {
         Args: { _client_id: string; _user_id: string }
         Returns: boolean
       }
+      is_client_team_member_of_position: {
+        Args: { _position_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_client_team_member_of_thread: {
+        Args: { _thread_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       activity_kind:
