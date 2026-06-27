@@ -35,6 +35,7 @@ export function GoogleCalendarCard({ description }: { description?: string }) {
     setBusy(true);
     try {
       const { authUrl } = await startFn({ data: { origin: window.location.origin } });
+      try { sessionStorage.setItem("google-oauth-return", window.location.pathname); } catch {}
       window.location.href = authUrl;
     } finally {
       setBusy(false);
