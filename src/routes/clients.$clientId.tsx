@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, Calendar, Users, Mail, Phone, Loader2, Building2 } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Users, Mail, Phone, Loader2, Building2, UserPlus, Check } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { getClientById } from "@/lib/clients.functions";
-import { listPositions } from "@/lib/positions.functions";
+import { listPositions, listAssignableRecruiters, assignClientRecruiter } from "@/lib/positions.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { colorFor, initialsOf, daysSince } from "@/lib/display";
 
 export const Route = createFileRoute("/clients/$clientId")({
@@ -20,6 +24,9 @@ function ClientDetail() {
   const { clientId } = Route.useParams();
   const fetchClient = useServerFn(getClientById);
   const fetchPositions = useServerFn(listPositions);
+  const fetchRecruiters = useServerFn(listAssignableRecruiters);
+  const assignFn = useServerFn(assignClientRecruiter);
+  const qc = useQueryClient();
   const { data: client, isLoading } = useQuery({
     queryKey: ["client", clientId],
     queryFn: () => fetchClient({ data: { id: clientId } }),
@@ -28,6 +35,29 @@ function ClientDetail() {
     queryKey: ["positions", { clientId }],
     queryFn: () => fetchPositions({ data: { clientId } }),
     enabled: !!client,
+  });
+  const { data: recruiters = [] } = useQuery({
+    queryKey: ["assignable-recruiters"],
+    queryFn: () => fetchRecruiters(),
+  });
+  const currentRecruiterId = useMemo(() => {
+    const open = list.filter((p) => p.status !== "closed");
+    if (open.length === 0) return null;
+    const first = open[0].assigned_recruiter_id;
+    return open.every((p) => p.assigned_recruiter_id === first) ? first : "__mixed__";
+  }, [list]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const pending = selected !== null && selected !== currentRecruiterId;
+  const assignMutation = useMutation({
+    mutationFn: (recruiterId: string | null) =>
+      assignFn({ data: { clientId, assigned_recruiter_id: recruiterId, onlyOpen: true } }),
+    onSuccess: (res) => {
+      toast.success(`Assigned recruiter to ${res.count} open position${res.count === 1 ? "" : "s"}`);
+      setSelected(null);
+      qc.invalidateQueries({ queryKey: ["positions"] });
+      qc.invalidateQueries({ queryKey: ["client", clientId] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to assign"),
   });
 
   if (isLoading) {
@@ -89,6 +119,34 @@ function ClientDetail() {
           {client.notes && (
             <p className="mt-4 text-sm text-foreground/80 rounded-lg bg-secondary/40 p-3 max-w-3xl">{client.notes}</p>
           )}
+        </div>
+        <div className="hidden md:flex flex-col gap-2 min-w-[240px]">
+          <label className="text-xs uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
+            <UserPlus className="size-3.5" /> Assigned recruiter
+          </label>
+          <Select
+            value={selected ?? (currentRecruiterId && currentRecruiterId !== "__mixed__" ? currentRecruiterId : "") }
+            onValueChange={(v) => setSelected(v === "__none__" ? null : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={currentRecruiterId === "__mixed__" ? "Mixed across positions" : "Select a recruiter"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Unassigned</SelectItem>
+              {recruiters.map((r) => (
+                <SelectItem key={r.id} value={r.id}>{r.name} <span className="text-muted-foreground">· {r.role.replace("_", " ")}</span></SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            disabled={!pending || assignMutation.isPending}
+            onClick={() => assignMutation.mutate(selected)}
+          >
+            {assignMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+            Apply to open positions
+          </Button>
+          <p className="text-[11px] text-muted-foreground">Updates all open requirements for this client.</p>
         </div>
       </div>
 
