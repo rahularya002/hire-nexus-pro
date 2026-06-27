@@ -31,6 +31,8 @@ export type SourcedMatchView = {
   rejected: boolean;
   openToWork: boolean;
   origin: "internal" | "apify";
+  positionStatus: "available" | "in_pipeline" | "shared";
+  applicationStage: string | null;
 };
 
 const sourceEnum = z.enum(["linkedin", "github"]);
@@ -39,7 +41,43 @@ type SubmittedCandidateKeys = {
   ids: Set<string>;
   emails: Set<string>;
   urls: Set<string>;
+  byId: Map<string, SubmittedCandidateStatus>;
+  byEmail: Map<string, SubmittedCandidateStatus>;
+  byUrl: Map<string, SubmittedCandidateStatus>;
 };
+
+type SubmittedCandidateStatus = {
+  applicationId: string;
+  candidateId: string | null;
+  stage: string;
+};
+
+const CLIENT_SHARED_STAGES = new Set([
+  "shared_with_client",
+  "client_shortlist",
+  "client_rejected",
+  "on_hold",
+  "interview_scheduled",
+  "rounds",
+  "offered",
+  "closed",
+]);
+
+function emptySubmittedKeys(): SubmittedCandidateKeys {
+  return {
+    ids: new Set<string>(),
+    emails: new Set<string>(),
+    urls: new Set<string>(),
+    byId: new Map<string, SubmittedCandidateStatus>(),
+    byEmail: new Map<string, SubmittedCandidateStatus>(),
+    byUrl: new Map<string, SubmittedCandidateStatus>(),
+  };
+}
+
+function positionStatusForStage(stage: string | null | undefined): SourcedMatchView["positionStatus"] {
+  if (!stage) return "available";
+  return CLIENT_SHARED_STAGES.has(stage) ? "shared" : "in_pipeline";
+}
 
 function normalizeKey(value: string | null | undefined) {
   return value?.trim().toLowerCase() || null;
@@ -95,35 +133,59 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
 
     function getSubmittedKeys() {
       if (!data.positionId) {
-        return Promise.resolve({ ids: new Set<string>(), emails: new Set<string>(), urls: new Set<string>() });
+        return Promise.resolve(emptySubmittedKeys());
       }
       const positionId = data.positionId;
       submittedKeysPromise ??= (async () => {
         const { data: submitted } = await supabase
           .from("applications")
-          .select("candidate_id, candidate:candidates(id,email,resume_url,linkedin_url)")
+          .select("id, candidate_id, stage, candidate:candidates(id,email,resume_url,linkedin_url)")
           .eq("position_id", positionId);
-        const keys: SubmittedCandidateKeys = {
-          ids: new Set<string>(),
-          emails: new Set<string>(),
-          urls: new Set<string>(),
-        };
+        const keys = emptySubmittedKeys();
         for (const app of submitted ?? []) {
+          const status: SubmittedCandidateStatus = {
+            applicationId: app.id,
+            candidateId: app.candidate_id ?? null,
+            stage: app.stage,
+          };
           if (app.candidate_id) keys.ids.add(app.candidate_id);
+          if (app.candidate_id) keys.byId.set(app.candidate_id, status);
           const candidate = app.candidate as unknown as {
             id?: string | null;
             email?: string | null;
             resume_url?: string | null;
             linkedin_url?: string | null;
           } | null;
-          if (candidate?.id) keys.ids.add(candidate.id);
+          if (candidate?.id) {
+            keys.ids.add(candidate.id);
+            keys.byId.set(candidate.id, status);
+          }
           const email = normalizeKey(candidate?.email);
-          if (email) keys.emails.add(email);
-          for (const url of submittedUrlKeys(candidate ?? {})) keys.urls.add(url);
+          if (email) {
+            keys.emails.add(email);
+            keys.byEmail.set(email, status);
+          }
+          for (const url of submittedUrlKeys(candidate ?? {})) {
+            keys.urls.add(url);
+            keys.byUrl.set(url, status);
+          }
         }
         return keys;
       })();
       return submittedKeysPromise;
+    }
+
+    function submittedStatusFor(
+      submitted: SubmittedCandidateKeys,
+      row: { id?: string | null; email?: string | null; resume_url?: string | null; linkedin_url?: string | null; profile_url?: string | null },
+    ) {
+      if (row.id && submitted.byId.has(row.id)) return submitted.byId.get(row.id)!;
+      const email = normalizeKey(row.email);
+      if (email && submitted.byEmail.has(email)) return submitted.byEmail.get(email)!;
+      for (const url of submittedUrlKeys(row)) {
+        if (submitted.byUrl.has(url)) return submitted.byUrl.get(url)!;
+      }
+      return null;
     }
 
     // Always also pull from the internal candidate DB (manually added candidates).
@@ -141,15 +203,8 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         .map((candidate) => ({
           ...candidate,
           _skillOverlap: countSkillOverlap(candidate.skills, skills),
-        }))
-        .filter((candidate) => {
-          const email = normalizeKey(candidate.email);
-          const urls = submittedUrlKeys(candidate);
-          if (submitted.ids.has(candidate.id)) return false;
-          if (email && submitted.emails.has(email)) return false;
-          if (urls.some((url) => submitted.urls.has(url))) return false;
-          return true;
-        });
+          _submitted: submittedStatusFor(submitted, candidate),
+        }));
       if (skills.length) {
         const title = data.jobTitle.toLowerCase().trim();
         pool = pool.filter((candidate) => {
@@ -189,6 +244,8 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           rejected: false,
           openToWork: false,
           origin: "internal" as const,
+          positionStatus: positionStatusForStage(c._submitted?.stage),
+          applicationStage: c._submitted?.stage ?? null,
         } satisfies SourcedMatchView;
       });
     }
@@ -203,8 +260,7 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         )
         .eq("position_id", data.positionId)
         .eq("rejected", false)
-        .is("shortlisted_candidate_id", null)
-      .gte("match_score", 50)
+        .gte("match_score", 50)
         .order("match_score", { ascending: false, nullsFirst: false })
         .limit(data.limit);
       if (mErr) throw new Error(mErr.message);
@@ -219,6 +275,12 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           profile_url: string | null; avatar_url: string | null;
           open_to_work?: boolean | null; is_hiring?: boolean | null;
         };
+        const submittedStatus = submittedStatusFor(submitted, {
+          id: m.shortlisted_candidate_id,
+          email: c.email,
+          profile_url: c.profile_url,
+        });
+        const fallbackStage = m.shortlisted_candidate_id ? "sourcing" : null;
         return {
           matchId: m.id,
           sourcedCandidateId: c.id,
@@ -238,28 +300,29 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           rejected: m.rejected,
           openToWork: !!c.open_to_work,
           _isHiring: !!c.is_hiring,
-          origin: "internal" as const,
+          origin: "apify" as const,
+          positionStatus: positionStatusForStage(submittedStatus?.stage ?? fallbackStage),
+          applicationStage: submittedStatus?.stage ?? fallbackStage,
         } as SourcedMatchView & { _isHiring: boolean };
       })
       // Hide hiring/recruiter profiles from results
       .filter((m) => !(m as unknown as { _isHiring: boolean })._isHiring)
-      // Hide candidates already submitted/shared for this same position, even when
-      // the sourced match row predates the shortlist link.
-      .filter((m) => {
-        const email = normalizeKey(m.email);
-        const profileUrl = normalizeKey(m.profileUrl);
-        if (email && submitted.emails.has(email)) return false;
-        if (profileUrl && submitted.urls.has(profileUrl)) return false;
-        return true;
-      })
       // Sort: OTW first, then by score
       .sort((a, b) => {
         if (a.openToWork !== b.openToWork) return a.openToWork ? -1 : 1;
         return (b.matchScore ?? -1) - (a.matchScore ?? -1);
       });
       const internal = await fetchInternalCandidates();
-      const seen = new Set(matches.map((m) => (m.email ?? "").toLowerCase()).filter(Boolean));
-      const merged = [...internal.filter((c) => !c.email || !seen.has(c.email.toLowerCase())), ...matches];
+      const seenEmails = new Set(matches.map((m) => normalizeKey(m.email)).filter(Boolean));
+      const seenUrls = new Set(matches.map((m) => normalizeKey(m.profileUrl)).filter(Boolean));
+      const merged = [
+        ...internal.filter((c) => {
+          const email = normalizeKey(c.email);
+          const url = normalizeKey(c.profileUrl);
+          return (!email || !seenEmails.has(email)) && (!url || !seenUrls.has(url));
+        }),
+        ...matches,
+      ];
       return { matches: merged };
     }
 
@@ -308,6 +371,8 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           rejected: false,
           openToWork: !!(c as { open_to_work?: boolean | null }).open_to_work,
           origin: "internal" as const,
+          positionStatus: "available" as const,
+          applicationStage: null,
         };
       })
       .sort((a, b) => {
@@ -318,6 +383,51 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     const seen = new Set(matches.map((m) => (m.email ?? "").toLowerCase()).filter(Boolean));
     const merged = [...internalDb.filter((c) => !c.email || !seen.has(c.email.toLowerCase())), ...matches];
     return { matches: merged };
+  });
+
+export const addDatabaseCandidateToPosition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        positionId: z.string().uuid(),
+        candidateId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: existing, error: existingErr } = await supabase
+      .from("applications")
+      .select("id, stage")
+      .eq("position_id", data.positionId)
+      .eq("candidate_id", data.candidateId)
+      .maybeSingle();
+    if (existingErr) throw new Error(existingErr.message);
+    if (existing) {
+      return { ok: true, applicationId: existing.id, stage: existing.stage, alreadyExists: true };
+    }
+
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .insert({
+        position_id: data.positionId,
+        candidate_id: data.candidateId,
+        stage: "sourcing",
+        created_by: userId,
+      } as never)
+      .select("id, stage")
+      .single();
+    if (appErr) throw new Error(appErr.message);
+
+    await supabase
+      .from("positions")
+      .update({ status: "in_progress" })
+      .eq("id", data.positionId)
+      .eq("status", "open");
+
+    return { ok: true, applicationId: app.id, stage: app.stage, alreadyExists: false };
   });
 
 // ---------- run Apify and store results ----------
