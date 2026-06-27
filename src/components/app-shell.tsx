@@ -79,7 +79,6 @@ const agencyNav: NavSection[] = [
     label: "Team & Operations",
     items: [
       { to: "/team",     label: "Recruiter Roster",   icon: UsersRound },
-      { to: "/activity", label: "Recruiter Activity", icon: Activity },
       { to: "/billing",  label: "Billing",            icon: Receipt },
     ],
   },
