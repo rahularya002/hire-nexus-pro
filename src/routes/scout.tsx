@@ -14,6 +14,7 @@ import {
   rankSourcedMatches,
   rejectSourcedMatch,
   shortlistSourcedMatch,
+  addDatabaseCandidateToPosition,
   type SourcedMatchView,
 } from "@/lib/apify.functions";
 import { listSourceSettings } from "@/lib/admin-settings.functions";
@@ -68,6 +69,7 @@ function Scout() {
   const rankMatches = useServerFn(rankSourcedMatches);
   const rejectMatch = useServerFn(rejectSourcedMatch);
   const shortlistMatch = useServerFn(shortlistSourcedMatch);
+  const addDatabaseCandidate = useServerFn(addDatabaseCandidateToPosition);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientMenuRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
@@ -278,21 +280,40 @@ function Scout() {
   }
 
   async function handleShortlist(m: SourcedMatchView) {
-    if (!activePositionId || !m.matchId) {
+    if (!activePositionId) {
       setMatchError("Open Talent Scout from a specific position to shortlist.");
       return;
     }
     setBusyId(m.sourcedCandidateId);
     try {
-      await shortlistMatch({
-        data: {
-          matchId: m.matchId,
-          positionId: activePositionId,
-          sourcedCandidateId: m.sourcedCandidateId,
-        },
-      });
+      const result = m.source === "database"
+        ? await addDatabaseCandidate({
+            data: {
+              positionId: activePositionId,
+              candidateId: m.sourcedCandidateId,
+            },
+          })
+        : m.matchId
+          ? await shortlistMatch({
+              data: {
+                matchId: m.matchId,
+                positionId: activePositionId,
+                sourcedCandidateId: m.sourcedCandidateId,
+              },
+            })
+          : null;
+      if (!result) {
+        setMatchError("Open Talent Scout from a specific position to shortlist.");
+        return;
+      }
       setMatches((prev) =>
-        prev ? prev.filter((x) => x.sourcedCandidateId !== m.sourcedCandidateId) : prev,
+        prev
+          ? prev.map((x) =>
+              x.sourcedCandidateId === m.sourcedCandidateId
+                ? { ...x, positionStatus: "in_pipeline", applicationStage: "sourcing" }
+                : x,
+            )
+          : prev,
       );
     } catch (e) {
       setMatchError(e instanceof Error ? e.message : "Shortlist failed.");
