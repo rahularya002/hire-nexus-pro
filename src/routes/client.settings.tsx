@@ -1,26 +1,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Loader2, KeyRound, LogOut } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
+import { ClientShell } from "@/components/client-shell";
 import { useAuth } from "@/lib/auth/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { GoogleCalendarCard } from "@/components/google-calendar-card";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/client/settings")({
   ssr: false,
-  component: SettingsPage,
+  component: () => (
+    <ClientShell>
+      <ClientSettingsInner />
+    </ClientShell>
+  ),
 });
 
-function SettingsPage() {
-  return (
-    <AppShell>
-      <SettingsInner />
-    </AppShell>
-  );
-}
-
-function SettingsInner() {
+function ClientSettingsInner() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const [pw, setPw] = useState("");
@@ -47,8 +43,10 @@ function SettingsInner() {
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Account security and session.</p>
+        <p className="text-sm text-muted-foreground mt-1">Account security, integrations, and session.</p>
       </div>
+
+      <GoogleCalendarCard description="Connect your Google account so interviews you request auto-create a calendar event with a Google Meet link and email invites to everyone." />
 
       <form onSubmit={changePassword} className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center gap-2">
@@ -87,15 +85,13 @@ function SettingsInner() {
         </div>
       </form>
 
-      <GoogleCalendarCard />
-
       <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Session</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Sign out from this device.</p>
         </div>
         <button
-          onClick={async () => { await signOut(); navigate({ to: "/login", replace: true }); }}
+          onClick={async () => { await signOut(); navigate({ to: "/client/login", replace: true }); }}
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border bg-card text-sm font-medium hover:bg-secondary/60"
         >
           <LogOut className="size-4" /> Sign out
@@ -104,4 +100,3 @@ function SettingsInner() {
     </div>
   );
 }
-

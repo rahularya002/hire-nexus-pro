@@ -52,6 +52,7 @@ import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientUploadRouteImport } from './routes/client.upload'
 import { Route as ClientTeamRouteImport } from './routes/client.team'
 import { Route as ClientSignupRouteImport } from './routes/client.signup'
+import { Route as ClientSettingsRouteImport } from './routes/client.settings'
 import { Route as ClientScoutRouteImport } from './routes/client.scout'
 import { Route as ClientReportsRouteImport } from './routes/client.reports'
 import { Route as ClientPositionsRouteImport } from './routes/client.positions'
@@ -288,6 +289,11 @@ const ClientSignupRoute = ClientSignupRouteImport.update({
   path: '/client/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientSettingsRoute = ClientSettingsRouteImport.update({
+  id: '/client/settings',
+  path: '/client/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientScoutRoute = ClientScoutRouteImport.update({
   id: '/client/scout',
   path: '/client/scout',
@@ -429,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
   '/client/scout': typeof ClientScoutRoute
+  '/client/settings': typeof ClientSettingsRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -490,6 +497,7 @@ export interface FileRoutesByTo {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
   '/client/scout': typeof ClientScoutRoute
+  '/client/settings': typeof ClientSettingsRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -556,6 +564,7 @@ export interface FileRoutesById {
   '/client/positions': typeof ClientPositionsRouteWithChildren
   '/client/reports': typeof ClientReportsRoute
   '/client/scout': typeof ClientScoutRoute
+  '/client/settings': typeof ClientSettingsRoute
   '/client/signup': typeof ClientSignupRoute
   '/client/team': typeof ClientTeamRoute
   '/client/upload': typeof ClientUploadRoute
@@ -623,6 +632,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/reports'
     | '/client/scout'
+    | '/client/settings'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -684,6 +694,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/reports'
     | '/client/scout'
+    | '/client/settings'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -749,6 +760,7 @@ export interface FileRouteTypes {
     | '/client/positions'
     | '/client/reports'
     | '/client/scout'
+    | '/client/settings'
     | '/client/signup'
     | '/client/team'
     | '/client/upload'
@@ -815,6 +827,7 @@ export interface RootRouteChildren {
   ClientPositionsRoute: typeof ClientPositionsRouteWithChildren
   ClientReportsRoute: typeof ClientReportsRoute
   ClientScoutRoute: typeof ClientScoutRoute
+  ClientSettingsRoute: typeof ClientSettingsRoute
   ClientSignupRoute: typeof ClientSignupRoute
   ClientTeamRoute: typeof ClientTeamRoute
   ClientUploadRoute: typeof ClientUploadRoute
@@ -1128,6 +1141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientSignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/settings': {
+      id: '/client/settings'
+      path: '/client/settings'
+      fullPath: '/client/settings'
+      preLoaderRoute: typeof ClientSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/client/scout': {
       id: '/client/scout'
       path: '/client/scout'
@@ -1414,6 +1434,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientPositionsRoute: ClientPositionsRouteWithChildren,
   ClientReportsRoute: ClientReportsRoute,
   ClientScoutRoute: ClientScoutRoute,
+  ClientSettingsRoute: ClientSettingsRoute,
   ClientSignupRoute: ClientSignupRoute,
   ClientTeamRoute: ClientTeamRoute,
   ClientUploadRoute: ClientUploadRoute,
