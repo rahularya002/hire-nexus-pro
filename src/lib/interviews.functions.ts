@@ -357,8 +357,9 @@ export const updateInterview = createServerFn({ method: "POST" })
       .update(clean(rest))
       .eq("id", id)
       .select(INTERVIEW_SELECT)
-      .single();
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Interview not found or not accessible");
     if (data.status) {
       const kind =
         data.status === "completed" ? "interview_completed"
