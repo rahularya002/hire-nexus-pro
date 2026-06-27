@@ -629,6 +629,42 @@ export type Database = {
           },
         ]
       }
+      google_calendar_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          google_email: string
+          id: string
+          refresh_token: string
+          scopes: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          google_email: string
+          id?: string
+          refresh_token: string
+          scopes: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          google_email?: string
+          id?: string
+          refresh_token?: string
+          scopes?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       interview_round_templates: {
         Row: {
           agency_id: string
@@ -688,6 +724,8 @@ export type Database = {
           custom_kind_label: string | null
           cv_attached: boolean
           duration_minutes: number | null
+          external_event_id: string | null
+          external_provider: string | null
           id: string
           interviewer: string | null
           kind: Database["public"]["Enums"]["interview_kind"]
@@ -713,6 +751,8 @@ export type Database = {
           custom_kind_label?: string | null
           cv_attached?: boolean
           duration_minutes?: number | null
+          external_event_id?: string | null
+          external_provider?: string | null
           id?: string
           interviewer?: string | null
           kind?: Database["public"]["Enums"]["interview_kind"]
@@ -738,6 +778,8 @@ export type Database = {
           custom_kind_label?: string | null
           cv_attached?: boolean
           duration_minutes?: number | null
+          external_event_id?: string | null
+          external_provider?: string | null
           id?: string
           interviewer?: string | null
           kind?: Database["public"]["Enums"]["interview_kind"]

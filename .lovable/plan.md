@@ -1,90 +1,53 @@
-## Goal
+# Google Meet + Calendar Integration
 
-Replace the direct "Scout" entry in the agency panel with a hub page **/sourcing** that branches into two flows:
-1. **Scouting** — existing AI scout (no behaviour change).
-2. **Posting** — compose a job post from an existing position or from scratch, and publish it to LinkedIn, Naukri, Indeed, and the internal job board, with per-channel status tracking and applicant capture.
+Each recruiter connects their own Google account. When they schedule an interview, we create a Google Calendar event with a Meet link and email invites to the candidate and any listed interviewers.
 
----
+## What you need to do (one-time setup)
 
-## Navigation changes
+1. **Create a Google Cloud OAuth app** at https://console.cloud.google.com
+   - Enable **Google Calendar API**
+   - OAuth consent screen: External, add scopes `.../auth/calendar.events` and `.../auth/userinfo.email`
+   - Create **OAuth Client ID** (Web application)
+   - Add Authorized redirect URI: `https://hire.enbquantum.com/api/public/google-oauth/callback` (and the lovable.app preview URL)
+   - Copy **Client ID** and **Client Secret**
 
-`src/components/app-shell.tsx`
-- In `agencyNav`, replace the standalone scout entry with a new section **Sourcing** containing one item: `{ to: "/sourcing", label: "Sourcing", icon: Sparkles }`.
-- Bottom-left "AI Talent Scout" CTA card → point to `/sourcing` and relabel the button "Open Sourcing".
-- Recruiter nav: add the same `/sourcing` item under Talent (gated by `candidates.view`).
-- Existing internal links to `/scout` (dashboard, me, positions detail, ongoing) stay — `/scout` keeps working.
+2. Paste those two values into Lovable when prompted (stored as secrets `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`).
 
-## New routes
+That's it on your side. After that, each recruiter clicks "Connect Google Calendar" in Settings once.
 
-```
-src/routes/
-  sourcing.tsx              # hub layout, renders <Outlet/>; head() meta
-  sourcing.index.tsx        # two big cards: "AI Scouting" → /scout, "Job Posting" → /posting
-  posting.tsx               # layout, <Outlet/>
-  posting.index.tsx         # list of job posts (status per channel, filters)
-  posting.new.tsx           # composer (pick position OR free-form)
-  posting.$postId.tsx       # post detail: per-channel status, edit, republish, view applicants
-  jobs.$slug.tsx            # PUBLIC internal job board landing page (apply form)
-  api/public/jobs/apply.ts  # POST application from public page (rate-limited, captcha-lite honeypot)
-  api/public/webhooks/indeed.ts   # optional inbound applicant webhook
-```
+## What I'll build
 
-`/scout` and `/client/scout` are unchanged.
+### 1. Database
+- New table `google_calendar_connections` (per user): `user_id`, `google_email`, `access_token`, `refresh_token`, `expires_at`, `scopes`. RLS so each user reads/writes only their own row; service role for token refresh.
 
-## Data model (one migration)
+### 2. OAuth flow (per-recruiter)
+- `POST /api/google-oauth/start` server fn → returns Google consent URL with state token.
+- `GET /api/public/google-oauth/callback` server route → exchanges code for tokens, stores them in `google_calendar_connections`, closes popup.
+- Background refresh helper that swaps `refresh_token` for a fresh `access_token` when expired.
 
-New tables (all with GRANTs, RLS, agency-scoped policies via `is_agency_member`):
+### 3. Settings UI
+- New "Integrations" card in `src/routes/settings.tsx` showing Google Calendar connect/disconnect state with the connected Google email.
 
-- **job_posts** — `id, agency_id, position_id (nullable), title, slug (unique), description_md, location, employment_type, comp_min, comp_max, currency, tags text[], status (draft|published|closed), created_by, created_at, updated_at, public bool`.
-- **job_post_channels** — `id, job_post_id, channel (enum: linkedin|naukri|indeed|internal), status (pending|publishing|published|failed|manual), external_post_id, external_url, error, last_synced_at, published_at`.
-- **job_applications** — `id, job_post_id, channel, applicant_name, email, phone, resume_doc_id (fk documents), cover_note, source_url, raw jsonb, status (new|reviewed|converted|rejected), candidate_id (nullable, set when converted), created_at`. Trigger: notify agency members on insert.
+### 4. Interview scheduling hook
+- New server fn `createGoogleMeetEvent({ interviewId })`:
+  - Reads the interview (candidate email, interviewer, scheduled_at, duration, title, notes).
+  - Uses the **logged-in recruiter's** stored Google token.
+  - Calls `POST https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all` with `conferenceData.createRequest` to mint a Meet link.
+  - Attendees: candidate email + any interviewer emails. Google sends the invite emails automatically (`sendUpdates=all`).
+  - Saves the returned Meet URL into `interviews.meeting_link` and the event id into a new `interviews.external_event_id` column.
+- Triggered automatically inside `createInterview` / `updateInterview` (when provider is `google_meet` and `scheduled_at` is set), and when `scheduled_at` changes the event is patched (reschedule) and re-notifies attendees.
+- If the recruiter hasn't connected Google, the interview still saves but the UI shows a "Connect Google Calendar to auto-generate Meet link" hint and a manual link input remains available (current behavior).
 
-Existing `applications` stays for pipeline; conversion = create `candidates` + `applications` rows from a `job_applications` row.
+### 5. UI polish on the interview round card
+- Show connection status badge ("Auto-generated via {google_email}") next to the meeting link when provider is google_meet.
+- Show a small "Reconnect Google" link if the token refresh fails.
 
-Migration also: enum types, `set_updated_at` triggers, `set_agency_id_default` trigger on all three, GRANTs to authenticated + service_role, narrow `TO anon` SELECT policy on `job_posts WHERE public AND status='published'` for the public board.
+## What this does NOT do
 
-## Server functions (`src/lib/posting.functions.ts`)
+- Does not create events on the **candidate's** calendar (candidates get the invite by email; they accept it from their inbox like any meeting).
+- Does not sync availability / free-busy.
+- Does not work for clients conducting the round — only recruiter-conducted rounds auto-generate Meet links from the recruiter's account.
 
-All `requireSupabaseAuth`, agency-scoped:
-- `listJobPosts`, `getJobPost`, `createJobPost`, `updateJobPost`, `deleteJobPost`
-- `publishJobPostChannels({ postId, channels[] })` — dispatches per channel:
-  - **internal**: marks `published`, sets public slug.
-  - **linkedin**: calls LinkedIn connector gateway (`POST v2/ugcPosts`), stores `external_post_id` + `external_url`. Requires a linked LinkedIn connection with `w_member_social`; if missing, returns a typed `needs_connector` result and the UI prompts to connect.
-  - **naukri**, **indeed**: no public posting API — sets `status='manual'` and returns a prefilled URL + clipboard payload; UI opens the platform's "new post" page in a tab. (Real API integration left as a future swap-in behind the same dispatcher.)
-- `listJobApplications({ postId })`, `convertApplicationToCandidate({ applicationId, positionId? })` — creates `candidates` + `applications` rows, links `candidate_id`.
+## Confirm to proceed
 
-Public server route `api/public/jobs/apply` — Zod-validated, writes via `supabaseAdmin` (loaded inside handler), honeypot field, IP-rate-limited via a small `notification_dedup`-style key.
-
-## Composer UX (`posting.new.tsx`)
-
-- Top toggle: **From position** | **Free-form**.
-  - From position: select from open `positions` → prefills title, description (JD), location, comp, tags.
-  - Free-form: blank fields.
-- Channel checkboxes: LinkedIn, Naukri, Indeed, Internal (default all on).
-- Per-channel preview pane (LinkedIn: 1300-char ugcPost preview; Naukri/Indeed: plain text; Internal: rendered markdown card).
-- Save as draft / Publish now.
-
-## Post detail (`posting.$postId.tsx`)
-
-- Header: title, position link, status pill.
-- Channels grid: per channel status + external URL + "Republish" / "Open compose tab" / "Mark posted" (for manual channels).
-- Applicants tab: table of `job_applications`, "Convert to candidate" action (opens position picker → calls `convertApplicationToCandidate`), "Reject", "Download resume".
-
-## Public job board (`jobs.$slug.tsx`)
-
-- SSR public route, uses publishable-key Supabase client + the anon SELECT policy.
-- Renders title, description (md), location, comp, apply form (name, email, phone, resume upload to `documents` bucket via signed upload from the public API).
-- `head()` sets title/description/og from the post.
-
-## Out of scope (v1)
-
-- Real Naukri/Indeed publishing APIs (kept as `manual` channel with deep link + clipboard).
-- LinkedIn Company Page posting (only member posting via connected account).
-- Auto-matching scout results to job posts.
-- Scheduled posting / cross-channel analytics dashboards.
-
-## Files touched
-
-- **Add**: migration; `src/lib/posting.functions.ts`; routes `sourcing.tsx`, `sourcing.index.tsx`, `posting.tsx`, `posting.index.tsx`, `posting.new.tsx`, `posting.$postId.tsx`, `jobs.$slug.tsx`, `api/public/jobs/apply.ts`; small components `src/components/posting/*` (ChannelBadge, ComposerForm, ApplicantsTable).
-- **Edit**: `src/components/app-shell.tsx` (nav + CTA).
-- **Connector**: prompt to link LinkedIn connector on first LinkedIn publish.
+Reply "go" and I'll create the database migration, then ask you for the Google Client ID + Secret once the Cloud OAuth app is ready.

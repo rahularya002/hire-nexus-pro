@@ -70,6 +70,7 @@ import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.p
 import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
 import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
 import { Route as ApiPublicCronRouteImport } from './routes/api/public/cron'
+import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google-oauth.callback'
 
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
@@ -378,6 +379,12 @@ const ApiPublicCronRoute = ApiPublicCronRouteImport.update({
   path: '/api/public/cron',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicGoogleOauthCallbackRoute =
+  ApiPublicGoogleOauthCallbackRouteImport.update({
+    id: '/api/public/google-oauth/callback',
+    path: '/api/public/google-oauth/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -441,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/superadmin/agencies/$id': typeof SuperadminAgenciesIdRoute
   '/superadmin/agencies/new': typeof SuperadminAgenciesNewRoute
   '/superadmin/agencies/': typeof SuperadminAgenciesIndexRoute
+  '/api/public/google-oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -500,6 +508,7 @@ export interface FileRoutesByTo {
   '/superadmin/agencies/$id': typeof SuperadminAgenciesIdRoute
   '/superadmin/agencies/new': typeof SuperadminAgenciesNewRoute
   '/superadmin/agencies': typeof SuperadminAgenciesIndexRoute
+  '/api/public/google-oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -564,6 +573,7 @@ export interface FileRoutesById {
   '/superadmin/agencies/$id': typeof SuperadminAgenciesIdRoute
   '/superadmin/agencies/new': typeof SuperadminAgenciesNewRoute
   '/superadmin/agencies/': typeof SuperadminAgenciesIndexRoute
+  '/api/public/google-oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -629,6 +639,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies/$id'
     | '/superadmin/agencies/new'
     | '/superadmin/agencies/'
+    | '/api/public/google-oauth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -688,6 +699,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies/$id'
     | '/superadmin/agencies/new'
     | '/superadmin/agencies'
+    | '/api/public/google-oauth/callback'
   id:
     | '__root__'
     | '/'
@@ -751,6 +763,7 @@ export interface FileRouteTypes {
     | '/superadmin/agencies/$id'
     | '/superadmin/agencies/new'
     | '/superadmin/agencies/'
+    | '/api/public/google-oauth/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -796,6 +809,7 @@ export interface RootRouteChildren {
   JobsSlugRoute: typeof JobsSlugRoute
   ClientIndexRoute: typeof ClientIndexRoute
   ApiPublicCronRoute: typeof ApiPublicCronRoute
+  ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1227,6 +1241,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/google-oauth/callback': {
+      id: '/api/public/google-oauth/callback'
+      path: '/api/public/google-oauth/callback'
+      fullPath: '/api/public/google-oauth/callback'
+      preLoaderRoute: typeof ApiPublicGoogleOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1379,17 +1400,8 @@ const rootRouteChildren: RootRouteChildren = {
   JobsSlugRoute: JobsSlugRoute,
   ClientIndexRoute: ClientIndexRoute,
   ApiPublicCronRoute: ApiPublicCronRoute,
+  ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -158,6 +158,76 @@ async function logActivity(
   }
 }
 
+/**
+ * Best-effort Google Meet sync. Creates or updates a Google Calendar event
+ * (with Meet link) on the acting recruiter's calendar when:
+ *  - provider is google_meet
+ *  - scheduled_at is set
+ *  - the recruiter has connected Google Calendar
+ * Updates interviews.meeting_link / external_event_id on success.
+ * Swallows errors so interview saves never fail because of Google.
+ */
+async function syncGoogleMeet(userId: string, interviewId: string) {
+  try {
+    const { getValidAccessToken, createCalendarEvent, patchCalendarEvent } =
+      await import("./google-calendar.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: row } = await supabaseAdmin
+      .from("interviews")
+      .select(
+        "id, provider, scheduled_at, duration_minutes, interviewer, notes, round_index, external_event_id, candidate:candidates(name,email), position:positions(title, client:clients(name))",
+      )
+      .eq("id", interviewId)
+      .maybeSingle();
+    if (!row) return;
+    if (row.provider !== "google_meet" || !row.scheduled_at) return;
+
+    const conn = await getValidAccessToken(userId);
+    if (!conn) return; // recruiter hasn't connected
+
+    const candidateName = (row as any).candidate?.name ?? "Candidate";
+    const candidateEmail = (row as any).candidate?.email ?? null;
+    const positionTitle = (row as any).position?.title ?? "Interview";
+    const clientName = (row as any).position?.client?.name ?? "";
+    const summary = `${clientName ? clientName + " · " : ""}${positionTitle} · ${candidateName} (R${row.round_index})`;
+    const description = [row.interviewer ? `Interviewer: ${row.interviewer}` : null, row.notes ?? null]
+      .filter(Boolean)
+      .join("\n\n");
+    const attendees: { email: string }[] = [];
+    if (candidateEmail) attendees.push({ email: candidateEmail });
+
+    const args = {
+      summary,
+      description,
+      startISO: row.scheduled_at,
+      durationMinutes: row.duration_minutes ?? 45,
+      attendees,
+      createMeet: true,
+    };
+
+    if (row.external_event_id) {
+      try {
+        await patchCalendarEvent(conn.access_token, row.external_event_id, args);
+        return;
+      } catch {
+        // fall through to create a fresh event
+      }
+    }
+    const ev = await createCalendarEvent(conn.access_token, args);
+    await supabaseAdmin
+      .from("interviews")
+      .update({
+        external_event_id: ev.id,
+        external_provider: "google_calendar",
+        meeting_link: ev.hangoutLink ?? null,
+      })
+      .eq("id", interviewId);
+  } catch (e) {
+    console.error("[google-meet sync] failed:", (e as Error).message);
+  }
+}
+
 const INTERVIEW_SELECT =
   "*, candidate:candidates(id,name,role), position:positions(id,title,client_id, client:clients(id,name,color)), application:applications(id,stage)";
 
@@ -268,7 +338,10 @@ export const createInterview = createServerFn({ method: "POST" })
       client_id: row.position?.client_id ?? null,
       client_visible: true,
     });
-    return row as InterviewRow;
+    await syncGoogleMeet(userId, row.id);
+    const { data: refreshed } = await supabase
+      .from("interviews").select(INTERVIEW_SELECT).eq("id", row.id).single();
+    return (refreshed ?? row) as InterviewRow;
   });
 
 export const updateInterview = createServerFn({ method: "POST" })
@@ -312,6 +385,12 @@ export const updateInterview = createServerFn({ method: "POST" })
         client_id: row.position?.client_id ?? null,
         client_visible: true,
       });
+    }
+    if (data.scheduled_at || data.provider === "google_meet") {
+      await syncGoogleMeet(userId, row.id);
+      const { data: refreshed } = await supabase
+        .from("interviews").select(INTERVIEW_SELECT).eq("id", row.id).single();
+      return (refreshed ?? row) as InterviewRow;
     }
     return row as InterviewRow;
   });
