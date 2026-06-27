@@ -136,7 +136,6 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         .select("id, name, role, current_company, location, experience, skills, email, phone, linkedin_url, resume_url")
         .order("updated_at", { ascending: false })
         .limit(Math.max(data.limit * 20, 500));
-      if (!skills.length) q = q.ilike("role", `%${data.jobTitle}%`);
       const { data: rows } = await q;
       let pool = (rows ?? [])
         .map((candidate) => ({
@@ -156,6 +155,14 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         pool = pool.filter((candidate) => {
           const role = candidate.role?.toLowerCase() ?? "";
           return candidate._skillOverlap > 0 || (!!role && (role.includes(title) || title.includes(role)));
+        });
+      } else {
+        const titleTokens = normalizeSkill(data.jobTitle)
+          .split(" ")
+          .filter((token) => token.length > 2);
+        pool = pool.filter((candidate) => {
+          const role = normalizeSkill(candidate.role ?? "");
+          return titleTokens.length === 0 || titleTokens.some((token) => role.includes(token));
         });
       }
       pool = pool
