@@ -493,6 +493,38 @@ function ScheduleInterviewDialog({
           </div>
 
           <div className="grid gap-2">
+            <Label>Meeting mode</Label>
+            <Select value={provider} onValueChange={(v) => setProvider(v as InterviewProvider)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INTERVIEW_PROVIDERS.map((p) => (
+                  <SelectItem key={p} value={p}>{INTERVIEW_PROVIDER_LABEL[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {provider === "google_meet"
+                ? "The recruiter will generate a Google Meet link from their connected calendar when they confirm."
+                : provider === "microsoft_teams" || provider === "zoom"
+                  ? "The recruiter will share the meeting link when they confirm."
+                  : provider === "on_site"
+                    ? "Add the office address / location below."
+                    : "The recruiter will call the candidate at the confirmed time."}
+            </p>
+          </div>
+
+          {provider === "on_site" && (
+            <div className="grid gap-2">
+              <Label>Location / address</Label>
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. 4th floor, Tower B, Mumbai office"
+              />
+            </div>
+          )}
+
+          <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label>Rounds ({rounds.length})</Label>
               <button
