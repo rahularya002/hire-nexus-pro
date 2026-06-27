@@ -338,7 +338,10 @@ export const createInterview = createServerFn({ method: "POST" })
       client_id: row.position?.client_id ?? null,
       client_visible: true,
     });
-    return row as InterviewRow;
+    await syncGoogleMeet(userId, row.id);
+    const { data: refreshed } = await supabase
+      .from("interviews").select(INTERVIEW_SELECT).eq("id", row.id).single();
+    return (refreshed ?? row) as InterviewRow;
   });
 
 export const updateInterview = createServerFn({ method: "POST" })
@@ -382,6 +385,12 @@ export const updateInterview = createServerFn({ method: "POST" })
         client_id: row.position?.client_id ?? null,
         client_visible: true,
       });
+    }
+    if (data.scheduled_at || data.provider === "google_meet") {
+      await syncGoogleMeet(userId, row.id);
+      const { data: refreshed } = await supabase
+        .from("interviews").select(INTERVIEW_SELECT).eq("id", row.id).single();
+      return (refreshed ?? row) as InterviewRow;
     }
     return row as InterviewRow;
   });
