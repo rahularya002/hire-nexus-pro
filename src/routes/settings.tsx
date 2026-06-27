@@ -138,18 +138,8 @@ function GoogleCalendarCard() {
     setBusy(true);
     try {
       const { authUrl } = await startFn({ data: { origin: window.location.origin } });
-      const w = 520, h = 640;
-      const left = window.screenX + (window.outerWidth - w) / 2;
-      const top = window.screenY + (window.outerHeight - h) / 2;
-      const popup = window.open(authUrl, "google-oauth", `width=${w},height=${h},left=${left},top=${top}`);
-      if (!popup) window.location.href = authUrl;
-      // poll for popup close → refresh
-      const t = setInterval(() => {
-        if (popup && popup.closed) {
-          clearInterval(t);
-          qc.invalidateQueries({ queryKey: ["google-connection"] });
-        }
-      }, 800);
+      // Use full-page redirect (popups are blocked by COOP in the editor preview iframe).
+      window.location.href = authUrl;
     } finally {
       setBusy(false);
     }
