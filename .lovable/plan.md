@@ -1,53 +1,52 @@
-# Google Meet + Calendar Integration
+# Reseed mock data
 
-Each recruiter connects their own Google account. When they schedule an interview, we create a Google Calendar event with a Meet link and email invites to the candidate and any listed interviewers.
+## Keep
+- **Users**: only `admin@gmail.com`, `agency1@gmail.com`, `client1@gmail.com`. Everyone else (recruit, agency, client, test, test1, test2, hr) gets deleted from `auth.users` + `profiles` + `user_roles`.
+- **Agencies**: keep `Default Agency` (admin's) and `Agency 1` (agency1's).
 
-## What you need to do (one-time setup)
+## Wipe (in dependency order)
+Delete all rows from: `notifications`, `tasks`, `activities`, `messages`, `message_threads`, `documents`, `invoice_line_items`, `invoices`, `placements`, `interviews`, `applications`, `position_sourced_matches`, `position_sourcing_runs`, `sourced_candidates`, `candidates`, `client_role_permissions`, `client_custom_roles`, `client_members`, `client_billing_terms`, `positions`, `clients`, `job_applications`, `job_post_channels`, `job_posts`, `recruiter_login_events`, `interview_round_templates`, `google_calendar_connections`, `support_tickets`.
 
-1. **Create a Google Cloud OAuth app** at https://console.cloud.google.com
-   - Enable **Google Calendar API**
-   - OAuth consent screen: External, add scopes `.../auth/calendar.events` and `.../auth/userinfo.email`
-   - Create **OAuth Client ID** (Web application)
-   - Add Authorized redirect URI: `https://hire.enbquantum.com/api/public/google-oauth/callback` (and the lovable.app preview URL)
-   - Copy **Client ID** and **Client Secret**
+## Reseed — medium volume, mixed industries
 
-2. Paste those two values into Lovable when prompted (stored as secrets `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`).
+### Agency 1 (agency1@gmail.com is admin/owner)
+Seed under `agency_id = 03e1341b...`:
 
-That's it on your side. After that, each recruiter clicks "Connect Google Calendar" in Settings once.
+- **6 clients** owned by Agency 1:
+  - **AI Tech** (SaaS) — owned by `client1@gmail.com` (so they see it in client portal)
+  - **NovaPay** (Fintech)
+  - **Lumen Health** (Healthtech)
+  - **Kettle & Co** (D2C retail)
+  - **OrbitLogix** (Logistics)
+  - **Verdant Energy** (Cleantech)
+  - Each gets billing terms (15% fee, NET 30, 90-day guarantee).
+- **15 positions** spread across the 6 clients (mix of open / in_progress / interviews / closed), with realistic titles (Senior Backend Engineer, Product Designer, GTM Lead, Data Scientist, RN Manager, Supply Chain Lead, etc.), salary ranges, locations (Bengaluru / Mumbai / Delhi / Remote), skills, openings.
+- **~60 candidates** in the Agency 1 database with diverse skills, experience, notice periods, salaries, linkedin URLs.
+- **~50 applications** spread across stages: sourcing, recruiter_shortlist, shared_with_client, client_shortlist, interview_scheduled, offered, joined, on_hold, closed (with rejection reasons).
+- **~12 interviews** — past + upcoming, mix of providers (Google Meet, Teams, Zoom, Offline, Phone), with structured rounds (HR Screen, Technical, Managerial, Behavioral).
+- **3 placements** (joined candidates) with offer/joining dates spread over last 90 days.
+- **4 invoices** (2 paid, 1 sent, 1 draft) with line items tied to placements.
+- **Activities** + **tasks** + **messages** + **documents** seeded so each portal section has content.
 
-## What I'll build
+### Default Agency (admin@gmail.com)
+Seed under `agency_id = ef14901d...`:
+- **2 clients** (Helio Robotics, Coastline Capital) — light footprint to show super_admin / dual-agency view.
+- **4 positions**, **15 candidates**, **10 applications**, **3 interviews**, **1 placement**, **1 invoice**.
 
-### 1. Database
-- New table `google_calendar_connections` (per user): `user_id`, `google_email`, `access_token`, `refresh_token`, `expires_at`, `scopes`. RLS so each user reads/writes only their own row; service role for token refresh.
+### Cross-cutting
+- **`client_members`**: add `client1@gmail.com` as owner of AI Tech.
+- **`recruiter_login_events`**: backfill 7 days of logins for both agency users so the dashboard tile renders.
+- All `created_at`/`updated_at` timestamps spread over the last 60 days for realistic activity timelines.
 
-### 2. OAuth flow (per-recruiter)
-- `POST /api/google-oauth/start` server fn → returns Google consent URL with state token.
-- `GET /api/public/google-oauth/callback` server route → exchanges code for tokens, stores them in `google_calendar_connections`, closes popup.
-- Background refresh helper that swaps `refresh_token` for a fresh `access_token` when expired.
+## Execution
 
-### 3. Settings UI
-- New "Integrations" card in `src/routes/settings.tsx` showing Google Calendar connect/disconnect state with the connected Google email.
+Two tool calls only:
+1. **`supabase--insert`** — one big SQL block: DELETE everything above + DELETE auth users (via `auth.admin.delete_user`-equivalent — actually `DELETE FROM auth.users WHERE email NOT IN (...)` cascades through profiles/roles via existing FKs).
+2. **`supabase--insert`** — one big SQL block: INSERT all seed data using deterministic UUIDs so cross-references work.
 
-### 4. Interview scheduling hook
-- New server fn `createGoogleMeetEvent({ interviewId })`:
-  - Reads the interview (candidate email, interviewer, scheduled_at, duration, title, notes).
-  - Uses the **logged-in recruiter's** stored Google token.
-  - Calls `POST https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all` with `conferenceData.createRequest` to mint a Meet link.
-  - Attendees: candidate email + any interviewer emails. Google sends the invite emails automatically (`sendUpdates=all`).
-  - Saves the returned Meet URL into `interviews.meeting_link` and the event id into a new `interviews.external_event_id` column.
-- Triggered automatically inside `createInterview` / `updateInterview` (when provider is `google_meet` and `scheduled_at` is set), and when `scheduled_at` changes the event is patched (reschedule) and re-notifies attendees.
-- If the recruiter hasn't connected Google, the interview still saves but the UI shows a "Connect Google Calendar to auto-generate Meet link" hint and a manual link input remains available (current behavior).
+No schema changes, no code changes, no migration needed.
 
-### 5. UI polish on the interview round card
-- Show connection status badge ("Auto-generated via {google_email}") next to the meeting link when provider is google_meet.
-- Show a small "Reconnect Google" link if the token refresh fails.
-
-## What this does NOT do
-
-- Does not create events on the **candidate's** calendar (candidates get the invite by email; they accept it from their inbox like any meeting).
-- Does not sync availability / free-busy.
-- Does not work for clients conducting the round — only recruiter-conducted rounds auto-generate Meet links from the recruiter's account.
-
-## Confirm to proceed
-
-Reply "go" and I'll create the database migration, then ask you for the Google Client ID + Secret once the Cloud OAuth app is ready.
+## Out of scope
+- No new tables or RLS edits.
+- No UI/component changes.
+- Hardcoded `src/lib/client-data.ts` / `mock-data.ts` (static demo fixtures) stay as-is — they're not used by the live portals which read from the DB.
