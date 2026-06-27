@@ -134,7 +134,8 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       let q = supabase
         .from("candidates")
         .select("id, name, role, current_company, location, experience, skills, email, phone, linkedin_url, resume_url")
-        .limit(Math.max(data.limit * 8, 100));
+        .order("updated_at", { ascending: false })
+        .limit(Math.max(data.limit * 20, 500));
       if (!skills.length) q = q.ilike("role", `%${data.jobTitle}%`);
       const { data: rows } = await q;
       let pool = (rows ?? [])
