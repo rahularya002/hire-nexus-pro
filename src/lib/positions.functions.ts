@@ -84,9 +84,13 @@ export const listPositions = createServerFn({ method: "GET" })
 
 export const getPositionById = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    // Guard against legacy/mock non-uuid ids slipping through stale links.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id)) {
+      return null;
+    }
     const { data: row, error } = await supabase
       .from("positions")
       .select("*, client:clients(id, name, color, industry, contact_name)")
