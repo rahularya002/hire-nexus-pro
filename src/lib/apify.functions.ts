@@ -54,6 +54,42 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     const { supabase } = context;
     const skills = data.skills.map((s) => s.toLowerCase().trim()).filter(Boolean);
 
+    // Always also pull from the internal candidate DB (manually added candidates).
+    // These never reach sourced_candidates / position_sourced_matches, so without
+    // this they'd be invisible in scout results even with matching skills.
+    async function fetchInternalCandidates(): Promise<SourcedMatchView[]> {
+      let q = supabase
+        .from("candidates")
+        .select("id, name, role, current_company, location, experience, skills, email, phone, linkedin_url, resume_url")
+        .limit(data.limit);
+      if (skills.length) q = q.overlaps("skills", skills);
+      else q = q.ilike("role", `%${data.jobTitle}%`);
+      const { data: rows } = await q;
+      return (rows ?? []).map((c) => {
+        const expNum = c.experience ? Number(String(c.experience).replace(/[^0-9.]/g, "")) : null;
+        return {
+          matchId: null,
+          sourcedCandidateId: c.id,
+          source: "database",
+          name: c.name,
+          headline: c.role ?? null,
+          currentCompany: c.current_company ?? null,
+          location: c.location ?? null,
+          experienceYears: expNum && !Number.isNaN(expNum) ? expNum : null,
+          skills: c.skills ?? [],
+          email: c.email ?? null,
+          phone: c.phone ?? null,
+          profileUrl: c.linkedin_url ?? c.resume_url ?? null,
+          avatarUrl: null,
+          matchScore: null,
+          reasoning: "From your candidate database",
+          rejected: false,
+          openToWork: false,
+          origin: "internal" as const,
+        } satisfies SourcedMatchView;
+      });
+    }
+
     // If we have a positionId, return ALL matches for that position
     // (ranked by score, excluding rejects) — regardless of skill overlap.
     if (data.positionId) {
@@ -107,7 +143,10 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         if (a.openToWork !== b.openToWork) return a.openToWork ? -1 : 1;
         return (b.matchScore ?? -1) - (a.matchScore ?? -1);
       });
-      return { matches };
+      const internal = await fetchInternalCandidates();
+      const seen = new Set(matches.map((m) => (m.email ?? "").toLowerCase()).filter(Boolean));
+      const merged = [...internal.filter((c) => !c.email || !seen.has(c.email.toLowerCase())), ...matches];
+      return { matches: merged };
     }
 
     let query = supabase
@@ -128,8 +167,9 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
     const candidates = rows ?? [];
+    const internalDb = await fetchInternalCandidates();
     if (!candidates.length)
-      return { matches: [] as SourcedMatchView[] };
+      return { matches: internalDb };
 
     const matches: SourcedMatchView[] = candidates
       .map((c) => {
@@ -161,7 +201,9 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         return (b.matchScore ?? -1) - (a.matchScore ?? -1);
       });
 
-    return { matches };
+    const seen = new Set(matches.map((m) => (m.email ?? "").toLowerCase()).filter(Boolean));
+    const merged = [...internalDb.filter((c) => !c.email || !seen.has(c.email.toLowerCase())), ...matches];
+    return { matches: merged };
   });
 
 // ---------- run Apify and store results ----------
