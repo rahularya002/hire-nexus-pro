@@ -1,17 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Loader2, KeyRound, LogOut, Calendar, Check, X } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
+import { Loader2, KeyRound, LogOut } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import {
-  getMyGoogleConnection,
-  startGoogleOAuth,
-  disconnectGoogle,
-} from "@/lib/google-calendar.functions";
+import { GoogleCalendarCard } from "@/components/google-calendar-card";
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
