@@ -466,7 +466,10 @@ export const requestClientInterview = createServerFn({ method: "POST" })
     const parentAgency = parentApp?.agency_id;
     if (!parentAgency) throw new Error("Application has no agency owner");
     const rowsWithAgency = rows.map((r) => ({ ...r, agency_id: parentAgency }));
-    const { error: insErr } = await supabaseAdmin.from("interviews").insert(rowsWithAgency as never);
+    const { data: inserted, error: insErr } = await supabaseAdmin
+      .from("interviews")
+      .insert(rowsWithAgency as never)
+      .select("id, round_index, provider, scheduled_at");
     if (insErr) throw new Error(insErr.message);
 
     const { error: updErr } = await supabaseAdmin
@@ -474,6 +477,13 @@ export const requestClientInterview = createServerFn({ method: "POST" })
       .update({ stage: "interview_scheduled" })
       .eq("id", app.id);
     if (updErr) throw new Error(updErr.message);
+
+    // For Google Meet requests, mint a Calendar event on the client's connected
+    // Google account so the candidate is auto-emailed an invite + Meet link.
+    const firstRound = (inserted ?? []).find((r: any) => r.round_index === 1);
+    if (firstRound && firstRound.provider === "google_meet" && firstRound.scheduled_at) {
+      await syncGoogleMeet(userId, firstRound.id);
+    }
 
     await logActivity(supabaseAdmin, userId, {
       kind: "interview_scheduled",
