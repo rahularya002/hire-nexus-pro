@@ -59,7 +59,6 @@ const agencyNav: NavSection[] = [
       { to: "/positions",  label: "Open Requirements", icon: Briefcase },
       { to: "/ongoing",    label: "Ongoing",           icon: Activity },
       { to: "/interviews", label: "Interviews",        icon: CalendarClock },
-      { to: "/pipeline",   label: "Pipeline",          icon: Workflow },
       { to: "/closed",     label: "Closed",            icon: CheckCircle2 },
     ],
   },
