@@ -97,11 +97,12 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       if (!data.positionId) {
         return Promise.resolve({ ids: new Set<string>(), emails: new Set<string>(), urls: new Set<string>() });
       }
+      const positionId = data.positionId;
       submittedKeysPromise ??= (async () => {
         const { data: submitted } = await supabase
           .from("applications")
           .select("candidate_id, candidate:candidates(id,email,resume_url,linkedin_url)")
-          .eq("position_id", data.positionId);
+          .eq("position_id", positionId);
         const keys: SubmittedCandidateKeys = {
           ids: new Set<string>(),
           emails: new Set<string>(),
