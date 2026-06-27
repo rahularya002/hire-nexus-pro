@@ -406,11 +406,13 @@ function ScheduleInterviewDialog({
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
-  onSubmit: (scheduled_at: string, rounds: RoundDraft[]) => void;
+  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null) => void;
   pending: boolean;
 }) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("10:00");
+  const [provider, setProvider] = useState<InterviewProvider>("google_meet");
+  const [location, setLocation] = useState("");
   const [rounds, setRounds] = useState<RoundDraft[]>([
     { kind: "hr_screen", custom_kind_label: null, interviewer: "" },
   ]);
@@ -429,6 +431,8 @@ function ScheduleInterviewDialog({
     if (app) {
       setDate(undefined);
       setTime("10:00");
+      setProvider("google_meet");
+      setLocation("");
       setRounds([{ kind: "hr_screen", custom_kind_label: null, interviewer: "" }]);
     }
   }, [app?.id]);
