@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
 
 export const Route = createFileRoute("/database")({
   component: () => <AppShell><Page /></AppShell>,
@@ -48,7 +49,7 @@ function Page() {
   });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; role?: string; location?: string; experience?: string; current_company?: string }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
