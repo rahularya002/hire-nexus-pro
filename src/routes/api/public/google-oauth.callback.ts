@@ -12,8 +12,16 @@ export const Route = createFileRoute("/api/public/google-oauth/callback")({
         const closeHtml = (msg: string, ok: boolean) => `<!doctype html><html><body style="font-family:system-ui;padding:24px;background:#0a0a0a;color:#fafafa">
 <h2>${ok ? "✓ Google Calendar connected" : "× Connection failed"}</h2>
 <p>${msg}</p>
-<p style="opacity:.6">Redirecting you back to Settings…</p>
-<script>try{window.opener&&window.opener.postMessage({type:"google-oauth",ok:${ok}},"*");window.close();}catch(e){}setTimeout(()=>{if(!window.closed)window.location.replace("/settings?google=${ok ? "ok" : "err"}");},1200);</script>
+<p style="opacity:.6">Returning you to the app…</p>
+<script>
+  (function(){
+    var ok = ${ok};
+    try { if (window.opener) { window.opener.postMessage({type:"google-oauth", ok: ok}, "*"); } } catch(e){}
+    var ret = "/settings";
+    try { ret = sessionStorage.getItem("google-oauth-return") || ret; sessionStorage.removeItem("google-oauth-return"); } catch(e){}
+    setTimeout(function(){ window.location.replace(ret + (ret.indexOf("?")>-1?"&":"?") + "google=" + (ok?"ok":"err")); }, 800);
+  })();
+</script>
 </body></html>`;
 
         if (errorParam) {
