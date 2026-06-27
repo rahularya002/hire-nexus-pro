@@ -12,8 +12,8 @@ export const Route = createFileRoute("/api/public/google-oauth/callback")({
         const closeHtml = (msg: string, ok: boolean) => `<!doctype html><html><body style="font-family:system-ui;padding:24px;background:#0a0a0a;color:#fafafa">
 <h2>${ok ? "✓ Google Calendar connected" : "× Connection failed"}</h2>
 <p>${msg}</p>
-<p style="opacity:.6">You can close this window.</p>
-<script>try{window.opener&&window.opener.postMessage({type:"google-oauth",ok:${ok}},"*");}catch(e){}setTimeout(()=>window.close(),1500);</script>
+<p style="opacity:.6">Redirecting you back to Settings…</p>
+<script>try{window.opener&&window.opener.postMessage({type:"google-oauth",ok:${ok}},"*");window.close();}catch(e){}setTimeout(()=>{if(!window.closed)window.location.replace("/settings?google=${ok ? "ok" : "err"}");},1200);</script>
 </body></html>`;
 
         if (errorParam) {
