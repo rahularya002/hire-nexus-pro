@@ -324,7 +324,7 @@ function CandidateRow({
                 <Send className="size-3.5" /> Share with client
               </button>
             )}
-            {canAct && app.stage !== "client_rejected" && app.stage !== "closed" && (
+            {canAct && (app.stage === "sourcing" || app.stage === "recruiter_shortlist") && (
               <button
                 onClick={onReject}
                 disabled={pending}
