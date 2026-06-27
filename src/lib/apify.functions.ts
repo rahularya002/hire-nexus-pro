@@ -35,6 +35,44 @@ export type SourcedMatchView = {
 
 const sourceEnum = z.enum(["linkedin", "github"]);
 
+type SubmittedCandidateKeys = {
+  ids: Set<string>;
+  emails: Set<string>;
+  urls: Set<string>;
+};
+
+function normalizeKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || null;
+}
+
+function normalizeSkill(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9+#.]+/g, " ")
+    .replace(/\bdbs\b/g, "db")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/s$/, "");
+}
+
+function countSkillOverlap(candidateSkills: string[] | null | undefined, requiredSkills: string[]) {
+  if (!requiredSkills.length) return 0;
+  const candidate = (candidateSkills ?? []).map(normalizeSkill).filter(Boolean);
+  const required = requiredSkills.map(normalizeSkill).filter(Boolean);
+  let count = 0;
+  for (const req of required) {
+    if (candidate.some((skill) => skill === req || skill.includes(req) || req.includes(skill))) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function submittedUrlKeys(row: { resume_url?: string | null; linkedin_url?: string | null; profile_url?: string | null }) {
+  return [row.resume_url, row.linkedin_url, row.profile_url].map(normalizeKey).filter(Boolean) as string[];
+}
+
 // ---------- search internal cache first ----------
 
 export const searchSourcedCandidates = createServerFn({ method: "POST" })
@@ -53,30 +91,74 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const skills = data.skills.map((s) => s.toLowerCase().trim()).filter(Boolean);
+    let submittedKeysPromise: Promise<SubmittedCandidateKeys> | null = null;
+
+    function getSubmittedKeys() {
+      if (!data.positionId) {
+        return Promise.resolve({ ids: new Set<string>(), emails: new Set<string>(), urls: new Set<string>() });
+      }
+      submittedKeysPromise ??= (async () => {
+        const { data: submitted } = await supabase
+          .from("applications")
+          .select("candidate_id, candidate:candidates(id,email,resume_url,linkedin_url)")
+          .eq("position_id", data.positionId);
+        const keys: SubmittedCandidateKeys = {
+          ids: new Set<string>(),
+          emails: new Set<string>(),
+          urls: new Set<string>(),
+        };
+        for (const app of submitted ?? []) {
+          if (app.candidate_id) keys.ids.add(app.candidate_id);
+          const candidate = app.candidate as unknown as {
+            id?: string | null;
+            email?: string | null;
+            resume_url?: string | null;
+            linkedin_url?: string | null;
+          } | null;
+          if (candidate?.id) keys.ids.add(candidate.id);
+          const email = normalizeKey(candidate?.email);
+          if (email) keys.emails.add(email);
+          for (const url of submittedUrlKeys(candidate ?? {})) keys.urls.add(url);
+        }
+        return keys;
+      })();
+      return submittedKeysPromise;
+    }
 
     // Always also pull from the internal candidate DB (manually added candidates).
     // These never reach sourced_candidates / position_sourced_matches, so without
     // this they'd be invisible in scout results even with matching skills.
     async function fetchInternalCandidates(): Promise<SourcedMatchView[]> {
+      const submitted = await getSubmittedKeys();
       let q = supabase
         .from("candidates")
         .select("id, name, role, current_company, location, experience, skills, email, phone, linkedin_url, resume_url")
-        .limit(data.limit);
-      if (skills.length) q = q.overlaps("skills", skills);
-      else q = q.ilike("role", `%${data.jobTitle}%`);
+        .limit(Math.max(data.limit * 8, 100));
+      if (!skills.length) q = q.ilike("role", `%${data.jobTitle}%`);
       const { data: rows } = await q;
-      let pool = rows ?? [];
-      // Exclude candidates already submitted to THIS position — they're not a new lead.
-      // (They'll still appear when scouting for a different position / client.)
-      if (data.positionId && pool.length) {
-        const { data: existing } = await supabase
-          .from("applications")
-          .select("candidate_id")
-          .eq("position_id", data.positionId)
-          .in("candidate_id", pool.map((c) => c.id));
-        const taken = new Set((existing ?? []).map((a) => a.candidate_id));
-        pool = pool.filter((c) => !taken.has(c.id));
+      let pool = (rows ?? [])
+        .map((candidate) => ({
+          ...candidate,
+          _skillOverlap: countSkillOverlap(candidate.skills, skills),
+        }))
+        .filter((candidate) => {
+          const email = normalizeKey(candidate.email);
+          const urls = submittedUrlKeys(candidate);
+          if (submitted.ids.has(candidate.id)) return false;
+          if (email && submitted.emails.has(email)) return false;
+          if (urls.some((url) => submitted.urls.has(url))) return false;
+          return true;
+        });
+      if (skills.length) {
+        const title = data.jobTitle.toLowerCase().trim();
+        pool = pool.filter((candidate) => {
+          const role = candidate.role?.toLowerCase() ?? "";
+          return candidate._skillOverlap > 0 || (!!role && (role.includes(title) || title.includes(role)));
+        });
       }
+      pool = pool
+        .sort((a, b) => b._skillOverlap - a._skillOverlap)
+        .slice(0, data.limit);
       return pool.map((c) => {
         const expNum = c.experience ? Number(String(c.experience).replace(/[^0-9.]/g, "")) : null;
         return {
@@ -93,7 +175,7 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
           phone: c.phone ?? null,
           profileUrl: c.linkedin_url ?? c.resume_url ?? null,
           avatarUrl: null,
-          matchScore: null,
+          matchScore: skills.length ? Math.min(98, 60 + c._skillOverlap * 10) : null,
           reasoning: "From your candidate database",
           rejected: false,
           openToWork: false,
@@ -108,14 +190,16 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       const { data: matchRows, error: mErr } = await supabase
         .from("position_sourced_matches")
         .select(
-          "id, match_score, reasoning, rejected, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url, open_to_work, is_hiring)",
+          "id, match_score, reasoning, rejected, shortlisted_candidate_id, sourced_candidate_id, sourced_candidates!inner(id, source, name, headline, current_company, location, experience_years, skills, email, phone, profile_url, avatar_url, open_to_work, is_hiring)",
         )
         .eq("position_id", data.positionId)
         .eq("rejected", false)
+        .is("shortlisted_candidate_id", null)
       .gte("match_score", 50)
         .order("match_score", { ascending: false, nullsFirst: false })
         .limit(data.limit);
       if (mErr) throw new Error(mErr.message);
+      const submitted = await getSubmittedKeys();
       const matches: SourcedMatchView[] = (matchRows ?? [])
         .map((m) => {
         const c = m.sourced_candidates as unknown as {
@@ -150,6 +234,15 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       })
       // Hide hiring/recruiter profiles from results
       .filter((m) => !(m as unknown as { _isHiring: boolean })._isHiring)
+      // Hide candidates already submitted/shared for this same position, even when
+      // the sourced match row predates the shortlist link.
+      .filter((m) => {
+        const email = normalizeKey(m.email);
+        const profileUrl = normalizeKey(m.profileUrl);
+        if (email && submitted.emails.has(email)) return false;
+        if (profileUrl && submitted.urls.has(profileUrl)) return false;
+        return true;
+      })
       // Sort: OTW first, then by score
       .sort((a, b) => {
         if (a.openToWork !== b.openToWork) return a.openToWork ? -1 : 1;
