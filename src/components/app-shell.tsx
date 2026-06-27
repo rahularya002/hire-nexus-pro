@@ -98,6 +98,7 @@ const recruiterNav: NavSection[] = [
     label: "Hiring Pipeline",
     items: [
       { to: "/positions",  label: "Open Requirements", icon: Briefcase,     perm: "positions.view" },
+      { to: "/my-clients", label: "My Clients",        icon: Building2,     perm: "positions.view" },
       { to: "/interviews", label: "Interviews",        icon: CalendarClock, perm: "candidates.view" },
     ],
   },

@@ -22,6 +22,7 @@ import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingRouteImport } from './routes/pending'
 import { Route as OngoingRouteImport } from './routes/ongoing'
+import { Route as MyClientsRouteImport } from './routes/my-clients'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as LoginRouteImport } from './routes/login'
@@ -135,6 +136,11 @@ const PendingRoute = PendingRouteImport.update({
 const OngoingRoute = OngoingRouteImport.update({
   id: '/ongoing',
   path: '/ongoing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyClientsRoute = MyClientsRouteImport.update({
+  id: '/my-clients',
+  path: '/my-clients',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
+  '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
@@ -460,6 +467,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
+  '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
@@ -522,6 +530,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
   '/messages': typeof MessagesRoute
+  '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
   '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
@@ -588,6 +597,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/me'
     | '/messages'
+    | '/my-clients'
     | '/ongoing'
     | '/pending'
     | '/pipeline'
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/me'
     | '/messages'
+    | '/my-clients'
     | '/ongoing'
     | '/pending'
     | '/pipeline'
@@ -712,6 +723,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/me'
     | '/messages'
+    | '/my-clients'
     | '/ongoing'
     | '/pending'
     | '/pipeline'
@@ -777,6 +789,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MeRoute: typeof MeRoute
   MessagesRoute: typeof MessagesRoute
+  MyClientsRoute: typeof MyClientsRoute
   OngoingRoute: typeof OngoingRoute
   PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
@@ -903,6 +916,13 @@ declare module '@tanstack/react-router' {
       path: '/ongoing'
       fullPath: '/ongoing'
       preLoaderRoute: typeof OngoingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-clients': {
+      id: '/my-clients'
+      path: '/my-clients'
+      fullPath: '/my-clients'
+      preLoaderRoute: typeof MyClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -1368,6 +1388,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MeRoute: MeRoute,
   MessagesRoute: MessagesRoute,
+  MyClientsRoute: MyClientsRoute,
   OngoingRoute: OngoingRoute,
   PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
