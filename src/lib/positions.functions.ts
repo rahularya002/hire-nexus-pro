@@ -66,9 +66,11 @@ export const listPositions = createServerFn({ method: "GET" })
       .eq("user_id", userId);
     const roleNames = (roles ?? []).map((r) => r.role as string);
     const isPrivileged =
+      roleNames.includes("super_admin") ||
       roleNames.includes("admin") ||
       roleNames.includes("lead_recruiter") ||
       roleNames.includes("senior_recruiter");
+    const isRecruiterOnly = roleNames.includes("recruiter") && !isPrivileged && !roleNames.includes("client");
 
     let q = supabase
       .from("positions")
@@ -76,7 +78,7 @@ export const listPositions = createServerFn({ method: "GET" })
       .order("posted_at", { ascending: false });
     if (data?.clientId) q = q.eq("client_id", data.clientId);
     if (data?.recruitmentModel) q = q.eq("recruitment_model", data.recruitmentModel);
-    if (!isPrivileged) q = q.eq("assigned_recruiter_id", userId);
+    if (isRecruiterOnly) q = q.eq("assigned_recruiter_id", userId);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []) as PositionRow[];
