@@ -84,8 +84,23 @@ export function ScoutResults({
                 </div>
               </div>
               <div className="flex sm:flex-col gap-2 shrink-0">
-                {c.source === "database" ? (
-                  <span className="h-8 px-3 rounded-md bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 text-xs font-medium inline-flex items-center">In your database</span>
+                {c.positionStatus === "shared" ? (
+                  <StatusPill tone="shared">Already shared</StatusPill>
+                ) : c.positionStatus === "in_pipeline" ? (
+                  <StatusPill tone="pipeline">Already added</StatusPill>
+                ) : c.source === "database" ? (
+                  onShortlist ? (
+                    <button
+                      type="button"
+                      disabled={busyId === c.sourcedCandidateId}
+                      onClick={() => onShortlist?.(c)}
+                      className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {busyId === c.sourcedCandidateId ? <Loader2 className="size-3 animate-spin" /> : "Add to position"}
+                    </button>
+                  ) : (
+                    <StatusPill tone="database">In your database</StatusPill>
+                  )
                 ) : (
                 <button
                   type="button"
@@ -96,7 +111,7 @@ export function ScoutResults({
                   {busyId === c.sourcedCandidateId ? <Loader2 className="size-3 animate-spin" /> : "Shortlist"}
                 </button>
                 )}
-                {c.source !== "database" && (
+                {c.source !== "database" && c.positionStatus === "available" && (
                 <button
                   type="button"
                   disabled={!onReject || busyId === c.sourcedCandidateId}
@@ -116,6 +131,19 @@ export function ScoutResults({
         <div className="p-8 text-center text-sm text-muted-foreground">No matches generated yet.</div>
       )}
     </div>
+  );
+}
+
+function StatusPill({ tone, children }: { tone: "database" | "pipeline" | "shared"; children: string }) {
+  const styles = {
+    database: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+    pipeline: "bg-info/15 text-info border-info/30",
+    shared: "bg-warning/20 text-warning border-warning/30",
+  }[tone];
+  return (
+    <span className={cn("h-8 px-3 rounded-md border text-xs font-medium inline-flex items-center", styles)}>
+      {children}
+    </span>
   );
 }
 
