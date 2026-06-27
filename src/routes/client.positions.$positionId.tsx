@@ -31,6 +31,9 @@ import {
   INTERVIEW_KINDS,
   INTERVIEW_KIND_LABEL,
   type InterviewKind,
+  INTERVIEW_PROVIDERS,
+  INTERVIEW_PROVIDER_LABEL,
+  type InterviewProvider,
 } from "@/lib/interviews.functions";
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
