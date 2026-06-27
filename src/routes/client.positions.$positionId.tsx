@@ -108,7 +108,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[] }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
@@ -212,8 +212,8 @@ function Detail() {
       <ScheduleInterviewDialog
         app={scheduleFor}
         onClose={() => setScheduleFor(null)}
-        onSubmit={(scheduled_at, rounds) =>
-          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds })
+        onSubmit={(scheduled_at, rounds, provider, location) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location })
         }
         pending={scheduleM.isPending}
       />
