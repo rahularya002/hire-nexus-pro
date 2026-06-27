@@ -536,7 +536,7 @@ function ScheduleInterviewDialog({
                     : null,
                 interviewer: r.interviewer?.trim() || null,
               }));
-              onSubmit(dt.toISOString(), cleaned);
+              onSubmit(dt.toISOString(), cleaned, provider, provider === "on_site" ? (location.trim() || null) : null);
             }}
           >
             {pending ? "Requesting…" : "Request interview"}
