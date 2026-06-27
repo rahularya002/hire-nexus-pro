@@ -203,3 +203,35 @@ export const listAssignableRecruiters = createServerFn({ method: "GET" })
       role: roleMap.get(p.id) ?? "recruiter",
     }));
   });
+
+export const assignClientRecruiter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      clientId: z.string().uuid(),
+      assigned_recruiter_id: z.string().uuid().nullable(),
+      onlyOpen: z.boolean().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    let q = supabase
+      .from("positions")
+      .update({ assigned_recruiter_id: data.assigned_recruiter_id })
+      .eq("client_id", data.clientId);
+    if (data.onlyOpen) q = q.neq("status", "closed");
+    const { data: rows, error } = await q.select("id, title, assigned_recruiter_id");
+    if (error) throw new Error(error.message);
+    if (data.assigned_recruiter_id && rows && rows.length) {
+      const { data: client } = await supabase
+        .from("clients").select("name").eq("id", data.clientId).maybeSingle();
+      await supabaseAdmin.from("notifications").insert({
+        user_id: data.assigned_recruiter_id,
+        kind: "system",
+        title: `Assigned to ${client?.name ?? "a client"}`,
+        body: `You've been assigned ${rows.length} requirement${rows.length > 1 ? "s" : ""}.`,
+        link: `/clients/${data.clientId}`,
+      });
+    }
+    return { count: rows?.length ?? 0 };
+  });
