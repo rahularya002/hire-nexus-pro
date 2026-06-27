@@ -31,6 +31,9 @@ import {
   INTERVIEW_KINDS,
   INTERVIEW_KIND_LABEL,
   type InterviewKind,
+  INTERVIEW_PROVIDERS,
+  INTERVIEW_PROVIDER_LABEL,
+  type InterviewProvider,
 } from "@/lib/interviews.functions";
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
@@ -105,7 +108,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[] }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
@@ -209,8 +212,8 @@ function Detail() {
       <ScheduleInterviewDialog
         app={scheduleFor}
         onClose={() => setScheduleFor(null)}
-        onSubmit={(scheduled_at, rounds) =>
-          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds })
+        onSubmit={(scheduled_at, rounds, provider, location) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location })
         }
         pending={scheduleM.isPending}
       />
@@ -403,11 +406,13 @@ function ScheduleInterviewDialog({
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
-  onSubmit: (scheduled_at: string, rounds: RoundDraft[]) => void;
+  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null) => void;
   pending: boolean;
 }) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("10:00");
+  const [provider, setProvider] = useState<InterviewProvider>("google_meet");
+  const [location, setLocation] = useState("");
   const [rounds, setRounds] = useState<RoundDraft[]>([
     { kind: "hr_screen", custom_kind_label: null, interviewer: "" },
   ]);
@@ -426,6 +431,8 @@ function ScheduleInterviewDialog({
     if (app) {
       setDate(undefined);
       setTime("10:00");
+      setProvider("google_meet");
+      setLocation("");
       setRounds([{ kind: "hr_screen", custom_kind_label: null, interviewer: "" }]);
     }
   }, [app?.id]);
@@ -486,6 +493,38 @@ function ScheduleInterviewDialog({
           </div>
 
           <div className="grid gap-2">
+            <Label>Meeting mode</Label>
+            <Select value={provider} onValueChange={(v) => setProvider(v as InterviewProvider)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INTERVIEW_PROVIDERS.map((p) => (
+                  <SelectItem key={p} value={p}>{INTERVIEW_PROVIDER_LABEL[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {provider === "google_meet"
+                ? "The recruiter will generate a Google Meet link from their connected calendar when they confirm."
+                : provider === "microsoft_teams" || provider === "zoom"
+                  ? "The recruiter will share the meeting link when they confirm."
+                  : provider === "on_site"
+                    ? "Add the office address / location below."
+                    : "The recruiter will call the candidate at the confirmed time."}
+            </p>
+          </div>
+
+          {provider === "on_site" && (
+            <div className="grid gap-2">
+              <Label>Location / address</Label>
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. 4th floor, Tower B, Mumbai office"
+              />
+            </div>
+          )}
+
+          <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label>Rounds ({rounds.length})</Label>
               <button
@@ -529,7 +568,7 @@ function ScheduleInterviewDialog({
                     : null,
                 interviewer: r.interviewer?.trim() || null,
               }));
-              onSubmit(dt.toISOString(), cleaned);
+              onSubmit(dt.toISOString(), cleaned, provider, provider === "on_site" ? (location.trim() || null) : null);
             }}
           >
             {pending ? "Requesting…" : "Request interview"}
