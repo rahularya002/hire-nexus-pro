@@ -359,14 +359,29 @@ function AddCandidateDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSubmit: (d: { name: string; email?: string; role?: string; location?: string; experience?: string; current_company?: string }) => void;
+  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) => void;
   submitting: boolean;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", role: "", location: "", experience: "", current_company: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+  const [skills, setSkills] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
+
+  function addSkill() {
+    const v = skillInput.trim();
+    if (!v || skills.includes(v)) { setSkillInput(""); return; }
+    setSkills([...skills, v].slice(0, 40));
+    setSkillInput("");
+  }
+
+  function reset() {
+    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+    setSkills([]);
+    setSkillInput("");
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add candidate</DialogTitle>
           <DialogDescription>Add a new candidate to your talent database.</DialogDescription>
@@ -375,13 +390,43 @@ function AddCandidateDialog({
           <Field label="Name *"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+            <Field label="Phone"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Current role"><Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} /></Field>
+            <Field label="Current company"><Input value={form.current_company} onChange={(e) => setForm({ ...form, current_company: e.target.value })} /></Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Location"><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></Field>
             <Field label="Experience"><Input value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} placeholder="e.g. 7 yrs" /></Field>
           </div>
-          <Field label="Current company"><Input value={form.current_company} onChange={(e) => setForm({ ...form, current_company: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="LinkedIn URL"><Input value={form.linkedin_url} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/…" /></Field>
+            <Field label="Salary / CTC"><Input value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="₹50 LPA" /></Field>
+          </div>
+          <Field label="Skills">
+            <div className="flex gap-2">
+              <Input
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(); } }}
+                placeholder="Add a skill and press Enter"
+              />
+              <Button type="button" variant="outline" onClick={addSkill}><Plus className="size-4" /></Button>
+            </div>
+            {skills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {skills.map((s) => (
+                  <span key={s} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-secondary font-medium">
+                    {s}
+                    <button type="button" onClick={() => setSkills(skills.filter((x) => x !== s))} className="text-muted-foreground hover:text-foreground">
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </Field>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -390,10 +435,14 @@ function AddCandidateDialog({
             onClick={() => onSubmit({
               name: form.name.trim(),
               email: form.email.trim() || undefined,
+              phone: form.phone.trim() || undefined,
               role: form.role.trim() || undefined,
               location: form.location.trim() || undefined,
               experience: form.experience.trim() || undefined,
               current_company: form.current_company.trim() || undefined,
+              linkedin_url: form.linkedin_url.trim() || undefined,
+              salary: form.salary.trim() || undefined,
+              skills: skills.length ? skills : undefined,
             })}
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add candidate"}
