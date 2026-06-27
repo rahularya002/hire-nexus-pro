@@ -65,7 +65,19 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
       if (skills.length) q = q.overlaps("skills", skills);
       else q = q.ilike("role", `%${data.jobTitle}%`);
       const { data: rows } = await q;
-      return (rows ?? []).map((c) => {
+      let pool = rows ?? [];
+      // Exclude candidates already submitted to THIS position — they're not a new lead.
+      // (They'll still appear when scouting for a different position / client.)
+      if (data.positionId && pool.length) {
+        const { data: existing } = await supabase
+          .from("applications")
+          .select("candidate_id")
+          .eq("position_id", data.positionId)
+          .in("candidate_id", pool.map((c) => c.id));
+        const taken = new Set((existing ?? []).map((a) => a.candidate_id));
+        pool = pool.filter((c) => !taken.has(c.id));
+      }
+      return pool.map((c) => {
         const expNum = c.experience ? Number(String(c.experience).replace(/[^0-9.]/g, "")) : null;
         return {
           matchId: null,
