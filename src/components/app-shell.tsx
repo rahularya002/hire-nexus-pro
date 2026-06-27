@@ -99,7 +99,6 @@ const recruiterNav: NavSection[] = [
     items: [
       { to: "/positions",  label: "Open Requirements", icon: Briefcase,     perm: "positions.view" },
       { to: "/interviews", label: "Interviews",        icon: CalendarClock, perm: "candidates.view" },
-      { to: "/pipeline",   label: "Pipeline",          icon: Workflow,      perm: "pipeline.move" },
     ],
   },
   {
