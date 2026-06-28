@@ -1,52 +1,64 @@
-# Reseed mock data
+# Full webapp QA sweep
 
-## Keep
-- **Users**: only `admin@gmail.com`, `agency1@gmail.com`, `client1@gmail.com`. Everyone else (recruit, agency, client, test, test1, test2, hr) gets deleted from `auth.users` + `profiles` + `user_roles`.
-- **Agencies**: keep `Default Agency` (admin's) and `Agency 1` (agency1's).
+Goal: drive the live app as each persona, catch broken flows / dead links / RLS gaps / console errors, and produce a prioritized fix list. No code changes in this pass — fixes happen after you approve the findings.
 
-## Wipe (in dependency order)
-Delete all rows from: `notifications`, `tasks`, `activities`, `messages`, `message_threads`, `documents`, `invoice_line_items`, `invoices`, `placements`, `interviews`, `applications`, `position_sourced_matches`, `position_sourcing_runs`, `sourced_candidates`, `candidates`, `client_role_permissions`, `client_custom_roles`, `client_members`, `client_billing_terms`, `positions`, `clients`, `job_applications`, `job_post_channels`, `job_posts`, `recruiter_login_events`, `interview_round_templates`, `google_calendar_connections`, `support_tickets`.
+## How I'll test
 
-## Reseed — medium volume, mixed industries
+I'll use Playwright against the running preview, signed in as each seeded account, plus Supabase reads and the DB linter for backend checks. Screenshots + console/network logs captured per step.
 
-### Agency 1 (agency1@gmail.com is admin/owner)
-Seed under `agency_id = 03e1341b...`:
+Accounts:
+- `admin@gmail.com` (agency admin)
+- `agency1@gmail.com` (recruiter on Default agency)
+- `client1@gmail.com` (client portal)
 
-- **6 clients** owned by Agency 1:
-  - **AI Tech** (SaaS) — owned by `client1@gmail.com` (so they see it in client portal)
-  - **NovaPay** (Fintech)
-  - **Lumen Health** (Healthtech)
-  - **Kettle & Co** (D2C retail)
-  - **OrbitLogix** (Logistics)
-  - **Verdant Energy** (Cleantech)
-  - Each gets billing terms (15% fee, NET 30, 90-day guarantee).
-- **15 positions** spread across the 6 clients (mix of open / in_progress / interviews / closed), with realistic titles (Senior Backend Engineer, Product Designer, GTM Lead, Data Scientist, RN Manager, Supply Chain Lead, etc.), salary ranges, locations (Bengaluru / Mumbai / Delhi / Remote), skills, openings.
-- **~60 candidates** in the Agency 1 database with diverse skills, experience, notice periods, salaries, linkedin URLs.
-- **~50 applications** spread across stages: sourcing, recruiter_shortlist, shared_with_client, client_shortlist, interview_scheduled, offered, joined, on_hold, closed (with rejection reasons).
-- **~12 interviews** — past + upcoming, mix of providers (Google Meet, Teams, Zoom, Offline, Phone), with structured rounds (HR Screen, Technical, Managerial, Behavioral).
-- **3 placements** (joined candidates) with offer/joining dates spread over last 90 days.
-- **4 invoices** (2 paid, 1 sent, 1 draft) with line items tied to placements.
-- **Activities** + **tasks** + **messages** + **documents** seeded so each portal section has content.
+## Scope per persona
 
-### Default Agency (admin@gmail.com)
-Seed under `agency_id = ef14901d...`:
-- **2 clients** (Helio Robotics, Coastline Capital) — light footprint to show super_admin / dual-agency view.
-- **4 positions**, **15 candidates**, **10 applications**, **3 interviews**, **1 placement**, **1 invoice**.
+**Agency admin**
+- Dashboard loads, KPIs populate, today's interviews + recruiter logins panel render
+- Sidebar: Tasks, Messages, Open Requirements, Ongoing, Interviews, Closed, Sourcing (Scouting + Posting), Candidate DB, Clients, Recruiter Roster, Billing
+- Open one client → assign recruiter, edit position, view agencies engaged
+- Open one position → pipeline by stage, edit candidate, schedule interview (with Google Meet path), reject/shortlist/hold buttons gated correctly
+- Roster drawer: login history, assigned clients, activity timeline
+- Billing: invoice list + detail
 
-### Cross-cutting
-- **`client_members`**: add `client1@gmail.com` as owner of AI Tech.
-- **`recruiter_login_events`**: backfill 7 days of logins for both agency users so the dashboard tile renders.
-- All `created_at`/`updated_at` timestamps spread over the last 60 days for realistic activity timelines.
+**Recruiter (agency1)**
+- Sidebar shows only: My Desk, Tasks, Open Requirements, My Clients, Interviews, Candidate DB, Sourcing, My Activity (no Pipeline, no Recruiter Activity, no Recruiter Roster)
+- Data scoping: only assigned clients/positions visible
+- Add candidate with skills/phone/linkedin/salary, edit from DB
+- Scouting shows internal-DB matches with correct status labels
+- Reject button hidden once candidate is `shared_with_client`+
 
-## Execution
+**Client (client1)**
+- Sidebar groups: Overview, Hiring Pipeline, Finance, Team, Resources (no Pipeline link)
+- Dashboard 5-stage funnel + Open positions KPI
+- Positions list: per-row funnel, sourcing hidden
+- Position detail: AI Match label, Schedule interview only after client shortlist, Put on hold/Resume, edit candidate, edit position
+- Schedule interview dialog: dynamic rounds (add/remove, types), interviewer dropdown from client team, meeting mode incl. Offline
+- Interviews: calendar + next-interview card
+- Activity: position filter, timeline, stat tiles
+- Settings: Google Calendar connect card present
+- My Team: read-only, Message button works
 
-Two tool calls only:
-1. **`supabase--insert`** — one big SQL block: DELETE everything above + DELETE auth users (via `auth.admin.delete_user`-equivalent — actually `DELETE FROM auth.users WHERE email NOT IN (...)` cascades through profiles/roles via existing FKs).
-2. **`supabase--insert`** — one big SQL block: INSERT all seed data using deterministic UUIDs so cross-references work.
+**Cross-cutting**
+- Auth redirects (login/pending/portal routing) for each role
+- Console errors and failed network calls on every visited page
+- Supabase linter pass + spot-check RLS on `interviews`, `positions`, `applications`, `clients`, `client_members`
+- Seed-data sanity: counts match, today's interviews still set for today, no orphaned FKs
+- 404/notFound boundaries on a bogus `/positions/bogus-id` and `/client/positions/bogus-id`
+- Mobile viewport spot-check on dashboard + position detail
 
-No schema changes, no code changes, no migration needed.
+## Deliverable
+
+A single report grouped as:
+1. **Broken** — blocks user flow (with screenshot + repro)
+2. **Buggy** — works but wrong (label, gating, stale data)
+3. **Polish** — minor UX/empty-state/copy
+4. **Backend** — RLS / linter / data integrity
+
+Then you pick what to fix and I implement in build mode.
 
 ## Out of scope
-- No new tables or RLS edits.
-- No UI/component changes.
-- Hardcoded `src/lib/client-data.ts` / `mock-data.ts` (static demo fixtures) stay as-is — they're not used by the live portals which read from the DB.
+
+- No code edits this turn
+- No reseed / data mutation beyond read queries
+- External OAuth round-trip to Google (will verify UI + token-exchange code path only, not a real Google login)
