@@ -1,64 +1,50 @@
-# Full webapp QA sweep
+# Naukri scraping + LinkedIn email enrichment
 
-Goal: drive the live app as each persona, catch broken flows / dead links / RLS gaps / console errors, and produce a prioritized fix list. No code changes in this pass — fixes happen after you approve the findings.
+## 1. Naukri via Apify
 
-## How I'll test
+Naukri doesn't expose a public API and blocks unauth scraping aggressively. The realistic path is an Apify actor that logs in with a recruiter Naukri account (cookie-based) and pulls candidate profiles from resdex-style search results.
 
-I'll use Playwright against the running preview, signed in as each seeded account, plus Supabase reads and the DB linter for backend checks. Screenshots + console/network logs captured per step.
+### Actor choice
+Use a hosted community actor as the default and let it be overridden via env:
+- Default: `jupri/naukri-scraper` (or `dtrungtin/naukri-scraper` — both public on Apify store; keyword + location + pagination input).
+- Override: `APIFY_NAUKRI_ACTOR` env var.
+- Naukri Resdex (paid candidate DB with emails/phones) requires a logged-in recruiter session cookie. That is added as an optional secret `NAUKRI_COOKIE`; without it we get public job-seeker profiles only (name, headline, current company, location, experience, skills — no email/phone).
 
-Accounts:
-- `admin@gmail.com` (agency admin)
-- `agency1@gmail.com` (recruiter on Default agency)
-- `client1@gmail.com` (client portal)
+### Wiring
+- `src/lib/apify.server.ts`
+  - Add `naukri` to `APIFY_ACTORS`.
+  - Add `normalizeNaukri()` mapping fields: `name`, `title`/`designation` → headline, `currentCompany`, `location`, `totalExperience` → experience_years, `keySkills`/`skills` → skills, `email`, `mobile`/`phone`, `profileUrl`.
+  - Extend `buildActorInput()` with a `naukri` branch: `{ keyword, location, experience, maxItems, cookie: process.env.NAUKRI_COOKIE }`.
+  - Extend `normalizeForSource()`.
+- `src/lib/scout-sources.ts`: add a Naukri source entry (`hasActor: true`, cost `~$3/1k`).
+- `src/lib/apify.functions.ts`: include `naukri` in the source fan-out and merge results the same way LinkedIn/GitHub are merged.
+- Add secret request for `APIFY_API_TOKEN` (already present) + optional `NAUKRI_COOKIE` for Resdex-grade enrichment.
 
-## Scope per persona
+### UI
+- `src/components/scout-results.tsx` + sourcing hub already iterate sources — Naukri will appear automatically once added to `SCOUT_SOURCES`. Add a Naukri icon (`Briefcase`) and a small note when `NAUKRI_COOKIE` is missing: "Add recruiter cookie to unlock emails and phone numbers".
 
-**Agency admin**
-- Dashboard loads, KPIs populate, today's interviews + recruiter logins panel render
-- Sidebar: Tasks, Messages, Open Requirements, Ongoing, Interviews, Closed, Sourcing (Scouting + Posting), Candidate DB, Clients, Recruiter Roster, Billing
-- Open one client → assign recruiter, edit position, view agencies engaged
-- Open one position → pipeline by stage, edit candidate, schedule interview (with Google Meet path), reject/shortlist/hold buttons gated correctly
-- Roster drawer: login history, assigned clients, activity timeline
-- Billing: invoice list + detail
+## 2. LinkedIn emails
 
-**Recruiter (agency1)**
-- Sidebar shows only: My Desk, Tasks, Open Requirements, My Clients, Interviews, Candidate DB, Sourcing, My Activity (no Pipeline, no Recruiter Activity, no Recruiter Roster)
-- Data scoping: only assigned clients/positions visible
-- Add candidate with skills/phone/linkedin/salary, edit from DB
-- Scouting shows internal-DB matches with correct status labels
-- Reject button hidden once candidate is `shared_with_client`+
+LinkedIn does not expose emails in public profile scrapes — no Apify actor for public search returns them reliably. Two workable options:
 
-**Client (client1)**
-- Sidebar groups: Overview, Hiring Pipeline, Finance, Team, Resources (no Pipeline link)
-- Dashboard 5-stage funnel + Open positions KPI
-- Positions list: per-row funnel, sourcing hidden
-- Position detail: AI Match label, Schedule interview only after client shortlist, Put on hold/Resume, edit candidate, edit position
-- Schedule interview dialog: dynamic rounds (add/remove, types), interviewer dropdown from client team, meeting mode incl. Offline
-- Interviews: calendar + next-interview card
-- Activity: position filter, timeline, stat tiles
-- Settings: Google Calendar connect card present
-- My Team: read-only, Message button works
+### Option A (recommended): email-finder enrichment step
+After ranking, for shortlisted candidates only (cost control), call an email-finder actor/API with `{ firstName, lastName, company/domain }` and merge the result into `email`:
+- Default actor: `apify/contact-info-scraper` or `harvestapi~linkedin-email-finder` (env override `APIFY_EMAIL_FINDER_ACTOR`).
+- Alternative provider: Hunter.io / Apollo / Snov.io via API key secret (`HUNTER_API_KEY` etc.) — cheaper and more accurate than LinkedIn-specific finders.
+- Add a small `enrichEmails(profiles)` helper in `apify.server.ts` and call it in `apify.functions.ts` only for the top-N ranked profiles.
 
-**Cross-cutting**
-- Auth redirects (login/pending/portal routing) for each role
-- Console errors and failed network calls on every visited page
-- Supabase linter pass + spot-check RLS on `interviews`, `positions`, `applications`, `clients`, `client_members`
-- Seed-data sanity: counts match, today's interviews still set for today, no orphaned FKs
-- 404/notFound boundaries on a bogus `/positions/bogus-id` and `/client/positions/bogus-id`
-- Mobile viewport spot-check on dashboard + position detail
+### Option B: switch LinkedIn actor
+`harvestapi~linkedin-profile-search` returns emails only when the profile publicly lists one (rare). Switching to `harvestapi~linkedin-profile-scraper` (detail actor) and feeding it URLs from the search step returns the "Contact info" block including public email when the viewer would see it — but requires a LinkedIn session cookie (`LINKEDIN_COOKIE` secret) and doubles cost. Include as optional path behind a flag.
 
-## Deliverable
+### Plan
+Ship Option A by default (email-finder enrichment on shortlisted profiles) and expose Option B as an opt-in via env if the user provides a LinkedIn cookie.
 
-A single report grouped as:
-1. **Broken** — blocks user flow (with screenshot + repro)
-2. **Buggy** — works but wrong (label, gating, stale data)
-3. **Polish** — minor UX/empty-state/copy
-4. **Backend** — RLS / linter / data integrity
+## Secrets to request
+- `NAUKRI_COOKIE` (optional, unlocks Naukri emails/phones)
+- `HUNTER_API_KEY` **or** rely on `APIFY_API_TOKEN` for the email-finder actor
+- `LINKEDIN_COOKIE` (optional, opt-in for deep LinkedIn scrape)
 
-Then you pick what to fix and I implement in build mode.
-
-## Out of scope
-
-- No code edits this turn
-- No reseed / data mutation beyond read queries
-- External OAuth round-trip to Google (will verify UI + token-exchange code path only, not a real Google login)
+## Open questions
+1. For Naukri: OK to default to the public job-seeker scraper and treat Resdex (with `NAUKRI_COOKIE`) as an opt-in upgrade?
+2. For LinkedIn emails: use an Apify email-finder actor (no extra key) or Hunter.io (better hit rate, needs `HUNTER_API_KEY`)?
+3. Should email enrichment run for every scouted profile, or only for candidates the recruiter clicks "Shortlist" on (to control cost)?

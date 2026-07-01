@@ -5,6 +5,7 @@ import {
   APIFY_ACTORS,
   buildActorInput,
   callApifyActor,
+  enrichEmails,
   normalizeForSource,
   rankBatch,
   searchGitHubUsers,
@@ -35,7 +36,7 @@ export type SourcedMatchView = {
   applicationStage: string | null;
 };
 
-const sourceEnum = z.enum(["linkedin", "github"]);
+const sourceEnum = z.enum(["linkedin", "github", "naukri"]);
 
 type SubmittedCandidateKeys = {
   ids: Set<string>;
@@ -513,6 +514,14 @@ export const runApifyScout = createServerFn({ method: "POST" })
         console.error(`Apify ${source} failed:`, msg);
         errors.push(`${source}: ${msg}`);
       }
+    }
+
+    // Best-effort email enrichment for profiles missing an email
+    // (mostly LinkedIn — Naukri already returns emails when NAUKRI_COOKIE is set).
+    try {
+      await enrichEmails(allProfiles, 20);
+    } catch (e) {
+      console.warn("enrichEmails failed:", e);
     }
 
     // Upsert candidates

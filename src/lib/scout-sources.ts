@@ -37,7 +37,7 @@ export const SCOUT_SOURCES: ScoutSource[] = [
   { id: "internal",  label: "Internal database", icon: Database,  hint: "Your existing candidate pool", hasActor: true },
   { id: "linkedin",  label: "LinkedIn",          icon: Linkedin,  hint: "Apify LinkedIn profile search",        hasActor: true,  defaultActorSlug: "harvestapi~linkedin-profile-search", costPer1k: "~$2" },
   { id: "github",    label: "GitHub",            icon: Github,    hint: "GitHub public API — free, no actor",    hasActor: true,  costPer1k: "free" },
-  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "No actor wired yet",                    hasActor: false },
+  { id: "naukri",    label: "Naukri",            icon: Briefcase, hint: "Apify Naukri scraper (add NAUKRI_COOKIE for emails/phones)", hasActor: true, defaultActorSlug: "jupri~naukri-scraper", costPer1k: "~$3" },
   { id: "iimjobs",   label: "iimjobs",           icon: Briefcase, hint: "No actor wired yet",                    hasActor: false },
   { id: "hirist",    label: "Hirist",            icon: Briefcase, hint: "No actor wired yet",                    hasActor: false },
   { id: "instahyre", label: "Instahyre",         icon: Briefcase, hint: "No actor wired yet",                    hasActor: false },
