@@ -8,6 +8,8 @@ import {
   PhoneCall, Mail, CheckCircle2, RotateCcw, UserX, Activity, Coffee, Circle,
   Send, Phone, Clock,
 } from "lucide-react";
+import { getTeamMembers } from "@/lib/team.functions";
+import { Users, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PriorityBadge, StatusBadge } from "@/components/ui-bits";
 import { AppShell } from "@/components/app-shell";
