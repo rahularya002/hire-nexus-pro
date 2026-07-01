@@ -6,6 +6,7 @@ export const APIFY_ACTORS = {
   linkedin:
     process.env.APIFY_LINKEDIN_ACTOR ?? "harvestapi~linkedin-profile-search",
   github: process.env.APIFY_GITHUB_ACTOR ?? "kawsar~github-profile-scraper",
+  naukri: process.env.APIFY_NAUKRI_ACTOR ?? "jupri~naukri-scraper",
 } as const;
 
 export type ApifySourceId = keyof typeof APIFY_ACTORS;
