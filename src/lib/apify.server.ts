@@ -301,6 +301,33 @@ export function normalizeGitHub(item: unknown): NormalizedProfile | null {
   };
 }
 
+export function normalizeNaukri(item: unknown): NormalizedProfile | null {
+  if (!item || typeof item !== "object") return null;
+  const o = item as Record<string, unknown>;
+  const id = pickString(o.profileId, o.resdexId, o.id, o.profileUrl, o.url);
+  const name = pickString(o.name, o.fullName, o.candidateName);
+  if (!id || !name) return null;
+  const expRaw = pickString(o.totalExperience, o.experience, o.totalExp);
+  const expYears = pickNumber(o.totalExperienceYears, o.experienceYears, expRaw);
+  return {
+    source: "naukri" as unknown as ApifySourceId,
+    source_profile_id: id,
+    name,
+    headline: pickString(o.designation, o.title, o.currentRole, o.headline),
+    current_company: pickString(o.currentCompany, o.company, o.employer),
+    location: pickString(o.location, o.currentLocation, o.city),
+    experience_years: expYears,
+    skills: pickStringArray(o.keySkills, o.skills, o.itSkills),
+    email: pickString(o.email, o.emailId, o.emailAddress),
+    phone: pickString(o.mobile, o.phone, o.mobileNumber, o.phoneNumber),
+    profile_url: pickString(o.profileUrl, o.url, o.resumeUrl),
+    avatar_url: pickString(o.profilePicture, o.avatar, o.photoUrl),
+    open_to_work: o.activeStatus === "active" || o.isActive === true || false,
+    is_hiring: false,
+    raw: o,
+  };
+}
+
 export function buildActorInput(
   source: ApifySourceId,
   args: { jobTitle: string; location?: string | null; skills?: string[]; maxResults: number },
@@ -313,6 +340,21 @@ export function buildActorInput(
       keywords,
       locations: args.location ? [args.location] : [],
       maxItems: args.maxResults,
+    };
+  }
+  if (source === "naukri") {
+    // Most Naukri actors accept keyword + location + experience + pagination.
+    // NAUKRI_COOKIE unlocks Resdex-level access (emails/phones) when the
+    // user pastes a logged-in recruiter session cookie.
+    return {
+      keyword: keywords,
+      keywords,
+      location: args.location ?? "",
+      locations: args.location ? [args.location] : [],
+      maxItems: args.maxResults,
+      maxResults: args.maxResults,
+      cookie: process.env.NAUKRI_COOKIE ?? undefined,
+      cookies: process.env.NAUKRI_COOKIE ?? undefined,
     };
   }
   // github
@@ -328,7 +370,70 @@ export function buildActorInput(
 }
 
 export function normalizeForSource(source: ApifySourceId, item: unknown) {
-  return source === "linkedin" ? normalizeLinkedIn(item) : normalizeGitHub(item);
+  if (source === "linkedin") return normalizeLinkedIn(item);
+  if ((source as string) === "naukri") return normalizeNaukri(item);
+  return normalizeGitHub(item);
+}
+
+// ---------- Email enrichment ----------
+// LinkedIn public search actors almost never return emails. This runs after
+// scouting to fill missing emails using either Hunter.io (if HUNTER_API_KEY
+// is configured) or a generic Apify email-finder actor as fallback.
+export async function enrichEmails(profiles: NormalizedProfile[], limit = 20): Promise<NormalizedProfile[]> {
+  const targets = profiles.filter((p) => !p.email && p.name).slice(0, limit);
+  if (!targets.length) return profiles;
+  const hunterKey = process.env.HUNTER_API_KEY;
+
+  await Promise.all(
+    targets.map(async (p) => {
+      try {
+        const [firstName, ...rest] = p.name.split(/\s+/);
+        const lastName = rest.join(" ");
+        const domain = guessCompanyDomain(p.current_company);
+        if (hunterKey && firstName && lastName && domain) {
+          const u = new URL("https://api.hunter.io/v2/email-finder");
+          u.searchParams.set("domain", domain);
+          u.searchParams.set("first_name", firstName);
+          u.searchParams.set("last_name", lastName);
+          u.searchParams.set("api_key", hunterKey);
+          const r = await fetch(u.toString());
+          if (r.ok) {
+            const j = (await r.json()) as { data?: { email?: string; score?: number } };
+            const email = j.data?.email;
+            if (email && (j.data?.score ?? 0) >= 50) p.email = email;
+          }
+          return;
+        }
+        // Fallback: Apify contact-info-scraper on the profile URL
+        if (p.profile_url && process.env.APIFY_API_TOKEN) {
+          const actor = process.env.APIFY_EMAIL_FINDER_ACTOR ?? "vdrmota~contact-info-scraper";
+          const items = await callApifyActor(actor, {
+            startUrls: [{ url: p.profile_url }],
+            maxRequestsPerCrawl: 1,
+          }, { timeoutMs: 60_000 }).catch(() => [] as unknown[]);
+          for (const it of items) {
+            const obj = it as Record<string, unknown>;
+            const emails = Array.isArray(obj.emails) ? (obj.emails as unknown[]) : [];
+            const first = emails.find((e): e is string => typeof e === "string");
+            if (first) { p.email = first; break; }
+          }
+        }
+      } catch (e) {
+        console.warn("Email enrichment failed for", p.name, e);
+      }
+    }),
+  );
+  return profiles;
+}
+
+function guessCompanyDomain(company: string | null): string | null {
+  if (!company) return null;
+  const slug = company
+    .toLowerCase()
+    .replace(/\b(inc|llc|ltd|limited|pvt|private|corp|corporation|technologies|technology|labs|labs\.|solutions|systems|group|the)\b/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+  if (!slug || slug.length < 2) return null;
+  return `${slug}.com`;
 }
 
 // ----- Gemini batched ranking -----
