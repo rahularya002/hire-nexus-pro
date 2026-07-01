@@ -128,8 +128,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClientContext(null);
         setProfileLoaded(true);
       }
-      router.invalidate();
-      if (event !== "SIGNED_OUT") qc.invalidateQueries();
+      if (event === "SIGNED_OUT") {
+        // Avoid re-running loaders/queries against the just-cleared session
+        // (they'd 401 with "No authorization header"). Send the user to
+        // /login; AuthGate on the next mount will handle routing.
+        qc.cancelQueries();
+        qc.clear();
+        router.navigate({ to: "/login", replace: true });
+      } else {
+        router.invalidate();
+        qc.invalidateQueries();
+      }
     });
 
     // 2) Then load existing session.
