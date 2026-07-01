@@ -767,6 +767,330 @@ function UpcomingInterviewsCard({ rows }: { rows: InterviewRow[] }) {
   );
 }
 
+function AdminDashboard({
+  firstName, greeting, dateLabel,
+  clients, positions, tasks, todayInterviews, upcomingInterviews,
+}: {
+  firstName: string;
+  greeting: string;
+  dateLabel: string;
+  clients: ClientRow[];
+  positions: PositionRow[];
+  tasks: TaskRow[];
+  todayInterviews: InterviewRow[];
+  upcomingInterviews: InterviewRow[];
+}) {
+  const [ivTab, setIvTab] = useState<"today" | "upcoming">("today");
+  const fetchTeam = useServerFn(getTeamMembers);
+  const fetchLogins = useServerFn(listTodayRecruiterLogins);
+  const { data: teamData } = useQuery({ queryKey: ["team-members"], queryFn: () => fetchTeam() });
+  const { data: logins = [] } = useQuery<RecruiterLoginToday[]>({
+    queryKey: ["recruiter-logins-today"],
+    queryFn: () => fetchLogins(),
+    refetchInterval: 60_000,
+  });
+
+  const members = teamData?.members ?? [];
+  const loginMap = new Map(logins.map((l) => [l.user_id, l]));
+  const recruiterNameMap = new Map(members.map((m) => [m.id, { name: m.name, initials: m.initials }]));
+
+  const activeThreshold = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const clientsSorted = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+  const inactiveCount = clientsSorted.filter((c) => !c.last_activity_at || new Date(c.last_activity_at).getTime() < activeThreshold).length;
+
+  const openPositions = positions.filter((p) => p.status !== "closed");
+
+  const openTasks = tasks.filter((t) => t.state !== "Closed");
+  const priorityWeight = (t: TaskRow) =>
+    t.priority === "High" ? 0 : t.priority === "Normal" ? 1 : 2;
+  const tasksSorted = [...openTasks].sort((a, b) => priorityWeight(a) - priorityWeight(b));
+  const taskGroups: Array<{ label: "High" | "Normal" | "Low"; items: TaskRow[] }> = [
+    { label: "High",   items: tasksSorted.filter((t) => t.priority === "High") },
+    { label: "Normal", items: tasksSorted.filter((t) => t.priority === "Normal") },
+    { label: "Low",    items: tasksSorted.filter((t) => t.priority === "Low") },
+  ];
+
+  const fmtTime = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+  const fmtDay = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "—";
+
+  const ivList = ivTab === "today" ? todayInterviews : upcomingInterviews;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Manager Dashboard · {dateLabel}</div>
+        <h1 className="text-3xl font-semibold tracking-tight mt-1">{greeting}, {firstName}</h1>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* 1. Clients */}
+        <Section title="Clients"
+          icon={Building2}
+          meta={`${clientsSorted.length} total · ${inactiveCount} inactive`}
+          link="/admin/clients"
+          linkLabel="All clients"
+        >
+          {clientsSorted.length === 0 && <EmptyRow>No clients yet.</EmptyRow>}
+          <div className="divide-y divide-border">
+            {clientsSorted.slice(0, 8).map((c) => {
+              const active = c.last_activity_at && new Date(c.last_activity_at).getTime() >= activeThreshold;
+              return (
+                <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }}
+                  className="flex items-center gap-3 py-2.5 hover:bg-secondary/40 -mx-4 px-4 transition">
+                  <div className="size-8 rounded-md grid place-items-center text-[10px] font-semibold text-primary-foreground shrink-0"
+                    style={{ background: colorFor(c.id, c.color) }}>
+                    {initialsOf(c.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{c.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{c.industry ?? "—"} · {c.open_positions ?? 0} open</div>
+                  </div>
+                  <span className={cn(
+                    "text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1",
+                    active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
+                  )}>
+                    <span className={cn("size-1.5 rounded-full", active ? "bg-success" : "bg-muted-foreground")} />
+                    {active ? "Active" : "Inactive"}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </Section>
+
+        {/* 2. Employees */}
+        <Section title="Employees"
+          icon={Users}
+          meta={`${members.length} teammates · ${logins.filter((l) => l.logged_in_today).length} signed in`}
+          link="/team"
+          linkLabel="Team roster"
+        >
+          {members.length === 0 && <EmptyRow>No teammates added yet.</EmptyRow>}
+          <div className="divide-y divide-border">
+            {members.slice(0, 8).map((m) => {
+              const login = loginMap.get(m.id);
+              return (
+                <div key={m.id} className="flex items-center gap-3 py-2.5 -mx-4 px-4 hover:bg-secondary/40 transition">
+                  <div className="relative shrink-0">
+                    <div className="size-8 rounded-md grid place-items-center text-[10px] font-semibold text-primary-foreground"
+                      style={{ background: colorFor(m.id) }}>
+                      {m.initials}
+                    </div>
+                    <span className={cn(
+                      "absolute -bottom-0.5 -right-0.5 size-2 rounded-full ring-2 ring-card",
+                      m.status === "Active" ? "bg-success" : "bg-muted-foreground",
+                    )} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{m.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{m.role}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {login?.logged_in_today ? (
+                      <div className="text-xs tabular-nums font-medium">{fmtTime(login.first_login_at)}</div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground">Not signed in</div>
+                    )}
+                    <div className="text-[10px] text-muted-foreground uppercase">Login</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      </div>
+
+      {/* 3. Interviews */}
+      <Section title="Interviews"
+        icon={CalendarClock}
+        meta={`${todayInterviews.length} today · ${upcomingInterviews.length} upcoming`}
+        link="/interviews"
+        linkLabel="All interviews"
+        toolbar={
+          <div className="inline-flex rounded-md border border-border bg-background overflow-hidden">
+            {(["today", "upcoming"] as const).map((k) => (
+              <button key={k} onClick={() => setIvTab(k)}
+                className={cn(
+                  "h-7 px-3 text-[11px] font-medium transition",
+                  ivTab === k ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60",
+                )}>
+                {k === "today" ? "Today" : "Next 7 days"}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {ivList.length === 0 && (
+          <EmptyRow>{ivTab === "today" ? "No interviews today." : "Nothing scheduled in the next 7 days."}</EmptyRow>
+        )}
+        <div className="divide-y divide-border">
+          {ivList.slice(0, 10).map((i) => (
+            <div key={i.id} className="flex items-center gap-3 py-2.5 -mx-4 px-4 hover:bg-secondary/40 transition">
+              <div className="text-xs font-semibold text-primary tabular-nums w-24 shrink-0">
+                {ivTab === "today" ? fmtTime(i.scheduled_at) : `${fmtDay(i.scheduled_at)} · ${fmtTime(i.scheduled_at)}`}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{i.candidate?.name ?? "Candidate"}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {i.kind.replace(/_/g, " ")} · {i.position?.client?.name ?? "—"}
+                </div>
+              </div>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0">
+                {i.status.replace(/_/g, " ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* 4. Open positions */}
+      <Section title="Open positions"
+        icon={Briefcase}
+        meta={`${openPositions.length} open`}
+        link="/positions"
+        linkLabel="All positions"
+      >
+        {openPositions.length === 0 && <EmptyRow>No open positions.</EmptyRow>}
+        <div className="overflow-x-auto -mx-4">
+          <table className="w-full text-sm">
+            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">Position</th>
+                <th className="text-left px-4 py-2 font-medium">Client</th>
+                <th className="text-left px-4 py-2 font-medium">Recruiter</th>
+                <th className="text-left px-4 py-2 font-medium">Status</th>
+                <th className="text-right px-4 py-2 font-medium">Openings</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {openPositions.slice(0, 10).map((p) => {
+                const rec = p.assigned_recruiter_id ? recruiterNameMap.get(p.assigned_recruiter_id) : null;
+                return (
+                  <tr key={p.id} className="hover:bg-secondary/30 transition">
+                    <td className="px-4 py-2.5">
+                      <Link to="/positions/$positionId" params={{ positionId: p.id }} className="font-medium hover:text-primary">
+                        {p.title}
+                      </Link>
+                      <div className="text-[11px] text-muted-foreground">{p.location ?? "—"}</div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {p.client ? (
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md text-primary-foreground"
+                          style={{ background: colorFor(p.client.id, p.client.color) }}>
+                          {p.client.name}
+                        </span>
+                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {rec ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <div className="size-5 rounded grid place-items-center text-[9px] font-semibold text-primary-foreground"
+                            style={{ background: colorFor(p.assigned_recruiter_id!) }}>
+                            {rec.initials}
+                          </div>
+                          <span className="text-xs">{rec.name}</span>
+                        </div>
+                      ) : <span className="text-[11px] text-muted-foreground">Unassigned</span>}
+                    </td>
+                    <td className="px-4 py-2.5"><StatusBadge status={p.status} /></td>
+                    <td className="px-4 py-2.5 text-right text-sm font-semibold tabular-nums">{p.openings}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      {/* 5. Tasks */}
+      <Section title="Tasks"
+        icon={ClipboardList}
+        meta={`${openTasks.length} open`}
+        link="/tasks"
+        linkLabel="Task board"
+      >
+        {openTasks.length === 0 && <EmptyRow>All tasks are closed.</EmptyRow>}
+        <div className="space-y-4">
+          {taskGroups.map((g) => g.items.length === 0 ? null : (
+            <div key={g.label}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={cn(
+                  "text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded",
+                  g.label === "High" ? "bg-destructive/15 text-destructive"
+                  : g.label === "Normal" ? "bg-info/15 text-info"
+                  : "bg-muted text-muted-foreground",
+                )}>{g.label}</span>
+                <span className="text-[11px] text-muted-foreground tabular-nums">{g.items.length}</span>
+              </div>
+              <div className="divide-y divide-border rounded-md border border-border">
+                {g.items.slice(0, 5).map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 transition">
+                    <TaskStateIcon state={t.state} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{t.title}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{t.kind}</div>
+                    </div>
+                    <div className={cn(
+                      "text-[11px] font-medium px-2 py-0.5 rounded-md shrink-0 inline-flex items-center gap-1",
+                      t.sla === "breach" ? "bg-destructive/10 text-destructive"
+                      : t.sla === "warning" ? "bg-warning/15 text-warning"
+                      : "bg-secondary text-muted-foreground",
+                    )}>
+                      <Clock className="size-3" />
+                      {t.due_label ?? (t.due_at ? new Date(t.due_at).toLocaleDateString() : "—")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function Section({
+  title, icon: Icon, meta, link, linkLabel, toolbar, children,
+}: {
+  title: string;
+  icon: React.ElementType;
+  meta?: string;
+  link?: string;
+  linkLabel?: string;
+  toolbar?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="size-7 rounded-md grid place-items-center bg-primary/15 text-primary shrink-0">
+            <Icon className="size-4" />
+          </div>
+          <h3 className="font-semibold tracking-tight text-sm truncate">{title}</h3>
+          {meta && <span className="text-[11px] text-muted-foreground truncate">{meta}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {toolbar}
+          {link && linkLabel && (
+            <Link to={link} className="text-[11px] text-primary font-medium inline-flex items-center gap-0.5">
+              {linkLabel} <ArrowUpRight className="size-3" />
+            </Link>
+          )}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow({ children }: { children: React.ReactNode }) {
+  return <div className="text-xs text-muted-foreground py-6 text-center">{children}</div>;
+}
+
 function ClientsByRecruiterCard() {
   const fetchTeam = useServerFn(getTeamMembers);
   const { data: teamData } = useQuery({ queryKey: ["team-members"], queryFn: () => fetchTeam() });
