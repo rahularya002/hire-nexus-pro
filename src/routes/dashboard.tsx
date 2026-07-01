@@ -570,3 +570,227 @@ function DashboardActivityFeed() {
     </>
   );
 }
+
+function TeamPulse() {
+  const fetchTeam = useServerFn(getTeamMembers);
+  const fetchLogins = useServerFn(listTodayRecruiterLogins);
+  const { data: teamData } = useQuery({ queryKey: ["team-members"], queryFn: () => fetchTeam() });
+  const { data: logins = [] } = useQuery<RecruiterLoginToday[]>({
+    queryKey: ["recruiter-logins-today"],
+    queryFn: () => fetchLogins(),
+    refetchInterval: 60_000,
+  });
+  const members = teamData?.members ?? [];
+  const loginMap = new Map(logins.map((l) => [l.user_id, l]));
+  const onlineNow = members.filter((m) => m.status === "Active").length;
+  const loggedToday = logins.filter((l) => l.logged_in_today).length;
+  const activeWeek = members.filter((m) => m.activity7d > 0).length;
+
+  const kpis = [
+    { label: "Team size", value: members.length, icon: Users, tone: "primary" as const },
+    { label: "Online now", value: onlineNow, icon: Activity, tone: "success" as const },
+    { label: "Logged in today", value: loggedToday, icon: Clock, tone: "info" as const },
+    { label: "Active this week", value: activeWeek, icon: TrendingUp, tone: "purple" as const },
+  ];
+
+  const fmtTime = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  const toneCls: Record<"primary" | "success" | "info" | "purple", string> = {
+    primary: "bg-primary/15 text-primary",
+    success: "bg-success/15 text-success",
+    info: "bg-info/15 text-info",
+    purple: "bg-purple/15 text-purple",
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Users className="size-4 text-primary" />
+          <h3 className="font-semibold tracking-tight">Team pulse</h3>
+          <span className="text-[11px] text-muted-foreground">Live view of who's on today</span>
+        </div>
+        <Link to="/team" className="text-xs text-primary font-medium inline-flex items-center gap-1">
+          Full roster <ArrowUpRight className="size-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 border-b border-border">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-lg border border-border bg-background/60 p-3">
+            <div className="flex items-center gap-2">
+              <div className={cn("size-7 rounded-md grid place-items-center", toneCls[k.tone])}>
+                <k.icon className="size-3.5" />
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.label}</div>
+            </div>
+            <div className="text-2xl font-semibold tabular-nums mt-1">{k.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        {members.length === 0 && (
+          <div className="p-6 text-sm text-muted-foreground text-center">No teammates added yet.</div>
+        )}
+        {members.length > 0 && (
+          <table className="w-full text-sm">
+            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">Recruiter</th>
+                <th className="text-left px-4 py-2 font-medium">Status</th>
+                <th className="text-left px-4 py-2 font-medium">Login today</th>
+                <th className="text-left px-4 py-2 font-medium">Assigned clients</th>
+                <th className="text-left px-4 py-2 font-medium">Open roles</th>
+                <th className="text-right px-4 py-2 font-medium">7d actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {members.map((m) => {
+                const login = loginMap.get(m.id);
+                return (
+                  <tr key={m.id} className="hover:bg-secondary/30 transition">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="size-8 rounded-md grid place-items-center text-[10px] font-semibold text-primary-foreground shrink-0" style={{ background: colorFor(m.id) }}>
+                          {m.initials}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{m.name}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{m.role}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        <span className={cn("size-1.5 rounded-full", m.status === "Active" ? "bg-success" : m.status === "Available" ? "bg-info" : "bg-muted-foreground")} />
+                        {m.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs tabular-nums">
+                      {login?.logged_in_today ? (
+                        <span className="text-foreground">{fmtTime(login.first_login_at)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Not signed in</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {m.clients.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {m.clients.slice(0, 3).map((c) => (
+                            <span key={c.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded-md text-primary-foreground" style={{ background: colorFor(c.id, c.color) }}>
+                              {c.name}
+                            </span>
+                          ))}
+                          {m.clients.length > 3 && (
+                            <span className="text-[10px] text-muted-foreground px-1">+{m.clients.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs tabular-nums">{m.assignedPositions}</td>
+                    <td className="px-4 py-3 text-xs tabular-nums text-right font-medium">{m.activity7d}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UpcomingInterviewsCard({ rows }: { rows: InterviewRow[] }) {
+  const upcoming = rows.filter((r) => r.scheduled_at).slice(0, 8);
+  const grouped = new Map<string, InterviewRow[]>();
+  for (const r of upcoming) {
+    const d = new Date(r.scheduled_at!);
+    const key = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    grouped.set(key, [...(grouped.get(key) ?? []), r]);
+  }
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="size-7 rounded-md bg-purple/15 text-purple grid place-items-center">
+            <CalendarClock className="size-4" />
+          </div>
+          <h3 className="font-semibold tracking-tight text-sm">Next 7 days · interviews</h3>
+          <span className="text-xs text-muted-foreground tabular-nums">{upcoming.length}</span>
+        </div>
+        <Link to="/interviews" className="text-[11px] text-primary font-medium inline-flex items-center gap-0.5">
+          All <ArrowUpRight className="size-3" />
+        </Link>
+      </div>
+      {upcoming.length === 0 && <div className="text-xs text-muted-foreground p-2">Nothing scheduled.</div>}
+      <div className="space-y-3">
+        {Array.from(grouped.entries()).map(([day, items]) => (
+          <div key={day}>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">{day}</div>
+            <div className="space-y-1.5">
+              {items.map((i) => (
+                <div key={i.id} className="flex items-center gap-3 p-2 rounded-md border border-border/60 hover:border-primary/30 transition">
+                  <div className="text-xs font-semibold text-primary tabular-nums w-14 shrink-0">
+                    {new Date(i.scheduled_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{i.candidate?.name ?? "Candidate"}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{i.kind.replace(/_/g, " ")} · {i.position?.client?.name ?? "—"}</div>
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0">
+                    {i.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClientsByRecruiterCard() {
+  const fetchTeam = useServerFn(getTeamMembers);
+  const { data: teamData } = useQuery({ queryKey: ["team-members"], queryFn: () => fetchTeam() });
+  const members = (teamData?.members ?? []).filter((m) => m.clients.length > 0);
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="size-7 rounded-md bg-primary/15 text-primary grid place-items-center">
+            <Building2 className="size-4" />
+          </div>
+          <h3 className="font-semibold tracking-tight text-sm">Who's working with whom</h3>
+        </div>
+        <Link to="/team" className="text-[11px] text-primary font-medium inline-flex items-center gap-0.5">
+          Team <ArrowUpRight className="size-3" />
+        </Link>
+      </div>
+      {members.length === 0 && <div className="text-xs text-muted-foreground p-2">No client assignments yet.</div>}
+      <div className="space-y-3">
+        {members.map((m) => (
+          <div key={m.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-secondary/40 transition">
+            <div className="size-8 rounded-md grid place-items-center text-[10px] font-semibold text-primary-foreground shrink-0" style={{ background: colorFor(m.id) }}>
+              {m.initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{m.name}</div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {m.clients.map((c) => (
+                  <Link key={c.id} to="/clients/$clientId" params={{ clientId: c.id }}
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-md text-primary-foreground hover:opacity-90"
+                    style={{ background: colorFor(c.id, c.color) }}>
+                    {c.name} · {c.positions}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
