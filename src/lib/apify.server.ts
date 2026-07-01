@@ -29,6 +29,90 @@ export type NormalizedProfile = {
   raw: Record<string, unknown>;
 };
 
+// ---------- Mock Naukri profiles (temporary; used until Naukri cookie/actor is wired) ----------
+
+const MOCK_NAUKRI_POOL = [
+  { name: "Aarav Sharma",     company: "Infosys",       location: "Bengaluru", exp: 6,  skills: ["java", "spring boot", "microservices", "kafka", "aws"], headline: "Senior Software Engineer" },
+  { name: "Priya Iyer",       company: "TCS",           location: "Pune",      exp: 4,  skills: ["react", "typescript", "node.js", "graphql", "aws"],  headline: "Frontend Engineer" },
+  { name: "Rohan Verma",      company: "Flipkart",      location: "Bengaluru", exp: 8,  skills: ["python", "django", "postgres", "redis", "aws"],       headline: "Staff Backend Engineer" },
+  { name: "Sneha Kapoor",     company: "Razorpay",      location: "Bengaluru", exp: 5,  skills: ["go", "kubernetes", "grpc", "postgres"],               headline: "SDE-2, Payments" },
+  { name: "Karthik Menon",    company: "Zomato",        location: "Gurugram",  exp: 7,  skills: ["react native", "ios", "android", "typescript"],       headline: "Mobile Lead" },
+  { name: "Ananya Desai",     company: "Swiggy",        location: "Bengaluru", exp: 3,  skills: ["python", "pandas", "sql", "airflow", "spark"],        headline: "Data Engineer" },
+  { name: "Vikram Rao",       company: "Paytm",         location: "Noida",     exp: 9,  skills: ["java", "kafka", "cassandra", "system design"],        headline: "Principal Engineer" },
+  { name: "Meera Nair",       company: "Cred",          location: "Bengaluru", exp: 5,  skills: ["kotlin", "android", "coroutines", "jetpack compose"],headline: "Android Engineer" },
+  { name: "Aditya Joshi",     company: "Nykaa",         location: "Mumbai",    exp: 4,  skills: ["node.js", "express", "mongodb", "aws", "typescript"], headline: "Backend Engineer" },
+  { name: "Ishita Bansal",    company: "PhonePe",       location: "Bengaluru", exp: 6,  skills: ["java", "spring", "kafka", "mysql", "microservices"], headline: "SDE-3" },
+  { name: "Rahul Choudhary",  company: "Meesho",        location: "Bengaluru", exp: 3,  skills: ["react", "next.js", "typescript", "tailwind"],         headline: "Frontend Engineer" },
+  { name: "Divya Reddy",      company: "Zerodha",       location: "Bengaluru", exp: 7,  skills: ["python", "fastapi", "postgres", "redis", "docker"],  headline: "Senior Backend Engineer" },
+  { name: "Sahil Khan",       company: "Tata Digital",  location: "Mumbai",    exp: 10, skills: ["java", "spring boot", "aws", "system design", "kafka"], headline: "Engineering Manager" },
+  { name: "Neha Gupta",       company: "Reliance Jio",  location: "Mumbai",    exp: 5,  skills: ["python", "ml", "tensorflow", "pytorch", "nlp"],       headline: "ML Engineer" },
+  { name: "Manish Patel",     company: "Ola",           location: "Bengaluru", exp: 6,  skills: ["go", "kubernetes", "grpc", "aws"],                    headline: "SDE-2, Platform" },
+  { name: "Riya Malhotra",    company: "Urban Company", location: "Gurugram",  exp: 4,  skills: ["react", "redux", "typescript", "node.js"],            headline: "Full Stack Engineer" },
+  { name: "Arjun Pillai",     company: "Freshworks",    location: "Chennai",   exp: 8,  skills: ["ruby", "rails", "postgres", "aws", "sidekiq"],        headline: "Senior Software Engineer" },
+  { name: "Pooja Saxena",     company: "Postman",       location: "Bengaluru", exp: 5,  skills: ["javascript", "electron", "react", "node.js"],         headline: "Product Engineer" },
+];
+
+function slugifyName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function normalizeSkillToken(v: string) {
+  return v.toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
+}
+
+function scoreMockAgainst(
+  profile: (typeof MOCK_NAUKRI_POOL)[number],
+  jobTitle: string,
+  skills: string[],
+  location?: string,
+) {
+  let score = 0;
+  const title = jobTitle.toLowerCase();
+  const headline = profile.headline.toLowerCase();
+  const titleTokens = title.split(/\s+/).filter((t) => t.length > 2);
+  for (const tok of titleTokens) if (headline.includes(tok)) score += 3;
+  const reqSkills = skills.map(normalizeSkillToken).filter(Boolean);
+  const candSkills = profile.skills.map(normalizeSkillToken);
+  for (const s of reqSkills) if (candSkills.some((c) => c.includes(s) || s.includes(c))) score += 5;
+  if (location && profile.location.toLowerCase().includes(location.toLowerCase())) score += 2;
+  return score;
+}
+
+export function generateMockNaukriProfiles(opts: {
+  jobTitle: string;
+  location?: string;
+  skills?: string[];
+  maxResults: number;
+}): NormalizedProfile[] {
+  const skills = opts.skills ?? [];
+  const ranked = MOCK_NAUKRI_POOL
+    .map((p) => ({ p, s: scoreMockAgainst(p, opts.jobTitle, skills, opts.location) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, Math.max(1, Math.min(opts.maxResults, MOCK_NAUKRI_POOL.length)));
+
+  return ranked.map(({ p }, idx) => {
+    const slug = slugifyName(p.name);
+    return {
+      source: "naukri" as const,
+      source_profile_id: `mock-${slug}-${idx}`,
+      name: p.name,
+      headline: `${p.headline} @ ${p.company}`,
+      current_company: p.company,
+      location: p.location,
+      experience_years: p.exp,
+      skills: p.skills,
+      email: `${slug}@example.com`,
+      phone: `+91 9${String(90000000 + (slug.length * 137 + idx * 991) % 99999999).padStart(9, "0")}`,
+      profile_url: `https://www.naukri.com/mnjuser/profile/${slug}`,
+      avatar_url: null,
+      open_to_work: idx % 3 === 0,
+      is_hiring: false,
+      raw: { mock: true, seed: "naukri" },
+    } satisfies NormalizedProfile;
+  });
+}
+
+
 export async function callApifyActor(
   actorId: string,
   input: Record<string, unknown>,
