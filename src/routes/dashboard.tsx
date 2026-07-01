@@ -110,6 +110,21 @@ function Cockpit() {
     enabled: isAdmin,
   });
 
+  if (isAdmin) {
+    return (
+      <AdminDashboard
+        firstName={firstName}
+        greeting={greeting}
+        dateLabel={dateLabel}
+        clients={clientRows}
+        positions={positions}
+        tasks={tasks}
+        todayInterviews={todayInterviews}
+        upcomingInterviews={upcomingInterviews}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
