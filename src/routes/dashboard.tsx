@@ -801,13 +801,10 @@ function AdminDashboard({
   const openPositions = positions.filter((p) => p.status !== "closed");
 
   const openTasks = tasks.filter((t) => t.state !== "Closed");
-  const priorityWeight = (t: TaskRow) =>
-    t.priority === "High" ? 0 : t.priority === "Normal" ? 1 : 2;
-  const tasksSorted = [...openTasks].sort((a, b) => priorityWeight(a) - priorityWeight(b));
-  const taskGroups: Array<{ label: "High" | "Normal" | "Low"; items: TaskRow[] }> = [
-    { label: "High",   items: tasksSorted.filter((t) => t.priority === "High") },
-    { label: "Normal", items: tasksSorted.filter((t) => t.priority === "Normal") },
-    { label: "Low",    items: tasksSorted.filter((t) => t.priority === "Low") },
+  const taskGroups: Array<{ label: "Urgent" | "Watch" | "On track"; items: TaskRow[] }> = [
+    { label: "Urgent",   items: openTasks.filter((t) => t.sla === "breach") },
+    { label: "Watch",    items: openTasks.filter((t) => t.sla === "warning") },
+    { label: "On track", items: openTasks.filter((t) => t.sla !== "breach" && t.sla !== "warning") },
   ];
 
   const fmtTime = (iso: string | null | undefined) =>
@@ -1018,8 +1015,8 @@ function AdminDashboard({
               <div className="flex items-center gap-2 mb-1.5">
                 <span className={cn(
                   "text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded",
-                  g.label === "High" ? "bg-destructive/15 text-destructive"
-                  : g.label === "Normal" ? "bg-info/15 text-info"
+                  g.label === "Urgent" ? "bg-destructive/15 text-destructive"
+                  : g.label === "Watch" ? "bg-warning/15 text-warning"
                   : "bg-muted text-muted-foreground",
                 )}>{g.label}</span>
                 <span className="text-[11px] text-muted-foreground tabular-nums">{g.items.length}</span>
