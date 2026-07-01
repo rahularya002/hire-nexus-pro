@@ -310,7 +310,7 @@ export function normalizeNaukri(item: unknown): NormalizedProfile | null {
   const expRaw = pickString(o.totalExperience, o.experience, o.totalExp);
   const expYears = pickNumber(o.totalExperienceYears, o.experienceYears, expRaw);
   return {
-    source: "naukri" as unknown as ApifySourceId,
+    source: "naukri",
     source_profile_id: id,
     name,
     headline: pickString(o.designation, o.title, o.currentRole, o.headline),
