@@ -6,6 +6,7 @@ import {
   buildActorInput,
   callApifyActor,
   enrichEmails,
+  generateMockNaukriProfiles,
   normalizeForSource,
   rankBatch,
   searchGitHubUsers,
@@ -489,6 +490,16 @@ export const runApifyScout = createServerFn({ method: "POST" })
         if (source === "github") {
           // Use GitHub's public REST API — free, reliable, no Apify actor needed.
           const profiles = await searchGitHubUsers({
+            jobTitle: data.jobTitle,
+            location: data.location,
+            skills: data.skills,
+            maxResults: data.maxResults,
+          });
+          allProfiles.push(...profiles);
+        } else if (source === "naukri") {
+          // Naukri actor requires a paid recruiter cookie. Until that's wired,
+          // return realistic mock profiles so the flow is demonstrable.
+          const profiles = generateMockNaukriProfiles({
             jobTitle: data.jobTitle,
             location: data.location,
             skills: data.skills,
