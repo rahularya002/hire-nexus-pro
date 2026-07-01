@@ -1,50 +1,53 @@
-# Naukri scraping + LinkedIn email enrichment
+# Agency Dashboard Revamp
 
-## 1. Naukri via Apify
+Goal: give the agency head a single cockpit that answers "who's working, on what, and where are the risks", and remove empty-looking sections.
 
-Naukri doesn't expose a public API and blocks unauth scraping aggressively. The realistic path is an Apify actor that logs in with a recruiter Naukri account (cookie-based) and pulls candidate profiles from resdex-style search results.
+## New layout (admin persona only; recruiter view unchanged)
 
-### Actor choice
-Use a hosted community actor as the default and let it be overridden via env:
-- Default: `jupri/naukri-scraper` (or `dtrungtin/naukri-scraper` — both public on Apify store; keyword + location + pagination input).
-- Override: `APIFY_NAUKRI_ACTOR` env var.
-- Naukri Resdex (paid candidate DB with emails/phones) requires a logged-in recruiter session cookie. That is added as an optional secret `NAUKRI_COOKIE`; without it we get public job-seeker profiles only (name, headline, current company, location, experience, skills — no email/phone).
+```text
+[ Header: greeting + status + AI Scout ]
+[ Daily digest (kept, wired to real activity counts) ]
 
-### Wiring
-- `src/lib/apify.server.ts`
-  - Add `naukri` to `APIFY_ACTORS`.
-  - Add `normalizeNaukri()` mapping fields: `name`, `title`/`designation` → headline, `currentCompany`, `location`, `totalExperience` → experience_years, `keySkills`/`skills` → skills, `email`, `mobile`/`phone`, `profileUrl`.
-  - Extend `buildActorInput()` with a `naukri` branch: `{ keyword, location, experience, maxItems, cookie: process.env.NAUKRI_COOKIE }`.
-  - Extend `normalizeForSource()`.
-- `src/lib/scout-sources.ts`: add a Naukri source entry (`hasActor: true`, cost `~$3/1k`).
-- `src/lib/apify.functions.ts`: include `naukri` in the source fan-out and merge results the same way LinkedIn/GitHub are merged.
-- Add secret request for `APIFY_API_TOKEN` (already present) + optional `NAUKRI_COOKIE` for Resdex-grade enrichment.
+Row A — Team pulse
+[ Team KPIs: Total | Online now | Logged in today | Active this week ]
+[ Recruiter roster table                                             ]
+  cols: recruiter · status dot · login time today · # clients · # open roles · actions today · last activity
 
-### UI
-- `src/components/scout-results.tsx` + sourcing hub already iterate sources — Naukri will appear automatically once added to `SCOUT_SOURCES`. Add a Naukri icon (`Briefcase`) and a small note when `NAUKRI_COOKIE` is missing: "Add recruiter cookie to unlock emails and phone numbers".
+Row B — Client & pipeline health
+[ Clients by recruiter          ] [ Inactive / quiet clients ]
+  grouped list, each recruiter     (kept, expanded to 6)
+  → chips of assigned clients
 
-## 2. LinkedIn emails
+Row C — Upcoming
+[ Today's interviews (kept) ] [ Next 7 days interviews (new) ] [ Open positions (kept) ]
 
-LinkedIn does not expose emails in public profile scrapes — no Apify actor for public search returns them reliably. Two workable options:
+Row D — Tasks (kept, with pill tabs) + SLA breaches
+```
 
-### Option A (recommended): email-finder enrichment step
-After ranking, for shortlisted candidates only (cost control), call an email-finder actor/API with `{ firstName, lastName, company/domain }` and merge the result into `email`:
-- Default actor: `apify/contact-info-scraper` or `harvestapi~linkedin-email-finder` (env override `APIFY_EMAIL_FINDER_ACTOR`).
-- Alternative provider: Hunter.io / Apollo / Snov.io via API key secret (`HUNTER_API_KEY` etc.) — cheaper and more accurate than LinkedIn-specific finders.
-- Add a small `enrichEmails(profiles)` helper in `apify.server.ts` and call it in `apify.functions.ts` only for the top-N ranked profiles.
+## Data wiring
 
-### Option B: switch LinkedIn actor
-`harvestapi~linkedin-profile-search` returns emails only when the profile publicly lists one (rare). Switching to `harvestapi~linkedin-profile-scraper` (detail actor) and feeding it URLs from the search step returns the "Contact info" block including public email when the viewer would see it — but requires a LinkedIn session cookie (`LINKEDIN_COOKIE` secret) and doubles cost. Include as optional path behind a flag.
+- **Team KPIs + roster**: reuse `listTodayRecruiterLogins` (already exists) + `getAgencyRoster` from `src/lib/team.functions.ts` (already returns assigned clients + 7-day action counts). No new server fns needed.
+- **Clients by recruiter**: derive client-map from the roster's `owned`/assignment data — group client chips under each recruiter card.
+- **Next 7 days interviews**: add a `scope: "upcoming"` branch to `listInterviews` (or filter client-side from a `range` fetch) and render a compact day-grouped list.
+- **Inactive clients**: keep current 14-day rule but show up to 6 and add a "last activity" relative label.
 
-### Plan
-Ship Option A by default (email-finder enrichment on shortlisted profiles) and expose Option B as an opt-in via env if the user provides a LinkedIn cookie.
+## Filling empty sections
 
-## Secrets to request
-- `NAUKRI_COOKIE` (optional, unlocks Naukri emails/phones)
-- `HUNTER_API_KEY` **or** rely on `APIFY_API_TOKEN` for the email-finder actor
-- `LINKEDIN_COOKIE` (optional, opt-in for deep LinkedIn scrape)
+Empty states you saw ("Inactive/quiet clients", empty digest tiles, empty roster metrics) are caused by thin seed data, not UI bugs. Reseed additions (one migration, deterministic UUIDs):
 
-## Open questions
-1. For Naukri: OK to default to the public job-seeker scraper and treat Resdex (with `NAUKRI_COOKIE`) as an opt-in upgrade?
-2. For LinkedIn emails: use an Apify email-finder actor (no extra key) or Hunter.io (better hit rate, needs `HUNTER_API_KEY`)?
-3. Should email enrichment run for every scouted profile, or only for candidates the recruiter clicks "Shortlist" on (to control cost)?
+- 6–8 more `activities` rows across today/yesterday (shares, offers, closures) so digest tiles read non-zero.
+- 3 clients marked quiet: backdate `last_activity_at` > 20 days for 3 existing clients.
+- 4 more `recruiter_login_events` for today spread across recruiters.
+- 5 upcoming interviews across the next 7 days (mix of `pending_confirmation` and `confirmed`, different clients/recruiters).
+- 6 additional `tasks` distributed across `Pending`, `Interview Pending`, `Follow-up` with SLA warnings.
+
+## Files touched
+
+- `src/routes/dashboard.tsx` — new admin layout, team pulse row, clients-by-recruiter card, next-7-days interviews card. Recruiter view path unchanged.
+- `src/lib/interviews.functions.ts` — add `scope: "upcoming"` (next 7 days, excludes today) — small addition, no signature break.
+- One Supabase migration to reseed the rows above.
+
+## Out of scope
+
+- No changes to recruiter dashboard, sidebar, or auth.
+- No new tables; no changes to RLS.
