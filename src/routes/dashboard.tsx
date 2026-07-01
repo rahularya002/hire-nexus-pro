@@ -103,6 +103,13 @@ function Cockpit() {
     { label: "Closures",        value: todayClosures,       delta: `${activitiesAll.filter((a) => a.kind === "closure").length} all-time` },
   ];
 
+  const fetchUpcoming = useServerFn(listInterviews);
+  const { data: upcomingInterviews = [] } = useQuery<InterviewRow[]>({
+    queryKey: ["interviews", "upcoming"],
+    queryFn: () => fetchUpcoming({ data: { scope: "upcoming" } }),
+    enabled: isAdmin,
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -154,6 +161,8 @@ function Cockpit() {
           ))}
         </div>
       </div>
+
+      {isAdmin && <TeamPulse />}
 
       {/* Top row: My Active Clients, My Open Positions, Today's Interviews */}
       <div className="grid lg:grid-cols-3 gap-4">
@@ -236,6 +245,13 @@ function Cockpit() {
           </div>
         </CockpitCard>
       </div>
+
+      {isAdmin && (
+        <div className="grid lg:grid-cols-2 gap-4">
+          <UpcomingInterviewsCard rows={upcomingInterviews} />
+          <ClientsByRecruiterCard />
+        </div>
+      )}
 
       {/* Tasks panel with state tabs */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
