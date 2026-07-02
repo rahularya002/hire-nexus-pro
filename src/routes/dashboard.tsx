@@ -814,11 +814,76 @@ function AdminDashboard({
 
   const ivList = ivTab === "today" ? todayInterviews : upcomingInterviews;
 
+  const onlineCount = logins.filter((l) => l.logged_in_today).length;
+  const urgentTasks = openTasks.filter((t) => t.sla === "breach").length;
+  const warningTasks = openTasks.filter((t) => t.sla === "warning").length;
+  const activeClientsCount = clientsSorted.length - inactiveCount;
+
+  const kpis = [
+    {
+      label: "Active clients",
+      value: activeClientsCount,
+      sub: `${inactiveCount} inactive`,
+      icon: Building2,
+      tone: "primary" as const,
+      progress: clientsSorted.length ? activeClientsCount / clientsSorted.length : 0,
+    },
+    {
+      label: "Team online",
+      value: onlineCount,
+      sub: `of ${members.length} teammates`,
+      icon: Users,
+      tone: "success" as const,
+      progress: members.length ? onlineCount / members.length : 0,
+    },
+    {
+      label: "Interviews today",
+      value: todayInterviews.length,
+      sub: `${upcomingInterviews.length} in next 7 days`,
+      icon: CalendarClock,
+      tone: "info" as const,
+      progress: Math.min(1, todayInterviews.length / 8),
+    },
+    {
+      label: "Open positions",
+      value: openPositions.length,
+      sub: `${openPositions.reduce((s, p) => s + (p.openings ?? 0), 0)} openings`,
+      icon: Briefcase,
+      tone: "purple" as const,
+      progress: positions.length ? openPositions.length / positions.length : 0,
+    },
+    {
+      label: "Urgent tasks",
+      value: urgentTasks,
+      sub: `${warningTasks} to watch`,
+      icon: AlertTriangle,
+      tone: "destructive" as const,
+      progress: openTasks.length ? urgentTasks / openTasks.length : 0,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Manager Dashboard · {dateLabel}</div>
-        <h1 className="text-3xl font-semibold tracking-tight mt-1">{greeting}, {firstName}</h1>
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/15 via-card to-card p-6">
+        <div className="absolute -top-16 -right-16 size-56 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-10 size-56 rounded-full bg-purple/15 blur-3xl pointer-events-none" />
+        <div className="relative flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-[0.14em]">Manager Dashboard · {dateLabel}</div>
+            <h1 className="text-3xl font-semibold tracking-tight mt-1.5">{greeting}, {firstName}</h1>
+            <p className="text-sm text-muted-foreground mt-1">Here's how your agency is running today.</p>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 text-success px-2.5 py-1 font-medium">
+              <span className="size-1.5 rounded-full bg-success animate-pulse" /> Live
+            </span>
+            <span className="rounded-full bg-secondary px-2.5 py-1 font-medium">{onlineCount} online</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {kpis.map((k) => <KpiTile key={k.label} {...k} />)}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -1086,6 +1151,43 @@ function Section({
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-muted-foreground py-6 text-center">{children}</div>;
+}
+
+function KpiTile({
+  label, value, sub, icon: Icon, tone, progress,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  icon: React.ElementType;
+  tone: "primary" | "success" | "info" | "purple" | "destructive";
+  progress: number;
+}) {
+  const toneMap = {
+    primary:     { bg: "bg-primary/15",     text: "text-primary",     bar: "bg-primary" },
+    success:     { bg: "bg-success/15",     text: "text-success",     bar: "bg-success" },
+    info:        { bg: "bg-info/15",        text: "text-info",        bar: "bg-info" },
+    purple:      { bg: "bg-purple/15",      text: "text-purple",      bar: "bg-purple" },
+    destructive: { bg: "bg-destructive/15", text: "text-destructive", bar: "bg-destructive" },
+  }[tone];
+  const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 hover:border-primary/40 transition">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+          <div className="text-2xl font-semibold tabular-nums mt-1">{value}</div>
+          <div className="text-[11px] text-muted-foreground truncate mt-0.5">{sub}</div>
+        </div>
+        <div className={cn("size-8 rounded-lg grid place-items-center shrink-0", toneMap.bg, toneMap.text)}>
+          <Icon className="size-4" />
+        </div>
+      </div>
+      <div className="mt-3 h-1 rounded-full bg-secondary overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all", toneMap.bar)} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
 }
 
 function ClientsByRecruiterCard() {
