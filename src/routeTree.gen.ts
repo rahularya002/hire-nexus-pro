@@ -71,6 +71,7 @@ import { Route as SuperadminAgenciesIdRouteImport } from './routes/superadmin.ag
 import { Route as ClientPositionsPositionIdRouteImport } from './routes/client.positions.$positionId'
 import { Route as BillingInvoicesInvoiceIdRouteImport } from './routes/billing.invoices.$invoiceId'
 import { Route as BillingClientsClientIdRouteImport } from './routes/billing.clients.$clientId'
+import { Route as ApiPublicE2eCleanupRouteImport } from './routes/api/public/e2e-cleanup'
 import { Route as ApiPublicCronRouteImport } from './routes/api/public/cron'
 import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google-oauth.callback'
 
@@ -386,6 +387,11 @@ const BillingClientsClientIdRoute = BillingClientsClientIdRouteImport.update({
   path: '/clients/$clientId',
   getParentRoute: () => BillingRoute,
 } as any)
+const ApiPublicE2eCleanupRoute = ApiPublicE2eCleanupRouteImport.update({
+  id: '/api/public/e2e-cleanup',
+  path: '/api/public/e2e-cleanup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronRoute = ApiPublicCronRouteImport.update({
   id: '/api/public/cron',
   path: '/api/public/cron',
@@ -456,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
+  '/api/public/e2e-cleanup': typeof ApiPublicE2eCleanupRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -518,6 +525,7 @@ export interface FileRoutesByTo {
   '/sourcing': typeof SourcingIndexRoute
   '/superadmin': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
+  '/api/public/e2e-cleanup': typeof ApiPublicE2eCleanupRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -585,6 +593,7 @@ export interface FileRoutesById {
   '/sourcing/': typeof SourcingIndexRoute
   '/superadmin/': typeof SuperadminIndexRoute
   '/api/public/cron': typeof ApiPublicCronRoute
+  '/api/public/e2e-cleanup': typeof ApiPublicE2eCleanupRoute
   '/billing/clients/$clientId': typeof BillingClientsClientIdRoute
   '/billing/invoices/$invoiceId': typeof BillingInvoicesInvoiceIdRoute
   '/client/positions/$positionId': typeof ClientPositionsPositionIdRoute
@@ -653,6 +662,7 @@ export interface FileRouteTypes {
     | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
+    | '/api/public/e2e-cleanup'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -715,6 +725,7 @@ export interface FileRouteTypes {
     | '/sourcing'
     | '/superadmin'
     | '/api/public/cron'
+    | '/api/public/e2e-cleanup'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -781,6 +792,7 @@ export interface FileRouteTypes {
     | '/sourcing/'
     | '/superadmin/'
     | '/api/public/cron'
+    | '/api/public/e2e-cleanup'
     | '/billing/clients/$clientId'
     | '/billing/invoices/$invoiceId'
     | '/client/positions/$positionId'
@@ -835,6 +847,7 @@ export interface RootRouteChildren {
   JobsSlugRoute: typeof JobsSlugRoute
   ClientIndexRoute: typeof ClientIndexRoute
   ApiPublicCronRoute: typeof ApiPublicCronRoute
+  ApiPublicE2eCleanupRoute: typeof ApiPublicE2eCleanupRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
 }
 
@@ -1274,6 +1287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingClientsClientIdRouteImport
       parentRoute: typeof BillingRoute
     }
+    '/api/public/e2e-cleanup': {
+      id: '/api/public/e2e-cleanup'
+      path: '/api/public/e2e-cleanup'
+      fullPath: '/api/public/e2e-cleanup'
+      preLoaderRoute: typeof ApiPublicE2eCleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron': {
       id: '/api/public/cron'
       path: '/api/public/cron'
@@ -1442,6 +1462,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsSlugRoute: JobsSlugRoute,
   ClientIndexRoute: ClientIndexRoute,
   ApiPublicCronRoute: ApiPublicCronRoute,
+  ApiPublicE2eCleanupRoute: ApiPublicE2eCleanupRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
