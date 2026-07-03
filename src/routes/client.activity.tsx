@@ -125,7 +125,7 @@ function Page() {
 
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       {/* Header */}
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-purple/5 to-info/5 p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
