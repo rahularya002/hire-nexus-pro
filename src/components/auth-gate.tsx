@@ -25,7 +25,11 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
     // Wait until profile + roles have actually loaded before deciding
     // where to send the user — otherwise we flash /pending on first paint.
     if (!profileLoaded) return;
-    const isAgency = roles.includes("admin") || roles.includes("recruiter");
+    const isAgency =
+      roles.includes("admin") ||
+      roles.includes("lead_recruiter") ||
+      roles.includes("senior_recruiter") ||
+      roles.includes("recruiter");
     const isClient = roles.includes("client");
 
     if (variant === "agency") {
@@ -51,7 +55,11 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
   }, [loading, profileLoaded, session, profile, roles, variant, navigate]);
 
   if (loading || !session || !profileLoaded) return <FullScreenLoader />;
-  const isAgency = roles.includes("admin") || roles.includes("recruiter");
+  const isAgency =
+    roles.includes("admin") ||
+    roles.includes("lead_recruiter") ||
+    roles.includes("senior_recruiter") ||
+    roles.includes("recruiter");
   const isClient = roles.includes("client");
   if (variant === "agency" && !isAgency) return <FullScreenLoader />;
   if (variant === "client" && (!isClient || profile?.status !== "active")) return <FullScreenLoader />;

@@ -19,7 +19,12 @@ function PendingPage() {
       return;
     }
     if (!profileLoaded) return;
-    if (roles.includes("admin") || roles.includes("recruiter")) {
+    if (
+      roles.includes("admin") ||
+      roles.includes("lead_recruiter") ||
+      roles.includes("senior_recruiter") ||
+      roles.includes("recruiter")
+    ) {
       navigate({ to: "/dashboard", replace: true });
       return;
     }
