@@ -1,83 +1,67 @@
+## 1. Agency · Closed positions grouped by client
 
-## Goal
+File: `src/routes/closed.tsx`
 
-Kill the ambiguity in Messages. Make it obvious at a glance whether you're talking to a **Client** or your **Team**, and give clients a private line to the account **Manager** in addition to the assigned recruiter.
+- Group `positions.filter(status==='closed')` by `p.client?.id`.
+- Render one collapsible section per client with:
+  - Client header row: color dot + client name + counts (`X closed positions · Y placements`).
+  - Grid of the existing closed-position cards underneath (same card design, unchanged).
+- Sort clients by total placements desc, then by name.
+- Add a lightweight client filter chip row at the top ("All · Client A · Client B") so an agency can jump straight to one client.
+- Empty state unchanged.
 
-## Agency portal — `/messages`
+No schema or server-function changes.
 
-Top-level tabs at the page header:
+## 2. Candidate database · CV upload
+
+Schema already has `candidates.resume_url` and `documents` supports `kind='resume'`. Wire it into the UI.
+
+Files:
+- `src/routes/database.tsx` — Add Candidate dialog + detail sheet
+- `src/lib/candidates.functions.ts` — accept `resume_url` on create (already in schema)
+
+Add Candidate dialog:
+- New "CV / Resume" field: file input (PDF/DOC/DOCX, max 10 MB).
+- On submit: if file present, upload to Supabase Storage `documents` bucket at `candidates/{userId}/{ts}-{name}`, call `createDocument({ kind:'resume', ... })`, then pass the resulting public URL as `resume_url` when creating the candidate.
+- Show upload progress / error inline; block submit until upload completes.
+
+Candidate detail sheet:
+- New "CV" row in Profile tab: if `resume_url` present, show filename + "Open" / "Download" buttons; otherwise show "Upload CV" button that opens the same upload flow and patches the candidate via existing `updateCandidate`.
+
+Table:
+- Add a small paperclip icon in the Candidate cell when `resume_url` is present, so recruiters can see at a glance who has a CV.
+
+`EditCandidateDialog` (`src/components/edit-candidate-dialog.tsx`): add the same CV upload/replace control so existing candidates can get a CV attached.
+
+## 3. Client dashboard hero · spotlight Upload JD
+
+File: `src/routes/client.index.tsx` (hero block only, lines ~74-103)
+
+Replace the current single-column hero with a 2-column layout on `lg+`:
 
 ```text
-[ Clients ]   [ Team ]
+┌──────────────────────────────┬──────────────────────────┐
+│ Left (col-span-2 on lg)      │ Right                    │
+│ - Eyebrow                    │ Primary CTA card:        │
+│ - "Welcome back, {company}"  │  ┌────────────────────┐  │
+│ - Snapshot sentence          │  │  ↑  Upload New JD  │  │
+│ - Small "N mandates · M      │  │  Start a search    │  │
+│   profiles shared" chips     │  │  in 60 seconds     │  │
+│                              │  │  [ Upload JD ]     │  │
+│                              │  └────────────────────┘  │
+│                              │ Secondary CTA (link):    │
+│                              │  + Create position       │
+│                              │    manually              │
+└──────────────────────────────┴──────────────────────────┘
 ```
 
-### Clients tab
-- Existing behavior: list of client threads on the left, thread pane on the right.
-- Add a small "Client" pill on each row so it's visually distinct from team chats.
-- Header label of the active thread shows: `Client · {Client name}` + which recruiter/manager is assigned.
-
-### Team tab
-Two sub-modes toggled with a segmented control inside the Team tab:
-- **# Team room** — one shared channel per agency, everyone in `agency_members` participates.
-- **Direct messages** — sidebar lists teammates (from `agency_members` + `profiles`); clicking one opens a 1:1 DM thread that's auto-created on first message.
-
-Visual distinction: team messages use a neutral surface with a `Users` icon in the header; client messages keep the current client-colored avatar. Different empty states ("Start a team conversation…" vs "Direct line to your client").
-
-## Client portal — `/client/messages`
-
-Two tabs at the top:
-
-```text
-[ Recruiter ]   [ Account Manager ]
-```
-
-- **Recruiter** — the existing thread (unchanged).
-- **Account Manager** — a separate, private thread with the agency admin/owner. Recruiter cannot see it. Small helper text: "Private line to your account manager. Use this if you'd like to escalate or discuss the engagement."
-
-## Data model changes
-
-Extend `message_threads` so one client can have multiple typed threads:
-
-- Add `kind` enum: `client_recruiter | client_manager | team_room | team_dm`.
-- Add `agency_id uuid` (nullable, for team threads with no client).
-- Add `participant_a uuid`, `participant_b uuid` (nullable, for `team_dm`).
-- Drop the current one-thread-per-client uniqueness; replace with:
-  - unique(`client_id`, `kind`) where `kind in ('client_recruiter','client_manager')`
-  - unique(`agency_id`) where `kind='team_room'`
-  - unique(`agency_id`, least(participant_a,participant_b), greatest(...)) where `kind='team_dm'`
-
-### RLS updates
-- `client_recruiter`: existing client owner + assigned agency staff.
-- `client_manager`: client owner + users with `admin` role in that agency only (checked via `has_role` + `agency_members`).
-- `team_room`: all `agency_members` of that agency.
-- `team_dm`: only the two participants.
-
-Messages table stays as-is; policies derive access from the parent thread.
-
-## Server functions (extend `src/lib/messages.functions.ts`)
-
-- `listClientThreads()` → existing `listThreads` scoped to `kind in ('client_recruiter','client_manager')`.
-- `listTeamThreads()` → returns `{ room, dms: [...] }` for current agency.
-- `getOrCreateThreadForClient({ kind })` → `kind` param, defaults `client_recruiter`.
-- `getOrCreateManagerThread()` → client side, always `client_manager`.
-- `getOrCreateTeamRoom()` and `getOrCreateDm({ otherUserId })`.
-- `listAgencyTeammates()` → for DM picker.
-
-## UI files
-
-- `src/routes/messages.tsx` — add top tabs (Clients / Team), keep current pane for Clients, add Team pane.
-- New `src/components/team-messages-pane.tsx` — room + DM segmented control, teammate list, thread view (reuses `DbChatThread`).
-- `src/routes/client.messages.tsx` — wrap in `Tabs` (Recruiter / Account Manager), each rendering `DbChatThread` for its thread.
-- Reuse existing `DbChatThread`; add a `header` prop so team vs client headers can differ.
-
-## Migration / seed
-
-- One migration for schema + policies.
-- Backfill: existing rows in `message_threads` get `kind='client_recruiter'` and `agency_id` from their client.
-- No data seeding required; threads get created on first open.
+Details:
+- Right column: prominent card with gradient background, dashed drop-zone-style border, large upload icon, headline "Upload a JD", one-line helper, and a solid button. Whole card is a `Link to="/client/upload"`.
+- Below the card, a smaller `Link to="/client/upload"` styled as a ghost row "+ Create position manually" (routes to same page; the upload page already lets users skip file upload and fill the form).
+- On mobile the two columns stack; CTA card stays full-width and visually dominant.
+- Existing team dashboard (`ClientTeamDashboard`) is untouched — this change is for the primary client dashboard only.
 
 ## Out of scope
 
-- Notifications routing (existing bell keeps working; per-thread routing can come later).
-- Group team channels beyond the single `#team` room.
-- File-attachment permission changes.
+- No changes to JD upload logic itself, positions server functions, or notifications.
+- No new tables or migrations (existing `resume_url` + `documents` cover the CV work).
