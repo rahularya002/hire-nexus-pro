@@ -1,14 +1,17 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { ListRowSkeleton } from "@/components/skeletons";
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquare, Search, Pin } from "lucide-react";
+import { MessageSquare, Search, Pin, Users, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { DbChatThread } from "@/components/db-chat-thread";
+import { TeamMessagesPane } from "@/components/team-messages-pane";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { listThreads, type ThreadRow } from "@/lib/messages.functions";
 import { useCurrentRecruiter } from "@/lib/ops/access";
+import { useAuth } from "@/lib/auth/auth-context";
 
 type SearchParams = { client?: string };
 
@@ -27,6 +30,7 @@ export const Route = createFileRoute("/messages")({
 function MessagesPage() {
   const search = useSearch({ from: "/messages" });
   const me = useCurrentRecruiter();
+  const { user } = useAuth();
   const listFn = useServerFn(listThreads);
   const threadsQ = useQuery({
     queryKey: ["threads"],
@@ -70,12 +74,23 @@ function MessagesPage() {
             <MessageSquare className="size-6 text-primary" /> Messages
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Direct conversations with each client account.
+            Chat with clients or your internal team.
           </p>
         </div>
       </div>
 
-      <div
+      <Tabs defaultValue="clients" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="clients" className="gap-1.5">
+            <Building2 className="size-3.5" /> Clients
+          </TabsTrigger>
+          <TabsTrigger value="team" className="gap-1.5">
+            <Users className="size-3.5" /> Team
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="clients">
+          <div
         className="grid grid-cols-12 gap-4 rounded-xl border border-border bg-background overflow-hidden"
         style={{ minHeight: 640 }}
       >
@@ -137,6 +152,14 @@ function MessagesPage() {
               authorName={me.name}
               initials={me.initials}
               className="h-full"
+              header={{
+                title: active.client?.contact_name ?? active.client?.name ?? "Client",
+                subtitle: `${active.client?.name ?? "Client"} · ${
+                  active.kind === "client_manager" ? "Manager line" : "Recruiter line"
+                }`,
+                avatarText: (active.client?.name ?? "C").slice(0, 2).toUpperCase(),
+                avatarBg: active.client?.color ?? "var(--primary)",
+              }}
             />
           ) : (
             <div className="grid place-items-center h-full text-sm text-muted-foreground">
@@ -144,7 +167,21 @@ function MessagesPage() {
             </div>
           )}
         </section>
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="team">
+          {user ? (
+            <TeamMessagesPane
+              authorName={me.name}
+              initials={me.initials}
+              meUserId={user.id}
+            />
+          ) : (
+            <div className="text-sm text-muted-foreground p-6">Sign in to view team chat.</div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
