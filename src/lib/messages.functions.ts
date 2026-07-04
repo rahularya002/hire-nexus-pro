@@ -257,16 +257,15 @@ export const markThreadRead = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const col: "read_by_staff_at" | "read_by_client_at" =
       data.viewer === "staff" ? "read_by_staff_at" : "read_by_client_at";
-    const otherRole = data.viewer === "staff" ? "client" : "staff";
     const update: Record<string, string> = { [col]: new Date().toISOString() };
     const { error } = await supabase
       .from("messages")
       .update(update as any)
       .eq("thread_id", data.threadId)
-      .eq("sender_role", otherRole)
+      .neq("sender_id", userId)
       .is(col, null);
     if (error) throw new Error(error.message);
     return { ok: true };
