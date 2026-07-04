@@ -138,11 +138,18 @@ export const listThreads = createServerFn({ method: "GET" })
 export const getOrCreateThreadForClient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ clientId: z.string().uuid().optional() }).optional().parse(d) ?? {},
+    z
+      .object({
+        clientId: z.string().uuid().optional(),
+        kind: z.enum(["client_recruiter", "client_manager"]).optional(),
+      })
+      .optional()
+      .parse(d) ?? {},
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     let clientId = data?.clientId;
+    const kind = data?.kind ?? "client_recruiter";
     if (!clientId) {
       const { data: own } = await supabase
         .from("clients")
@@ -152,10 +159,10 @@ export const getOrCreateThreadForClient = createServerFn({ method: "POST" })
       if (!own?.id) throw new Error("No client account is linked to this user.");
       clientId = own.id;
     }
-    const id = await ensureThreadFor({ supabase }, clientId);
+    const id = await ensureThreadFor({ supabase }, clientId, kind);
     const { data: thread } = await supabase
       .from("message_threads")
-      .select("id, client_id, subject, pinned, last_message_at, created_at")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at")
       .eq("id", id)
       .single();
     const { data: client } = await supabase
