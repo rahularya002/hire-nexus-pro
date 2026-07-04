@@ -28,7 +28,11 @@ export type MessageRow = {
 
 export type ThreadRow = {
   id: string;
-  client_id: string;
+  client_id: string | null;
+  agency_id: string | null;
+  kind: "client_recruiter" | "client_manager" | "team_room" | "team_dm";
+  participant_a?: string | null;
+  participant_b?: string | null;
   subject: string | null;
   pinned: boolean;
   last_message_at: string | null;
@@ -38,6 +42,11 @@ export type ThreadRow = {
     name: string;
     color: string | null;
     contact_name: string | null;
+  } | null;
+  other_participant?: {
+    user_id: string;
+    name: string;
+    initials: string;
   } | null;
   last_message?: MessageRow | null;
   unread_count?: number;
@@ -51,16 +60,18 @@ function normalizeAttachments(a: Json): Attachment[] {
 async function ensureThreadFor(
   ctx: { supabase: any },
   clientId: string,
+  kind: "client_recruiter" | "client_manager" = "client_recruiter",
 ): Promise<string> {
   const { data: existing } = await ctx.supabase
     .from("message_threads")
     .select("id")
     .eq("client_id", clientId)
+    .eq("kind", kind)
     .maybeSingle();
   if (existing?.id) return existing.id as string;
   const { data: created, error } = await ctx.supabase
     .from("message_threads")
-    .insert({ client_id: clientId })
+    .insert({ client_id: clientId, kind })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
