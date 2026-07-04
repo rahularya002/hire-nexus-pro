@@ -291,3 +291,178 @@ export const createSignedAttachmentUrl = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { url: signed.signedUrl };
   });
+
+// ================= TEAM CHAT =================
+
+async function currentAgencyId(supabase: any, userId: string): Promise<string> {
+  const { data } = await supabase
+    .from("agency_members")
+    .select("agency_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!data?.agency_id) throw new Error("You are not a member of any agency.");
+  return data.agency_id as string;
+}
+
+async function hydrateThreads(
+  supabase: any,
+  threads: any[],
+  viewerUserId: string,
+): Promise<ThreadRow[]> {
+  if (!threads.length) return [];
+  const threadIds = threads.map((t) => t.id);
+  const { data: msgs } = await supabase
+    .from("messages")
+    .select("*")
+    .in("thread_id", threadIds)
+    .order("created_at", { ascending: false });
+  const lastMap = new Map<string, MessageRow>();
+  const unreadMap = new Map<string, number>();
+  for (const m of msgs ?? []) {
+    const row: MessageRow = { ...(m as any), attachments: normalizeAttachments((m as any).attachments) };
+    if (!lastMap.has(row.thread_id)) lastMap.set(row.thread_id, row);
+    if (row.sender_id !== viewerUserId && !row.read_by_staff_at) {
+      unreadMap.set(row.thread_id, (unreadMap.get(row.thread_id) ?? 0) + 1);
+    }
+  }
+  return threads.map((t: any) => ({
+    ...t,
+    last_message: lastMap.get(t.id) ?? null,
+    unread_count: unreadMap.get(t.id) ?? 0,
+  }));
+}
+
+export const getOrCreateTeamRoom = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const agencyId = await currentAgencyId(supabase, userId);
+    const { data: existing } = await supabase
+      .from("message_threads")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at")
+      .eq("agency_id", agencyId)
+      .eq("kind", "team_room")
+      .maybeSingle();
+    if (existing) return existing as ThreadRow;
+    const { data: created, error } = await supabase
+      .from("message_threads")
+      .insert({ agency_id: agencyId, kind: "team_room", subject: "Team room" })
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return created as ThreadRow;
+  });
+
+export const listAgencyTeammates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const agencyId = await currentAgencyId(supabase, userId);
+    const { data: members, error } = await supabase
+      .from("agency_members")
+      .select("user_id, role_in_agency")
+      .eq("agency_id", agencyId);
+    if (error) throw new Error(error.message);
+    const ids = (members ?? []).map((m: any) => m.user_id).filter((u: string) => u !== userId);
+    if (!ids.length) return [] as Array<{ user_id: string; name: string; email: string; initials: string; role_in_agency: string }>;
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", ids);
+    const profMap = new Map<string, any>();
+    for (const p of profs ?? []) profMap.set(p.id, p);
+    return (members ?? [])
+      .filter((m: any) => m.user_id !== userId)
+      .map((m: any) => {
+        const p = profMap.get(m.user_id);
+        const name = p?.full_name ?? p?.email ?? "Teammate";
+        const initials = (name.match(/\b\w/g) ?? ["T"]).slice(0, 2).join("").toUpperCase();
+        return {
+          user_id: m.user_id as string,
+          name,
+          email: p?.email ?? "",
+          initials,
+          role_in_agency: m.role_in_agency as string,
+        };
+      });
+  });
+
+export const getOrCreateDm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ otherUserId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const agencyId = await currentAgencyId(supabase, userId);
+    // Verify other user is also in this agency
+    const { data: other } = await supabase
+      .from("agency_members")
+      .select("user_id")
+      .eq("agency_id", agencyId)
+      .eq("user_id", data.otherUserId)
+      .maybeSingle();
+    if (!other) throw new Error("That user is not in your agency.");
+    const [a, b] = [userId, data.otherUserId].sort();
+    const { data: existing } = await supabase
+      .from("message_threads")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at, participant_a, participant_b")
+      .eq("agency_id", agencyId)
+      .eq("kind", "team_dm")
+      .eq("participant_a", a)
+      .eq("participant_b", b)
+      .maybeSingle();
+    if (existing) return existing as ThreadRow;
+    const { data: created, error } = await supabase
+      .from("message_threads")
+      .insert({
+        agency_id: agencyId,
+        kind: "team_dm",
+        participant_a: a,
+        participant_b: b,
+      })
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at, participant_a, participant_b")
+      .single();
+    if (error) throw new Error(error.message);
+    return created as ThreadRow;
+  });
+
+export const listTeamThreads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const agencyId = await currentAgencyId(supabase, userId);
+    const { data: threads, error } = await supabase
+      .from("message_threads")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at, participant_a, participant_b")
+      .eq("agency_id", agencyId)
+      .in("kind", ["team_room", "team_dm"])
+      .order("last_message_at", { ascending: false, nullsFirst: false });
+    if (error) throw new Error(error.message);
+    const hydrated = await hydrateThreads(supabase, threads ?? [], userId);
+    return hydrated;
+  });
+
+export const getOrCreateClientManagerThread = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: own } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!own?.id) throw new Error("No client account is linked to this user.");
+    const id = await ensureThreadFor({ supabase }, own.id, "client_manager");
+    const { data: thread } = await supabase
+      .from("message_threads")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at")
+      .eq("id", id)
+      .single();
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id, name, color, contact_name")
+      .eq("id", own.id)
+      .maybeSingle();
+    return { ...(thread as any), client: client ?? null } as ThreadRow;
+  });
