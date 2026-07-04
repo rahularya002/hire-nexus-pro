@@ -297,6 +297,82 @@ function Row({ k, v }: { k: string; v: string | null | undefined }) {
   );
 }
 
+function CvRow({ candidate }: { candidate: CandidateRow }) {
+  const qc = useQueryClient();
+  const signFn = useServerFn(getResumeSignedUrl);
+  const updateFn = useServerFn(updateCandidate);
+  const createDocFn = useServerFn(createDocument);
+  const [opening, setOpening] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function openCv() {
+    setOpening(true);
+    try {
+      const { url } = await signFn({ data: { candidateId: candidate.id } });
+      if (!url) throw new Error("No CV on file");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open CV");
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  async function handleFile(f: File | null) {
+    if (!f) return;
+    setUploading(true);
+    try {
+      const up = await uploadCvFile(f);
+      await updateFn({ data: { id: candidate.id, resume_url: up.path } });
+      await createDocFn({
+        data: {
+          name: up.name,
+          kind: "resume",
+          candidate_id: candidate.id,
+          storage_bucket: "documents",
+          storage_path: up.path,
+          mime: up.mime,
+          size_bytes: up.size,
+        },
+      });
+      toast.success("CV uploaded");
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+      qc.invalidateQueries({ queryKey: ["candidate-history", candidate.id] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="flex gap-3 py-1 items-center">
+      <span className="text-xs text-muted-foreground w-32 shrink-0">CV / Resume</span>
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+      {candidate.resume_url ? (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5 h-7" onClick={openCv} disabled={opening}>
+            {opening ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3.5" />}
+            Open CV
+          </Button>
+          <Button size="sm" variant="ghost" className="gap-1.5 h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            {uploading ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3.5" />}
+            Replace
+          </Button>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" className="gap-1.5 h-7" onClick={() => fileRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3.5" />}
+          Upload CV
+        </Button>
+      )}
+    </div>
+  );
+}
+
 const STAGE_META: Partial<Record<ApplicationStage, { tone: string; Icon: typeof Send }>> = {
   shared_with_client:   { tone: "bg-info/15 text-info",          Icon: Send },
   client_shortlist:     { tone: "bg-emerald-500/15 text-emerald-600", Icon: CheckCircle2 },
