@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, Paperclip, FileText, Upload } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -11,11 +11,15 @@ import {
   createCandidate,
   listCandidates,
   listApplications,
+  updateCandidate,
+  getResumeSignedUrl,
   STAGE_LABEL,
   type ApplicationRow,
   type ApplicationStage,
   type CandidateRow,
 } from "@/lib/candidates.functions";
+import { createDocument } from "@/lib/documents.functions";
+import { uploadCvFile } from "@/lib/upload-cv";
 import { initialsOf } from "@/lib/display";
 import {
   Dialog,
@@ -49,7 +53,7 @@ function Page() {
   });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
@@ -139,7 +143,12 @@ function Page() {
                         {initialsOf(c.name)}
                       </div>
                       <div className="leading-tight">
-                        <div className="font-medium">{c.name}</div>
+                        <div className="font-medium inline-flex items-center gap-1.5">
+                          {c.name}
+                          {c.resume_url && (
+                            <Paperclip className="size-3 text-primary/70" aria-label="CV attached" />
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">{c.email ?? "—"}</div>
                       </div>
                     </div>
