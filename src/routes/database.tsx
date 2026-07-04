@@ -249,6 +249,7 @@ function CandidateDetailSheet({
                 <Row k="Current company" v={candidate.current_company} />
                 <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
                 <Row k="Source" v={candidate.source} />
+                <CvRow candidate={candidate} />
                 {candidate.linkedin_url && (
                   <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
                     className="text-primary text-xs underline">View LinkedIn profile</a>
