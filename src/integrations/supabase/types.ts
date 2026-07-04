@@ -1194,30 +1194,39 @@ export type Database = {
       message_threads: {
         Row: {
           agency_id: string
-          client_id: string
+          client_id: string | null
           created_at: string
           id: string
+          kind: Database["public"]["Enums"]["thread_kind"]
           last_message_at: string | null
+          participant_a: string | null
+          participant_b: string | null
           pinned: boolean
           subject: string | null
           updated_at: string
         }
         Insert: {
           agency_id: string
-          client_id: string
+          client_id?: string | null
           created_at?: string
           id?: string
+          kind?: Database["public"]["Enums"]["thread_kind"]
           last_message_at?: string | null
+          participant_a?: string | null
+          participant_b?: string | null
           pinned?: boolean
           subject?: string | null
           updated_at?: string
         }
         Update: {
           agency_id?: string
-          client_id?: string
+          client_id?: string | null
           created_at?: string
           id?: string
+          kind?: Database["public"]["Enums"]["thread_kind"]
           last_message_at?: string | null
+          participant_a?: string | null
+          participant_b?: string | null
           pinned?: boolean
           subject?: string | null
           updated_at?: string
@@ -1967,12 +1976,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_thread: {
+        Args: { _thread_id: string; _user_id: string }
+        Returns: boolean
+      }
       current_user_agency_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_agency_admin: {
+        Args: { _agency_id: string; _user_id: string }
         Returns: boolean
       }
       is_agency_member: { Args: { _agency_id: string }; Returns: boolean }
@@ -2098,6 +2115,11 @@ export type Database = {
         | "Closed"
         | "Reopened"
         | "No-show"
+      thread_kind:
+        | "client_recruiter"
+        | "client_manager"
+        | "team_room"
+        | "team_dm"
       ticket_status: "open" | "in_progress" | "resolved" | "closed"
       ticket_type: "support" | "billing" | "feature_request"
     }
@@ -2332,6 +2354,12 @@ export const Constants = {
         "Closed",
         "Reopened",
         "No-show",
+      ],
+      thread_kind: [
+        "client_recruiter",
+        "client_manager",
+        "team_room",
+        "team_dm",
       ],
       ticket_status: ["open", "in_progress", "resolved", "closed"],
       ticket_type: ["support", "billing", "feature_request"],
