@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, X, Plus } from "lucide-react";
+import { Loader2, X, Plus, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { updateCandidate, type CandidateRow } from "@/lib/candidates.functions";
+import { updateCandidate, getResumeSignedUrl, type CandidateRow } from "@/lib/candidates.functions";
+import { createDocument } from "@/lib/documents.functions";
+import { uploadCvFile } from "@/lib/upload-cv";
 
 export function EditCandidateDialog({
   open,
@@ -23,6 +25,8 @@ export function EditCandidateDialog({
 }) {
   const qc = useQueryClient();
   const updateFn = useServerFn(updateCandidate);
+  const signFn = useServerFn(getResumeSignedUrl);
+  const createDocFn = useServerFn(createDocument);
 
   const [name, setName] = useState(candidate.name);
   const [role, setRole] = useState(candidate.role ?? "");
@@ -36,6 +40,10 @@ export function EditCandidateDialog({
   const [notes, setNotes] = useState(candidate.notes ?? "");
   const [skills, setSkills] = useState<string[]>(candidate.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
+  const [resumePath, setResumePath] = useState<string | null>(candidate.resume_url);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const [openingCv, setOpeningCv] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +59,7 @@ export function EditCandidateDialog({
     setNotes(candidate.notes ?? "");
     setSkills(candidate.skills ?? []);
     setSkillInput("");
+    setResumePath(candidate.resume_url);
   }, [open, candidate]);
 
   const m = useMutation({
@@ -69,6 +78,7 @@ export function EditCandidateDialog({
           salary: salary.trim() || null,
           notes: notes.trim() || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
+          resume_url: resumePath,
         },
       }),
     onSuccess: () => {
@@ -82,6 +92,41 @@ export function EditCandidateDialog({
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Could not update candidate"),
   });
+
+  async function handleCvFile(f: File | null) {
+    if (!f) return;
+    setUploadingCv(true);
+    try {
+      const up = await uploadCvFile(f);
+      setResumePath(up.path);
+      try {
+        await createDocFn({ data: {
+          name: up.name, kind: "resume", candidate_id: candidate.id,
+          storage_bucket: "documents", storage_path: up.path,
+          mime: up.mime, size_bytes: up.size,
+        }});
+      } catch { /* non-fatal */ }
+      toast.success("CV attached — save to apply");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploadingCv(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function openCv() {
+    setOpeningCv(true);
+    try {
+      const { url } = await signFn({ data: { candidateId: candidate.id } });
+      if (!url) throw new Error("No CV on file");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open CV");
+    } finally {
+      setOpeningCv(false);
+    }
+  }
 
   function addSkill() {
     const v = skillInput.trim();
@@ -168,6 +213,30 @@ export function EditCandidateDialog({
             <Label htmlFor="ec-notes">Notes</Label>
             <Textarea id="ec-notes" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)}
               placeholder="Anything worth recording from your conversation…" />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>CV / Resume</Label>
+            <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+              onChange={(e) => handleCvFile(e.target.files?.[0] ?? null)} />
+            <div className="flex items-center gap-2 flex-wrap">
+              {resumePath && candidate.resume_url === resumePath && (
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={openCv} disabled={openingCv}>
+                  {openingCv ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+                  Open current CV
+                </Button>
+              )}
+              <Button type="button" variant={resumePath ? "ghost" : "outline"} size="sm" className="gap-1.5"
+                onClick={() => fileRef.current?.click()} disabled={uploadingCv}>
+                {uploadingCv ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                {resumePath ? "Replace CV" : "Upload CV"}
+              </Button>
+              {resumePath && (
+                <span className="text-[11px] text-muted-foreground">
+                  {resumePath === candidate.resume_url ? "CV on file" : "New CV attached — save to apply"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
