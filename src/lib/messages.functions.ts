@@ -85,14 +85,13 @@ export const listThreads = createServerFn({ method: "GET" })
     // Ensure a thread exists for every client so staff list isn't empty
     const { data: clientsList } = await supabase.from("clients").select("id");
     for (const c of clientsList ?? []) {
-      await supabase
-        .from("message_threads")
-        .upsert({ client_id: c.id } as never, { onConflict: "client_id", ignoreDuplicates: true });
+      await ensureThreadFor({ supabase }, c.id, "client_recruiter");
     }
 
     const { data: threads, error } = await supabase
       .from("message_threads")
-      .select("id, client_id, subject, pinned, last_message_at, created_at")
+      .select("id, client_id, agency_id, kind, subject, pinned, last_message_at, created_at")
+      .in("kind", ["client_recruiter", "client_manager"])
       .order("pinned", { ascending: false })
       .order("last_message_at", { ascending: false, nullsFirst: false });
     if (error) throw new Error(error.message);
