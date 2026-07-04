@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, Paperclip, FileText, Upload } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -11,11 +11,15 @@ import {
   createCandidate,
   listCandidates,
   listApplications,
+  updateCandidate,
+  getResumeSignedUrl,
   STAGE_LABEL,
   type ApplicationRow,
   type ApplicationStage,
   type CandidateRow,
 } from "@/lib/candidates.functions";
+import { createDocument } from "@/lib/documents.functions";
+import { uploadCvFile } from "@/lib/upload-cv";
 import { initialsOf } from "@/lib/display";
 import {
   Dialog,
@@ -49,7 +53,7 @@ function Page() {
   });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
@@ -139,7 +143,12 @@ function Page() {
                         {initialsOf(c.name)}
                       </div>
                       <div className="leading-tight">
-                        <div className="font-medium">{c.name}</div>
+                        <div className="font-medium inline-flex items-center gap-1.5">
+                          {c.name}
+                          {c.resume_url && (
+                            <Paperclip className="size-3 text-primary/70" aria-label="CV attached" />
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">{c.email ?? "—"}</div>
                       </div>
                     </div>
@@ -240,6 +249,7 @@ function CandidateDetailSheet({
                 <Row k="Current company" v={candidate.current_company} />
                 <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
                 <Row k="Source" v={candidate.source} />
+                <CvRow candidate={candidate} />
                 {candidate.linkedin_url && (
                   <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
                     className="text-primary text-xs underline">View LinkedIn profile</a>
@@ -283,6 +293,82 @@ function Row({ k, v }: { k: string; v: string | null | undefined }) {
     <div className="flex gap-3 py-1">
       <span className="text-xs text-muted-foreground w-32 shrink-0">{k}</span>
       <span className="text-xs">{v ?? "—"}</span>
+    </div>
+  );
+}
+
+function CvRow({ candidate }: { candidate: CandidateRow }) {
+  const qc = useQueryClient();
+  const signFn = useServerFn(getResumeSignedUrl);
+  const updateFn = useServerFn(updateCandidate);
+  const createDocFn = useServerFn(createDocument);
+  const [opening, setOpening] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function openCv() {
+    setOpening(true);
+    try {
+      const { url } = await signFn({ data: { candidateId: candidate.id } });
+      if (!url) throw new Error("No CV on file");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open CV");
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  async function handleFile(f: File | null) {
+    if (!f) return;
+    setUploading(true);
+    try {
+      const up = await uploadCvFile(f);
+      await updateFn({ data: { id: candidate.id, resume_url: up.path } });
+      await createDocFn({
+        data: {
+          name: up.name,
+          kind: "resume",
+          candidate_id: candidate.id,
+          storage_bucket: "documents",
+          storage_path: up.path,
+          mime: up.mime,
+          size_bytes: up.size,
+        },
+      });
+      toast.success("CV uploaded");
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+      qc.invalidateQueries({ queryKey: ["candidate-history", candidate.id] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="flex gap-3 py-1 items-center">
+      <span className="text-xs text-muted-foreground w-32 shrink-0">CV / Resume</span>
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+      {candidate.resume_url ? (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5 h-7" onClick={openCv} disabled={opening}>
+            {opening ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3.5" />}
+            Open CV
+          </Button>
+          <Button size="sm" variant="ghost" className="gap-1.5 h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            {uploading ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3.5" />}
+            Replace
+          </Button>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" className="gap-1.5 h-7" onClick={() => fileRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3.5" />}
+          Upload CV
+        </Button>
+      )}
     </div>
   );
 }
@@ -359,12 +445,15 @@ function AddCandidateDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) => void;
+  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) => void;
   submitting: boolean;
 }) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const createDocFn = useServerFn(createDocument);
 
   function addSkill() {
     const v = skillInput.trim();
@@ -377,6 +466,44 @@ function AddCandidateDialog({
     setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
     setSkills([]);
     setSkillInput("");
+    setCvFile(null);
+  }
+
+  async function handleSubmit() {
+    let resumePath: string | undefined;
+    if (cvFile) {
+      setUploadingCv(true);
+      try {
+        const up = await uploadCvFile(cvFile);
+        resumePath = up.path;
+        // Best-effort document record; attach candidate_id afterwards would need id, skip here.
+        try {
+          await createDocFn({ data: {
+            name: up.name, kind: "resume",
+            storage_bucket: "documents", storage_path: up.path,
+            mime: up.mime, size_bytes: up.size,
+          }});
+        } catch { /* non-fatal */ }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "CV upload failed");
+        setUploadingCv(false);
+        return;
+      }
+      setUploadingCv(false);
+    }
+    onSubmit({
+      name: form.name.trim(),
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      role: form.role.trim() || undefined,
+      location: form.location.trim() || undefined,
+      experience: form.experience.trim() || undefined,
+      current_company: form.current_company.trim() || undefined,
+      linkedin_url: form.linkedin_url.trim() || undefined,
+      salary: form.salary.trim() || undefined,
+      skills: skills.length ? skills : undefined,
+      resume_url: resumePath,
+    });
   }
 
   return (
@@ -427,25 +554,30 @@ function AddCandidateDialog({
               </div>
             )}
           </Field>
+          <Field label="CV / Resume (PDF, DOC, DOCX, TXT — max 10 MB)">
+            <div className="flex items-center gap-2">
+              <Input type="file" accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)} />
+              {cvFile && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setCvFile(null)}>
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+            {cvFile && (
+              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                <FileText className="inline size-3 mr-1" />{cvFile.name} · {(cvFile.size / 1024).toFixed(0)} KB
+              </div>
+            )}
+          </Field>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            disabled={submitting || !form.name.trim()}
-            onClick={() => onSubmit({
-              name: form.name.trim(),
-              email: form.email.trim() || undefined,
-              phone: form.phone.trim() || undefined,
-              role: form.role.trim() || undefined,
-              location: form.location.trim() || undefined,
-              experience: form.experience.trim() || undefined,
-              current_company: form.current_company.trim() || undefined,
-              linkedin_url: form.linkedin_url.trim() || undefined,
-              salary: form.salary.trim() || undefined,
-              skills: skills.length ? skills : undefined,
-            })}
+            disabled={submitting || uploadingCv || !form.name.trim()}
+            onClick={handleSubmit}
           >
-            {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add candidate"}
+            {submitting || uploadingCv ? <Loader2 className="size-4 animate-spin" /> : "Add candidate"}
           </Button>
         </DialogFooter>
       </DialogContent>

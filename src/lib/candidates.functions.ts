@@ -88,7 +88,8 @@ const candidateSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   current_company: z.string().max(200).optional().nullable(),
   skills: z.array(z.string().min(1).max(60)).max(40).optional(),
-  resume_url: z.string().url().max(500).optional().nullable(),
+  // Stores either a full URL or a storage path (bucket/key) — signed on demand.
+  resume_url: z.string().max(500).optional().nullable(),
   linkedin_url: z.string().url().max(500).optional().nullable(),
   salary: z.string().max(200).optional().nullable(),
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
@@ -355,4 +356,32 @@ export const deleteApplication = createServerFn({ method: "POST" })
     const { error } = await supabase.from("applications").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Return a temporary signed URL for a candidate's CV.
+ * `resume_url` may be either a full https URL (used as-is) or a storage path
+ * inside the `documents` bucket (signed for 1 hour).
+ */
+export const getResumeSignedUrl = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { candidateId: string }) =>
+    z.object({ candidateId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: row, error } = await supabase
+      .from("candidates")
+      .select("resume_url")
+      .eq("id", data.candidateId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const raw = row?.resume_url;
+    if (!raw) return { url: null as string | null };
+    if (/^https?:\/\//i.test(raw)) return { url: raw };
+    const { data: signed, error: sErr } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(raw, 60 * 60);
+    if (sErr) throw new Error(sErr.message);
+    return { url: signed?.signedUrl ?? null };
   });
