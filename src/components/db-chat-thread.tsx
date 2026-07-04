@@ -189,20 +189,24 @@ export function DbChatThread({
     }
   }
 
-  const otherName =
+  const defaultOtherName =
     viewer === "client"
       ? "TalentFlow team"
       : thread.client?.contact_name ?? thread.client?.name ?? "Client";
-  const otherSubtitle =
+  const defaultOtherSubtitle =
     viewer === "client"
       ? "TalentFlow · Account Lead"
       : `${thread.client?.name ?? "Client"} · Account`;
-  const avatarBg =
+  const defaultAvatarBg =
     viewer === "client"
       ? "linear-gradient(135deg, var(--primary), var(--purple, oklch(0.62 0.20 295)))"
       : thread.client?.color ?? "var(--primary)";
-  const avatarInitials =
+  const defaultAvatarInitials =
     viewer === "client" ? "TF" : (thread.client?.name ?? "C").slice(0, 2).toUpperCase();
+  const otherName = header?.title ?? defaultOtherName;
+  const otherSubtitle = header?.subtitle ?? defaultOtherSubtitle;
+  const avatarBg = header?.avatarBg ?? defaultAvatarBg;
+  const avatarInitials = header?.avatarText ?? defaultAvatarInitials;
 
   return (
     <div
