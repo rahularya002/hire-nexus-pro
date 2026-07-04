@@ -76,12 +76,21 @@ export function DbChatThread({
   authorName,
   initials,
   className,
+  header,
+  storageFolder,
 }: {
   thread: ThreadRow;
   viewer: "staff" | "client";
   authorName: string;
   initials: string;
   className?: string;
+  header?: {
+    title: string;
+    subtitle?: string;
+    avatarText?: string;
+    avatarBg?: string;
+  };
+  storageFolder?: string;
 }) {
   const qc = useQueryClient();
   const listFn = useServerFn(listMessages);
@@ -144,7 +153,8 @@ export function DbChatThread({
       const uploads: Attachment[] = [];
       for (const f of Array.from(files)) {
         const safe = f.name.replace(/[^\w.\-]+/g, "_");
-        const path = `${thread.client_id}/${thread.id}/${Date.now()}-${safe}`;
+        const folder = storageFolder ?? thread.client_id ?? thread.agency_id ?? "team";
+        const path = `${folder}/${thread.id}/${Date.now()}-${safe}`;
         const { error } = await supabase.storage
           .from("chat-attachments")
           .upload(path, f, { cacheControl: "3600", upsert: false });
@@ -179,20 +189,24 @@ export function DbChatThread({
     }
   }
 
-  const otherName =
+  const defaultOtherName =
     viewer === "client"
       ? "TalentFlow team"
       : thread.client?.contact_name ?? thread.client?.name ?? "Client";
-  const otherSubtitle =
+  const defaultOtherSubtitle =
     viewer === "client"
       ? "TalentFlow · Account Lead"
       : `${thread.client?.name ?? "Client"} · Account`;
-  const avatarBg =
+  const defaultAvatarBg =
     viewer === "client"
       ? "linear-gradient(135deg, var(--primary), var(--purple, oklch(0.62 0.20 295)))"
       : thread.client?.color ?? "var(--primary)";
-  const avatarInitials =
+  const defaultAvatarInitials =
     viewer === "client" ? "TF" : (thread.client?.name ?? "C").slice(0, 2).toUpperCase();
+  const otherName = header?.title ?? defaultOtherName;
+  const otherSubtitle = header?.subtitle ?? defaultOtherSubtitle;
+  const avatarBg = header?.avatarBg ?? defaultAvatarBg;
+  const avatarInitials = header?.avatarText ?? defaultAvatarInitials;
 
   return (
     <div

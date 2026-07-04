@@ -1,60 +1,83 @@
 
 ## Goal
 
-Reset the app to a clean slate (keeping your existing auth accounts), then script the full workflow end-to-end with Playwright and flag any bug or missing piece I hit along the way.
+Kill the ambiguity in Messages. Make it obvious at a glance whether you're talking to a **Client** or your **Team**, and give clients a private line to the account **Manager** in addition to the assigned recruiter.
 
-## Step 1 — Wipe app data (keep auth users)
+## Agency portal — `/messages`
 
-Single migration truncating every domain table with `RESTART IDENTITY CASCADE`, in dependency order:
+Top-level tabs at the page header:
 
-- Activity / messaging: `activities`, `messages`, `message_threads`, `notifications`, `notification_dedup`, `tasks`, `support_tickets`
-- Billing: `invoice_line_items`, `invoices`, `client_billing_terms`
-- Pipeline: `placements`, `interviews`, `applications`, `job_applications`, `job_post_channels`, `job_posts`
-- Sourcing: `position_sourced_matches`, `position_sourcing_runs`, `sourced_candidates`, `candidates`
-- Positions & clients: `positions`, `client_role_permissions`, `client_custom_roles`, `client_members`, `clients`
-- Agency scaffolding: `interview_round_templates`, `scout_source_settings`, `google_calendar_connections`, `recruiter_login_events`, `agency_members`, `agencies`
-- Documents/storage rows: `documents` (I'll leave the two storage buckets alone; you can clear objects manually if needed)
+```text
+[ Clients ]   [ Team ]
+```
 
-Preserved: `auth.users`, `profiles`, `user_roles`, `role_permissions` — so superadmin/admin/recruiter/client accounts still work.
+### Clients tab
+- Existing behavior: list of client threads on the left, thread pane on the right.
+- Add a small "Client" pill on each row so it's visually distinct from team chats.
+- Header label of the active thread shows: `Client · {Client name}` + which recruiter/manager is assigned.
 
-I'll snapshot row counts before/after so you can see exactly what was cleared.
+### Team tab
+Two sub-modes toggled with a segmented control inside the Team tab:
+- **# Team room** — one shared channel per agency, everyone in `agency_members` participates.
+- **Direct messages** — sidebar lists teammates (from `agency_members` + `profiles`); clicking one opens a 1:1 DM thread that's auto-created on first message.
 
-## Step 2 — Script the workflow with Playwright
+Visual distinction: team messages use a neutral surface with a `Users` icon in the header; client messages keep the current client-colored avatar. Different empty states ("Start a team conversation…" vs "Direct line to your client").
 
-One Playwright script per stage, each taking screenshots and reading DB state to verify. I'll need you to tell me (or I'll pick from `user_roles`) the emails/passwords for a super_admin, plus two throwaway client emails and 2–3 recruiter emails to use during the run. If passwords aren't known, I'll reset them via the admin API before starting.
+## Client portal — `/client/messages`
 
-Stages:
+Two tabs at the top:
 
-1. **Super admin → 2 agencies.** Log in as super_admin, create Agency A and Agency B through the UI. Verify `agencies` rows + super_admin visibility of both.
-2. **Agency admins → team members.** For each agency, sign in as its admin, invite / add 2 recruiters (mix of `recruiter`, `lead_recruiter`, `senior_recruiter`). Verify `agency_members` + `user_roles` and that each recruiter can log into `/me` (regression check for the lead/senior gate fix).
-3. **Board 2 clients & assign recruiters.** From the agency admin, onboard Client 1 → Agency A, Client 2 → Agency B, add billing terms, and assign 1–2 recruiters to each via `client_members` / assignment UI.
-4. **Client → requirements.** Log in as each client, create 1–2 open positions with role, count, JD.
-5. **Recruiter workflow per position.** For each assigned recruiter:
-   - Scout/source candidates (Scout page) → add manual candidates as a fallback so the pipeline has data.
-   - Move candidates through stages, submit shortlist to the client.
-6. **Client shortlist + interview scheduling.** As the client: review submitted candidates, shortlist a few, schedule an interview. **Google Meet/Calendar is skipped per your choice**; I'll assert the `interviews` row is created and the candidate notification email is enqueued in `email_send_log` / `transactional_emails` queue (and check `notifications` for internal alerts).
-7. **Post-interview flow.** As the client, mark interview outcome → advance candidate to next round / reject. Repeat until one candidate is marked "joined" so the `notify_agency_on_joining` trigger fires and an invoice notification lands for the agency.
-8. **Billing tail.** Verify the agency admin sees the "raise invoice" notification and can generate an invoice with line items.
+```text
+[ Recruiter ]   [ Account Manager ]
+```
 
-## Step 3 — Coverage sweep for anything not mentioned
+- **Recruiter** — the existing thread (unchanged).
+- **Account Manager** — a separate, private thread with the agency admin/owner. Recruiter cannot see it. Small helper text: "Private line to your account manager. Use this if you'd like to escalate or discuss the engagement."
 
-While running the above I'll also touch and report on:
+## Data model changes
 
-- Tasks / SLA on the new admin dashboard populate correctly
-- Recruiter login-time tracking (`recruiter_login_events`) records real logins
-- Client-portal messaging thread between client ↔ recruiter
-- Documents upload on a candidate (bucket ACLs)
-- Notifications feed for all four personas
-- Interview reminder / calendar-less path doesn't crash
+Extend `message_threads` so one client can have multiple typed threads:
 
-## Step 4 — Report
+- Add `kind` enum: `client_recruiter | client_manager | team_room | team_dm`.
+- Add `agency_id uuid` (nullable, for team threads with no client).
+- Add `participant_a uuid`, `participant_b uuid` (nullable, for `team_dm`).
+- Drop the current one-thread-per-client uniqueness; replace with:
+  - unique(`client_id`, `kind`) where `kind in ('client_recruiter','client_manager')`
+  - unique(`agency_id`) where `kind='team_room'`
+  - unique(`agency_id`, least(participant_a,participant_b), greatest(...)) where `kind='team_dm'`
 
-A single write-up per stage with: screenshot, DB assertion result, and any bug found. Bugs get logged, not silently patched — I'll list them and you decide what to fix in the next round.
+### RLS updates
+- `client_recruiter`: existing client owner + assigned agency staff.
+- `client_manager`: client owner + users with `admin` role in that agency only (checked via `has_role` + `agency_members`).
+- `team_room`: all `agency_members` of that agency.
+- `team_dm`: only the two participants.
 
-## What I need from you before running
+Messages table stays as-is; policies derive access from the parent thread.
 
-1. Confirm the wipe list above (especially that clearing `documents`, `invoices`, `google_calendar_connections`, and `recruiter_login_events` is fine).
-2. Either the passwords for one super_admin + one agency admin per agency + 2 client accounts + 3 recruiter accounts, **or** permission for me to reset them via the admin API for the duration of the test.
-3. Confirm skipping Google Meet is still fine (I'll only assert the interview record + candidate email got enqueued).
+## Server functions (extend `src/lib/messages.functions.ts`)
 
-Once you approve, I'll run the migration first, then execute the Playwright stages one at a time and pause if something is clearly broken so you can decide fix-now vs. keep-going.
+- `listClientThreads()` → existing `listThreads` scoped to `kind in ('client_recruiter','client_manager')`.
+- `listTeamThreads()` → returns `{ room, dms: [...] }` for current agency.
+- `getOrCreateThreadForClient({ kind })` → `kind` param, defaults `client_recruiter`.
+- `getOrCreateManagerThread()` → client side, always `client_manager`.
+- `getOrCreateTeamRoom()` and `getOrCreateDm({ otherUserId })`.
+- `listAgencyTeammates()` → for DM picker.
+
+## UI files
+
+- `src/routes/messages.tsx` — add top tabs (Clients / Team), keep current pane for Clients, add Team pane.
+- New `src/components/team-messages-pane.tsx` — room + DM segmented control, teammate list, thread view (reuses `DbChatThread`).
+- `src/routes/client.messages.tsx` — wrap in `Tabs` (Recruiter / Account Manager), each rendering `DbChatThread` for its thread.
+- Reuse existing `DbChatThread`; add a `header` prop so team vs client headers can differ.
+
+## Migration / seed
+
+- One migration for schema + policies.
+- Backfill: existing rows in `message_threads` get `kind='client_recruiter'` and `agency_id` from their client.
+- No data seeding required; threads get created on first open.
+
+## Out of scope
+
+- Notifications routing (existing bell keeps working; per-thread routing can come later).
+- Group team channels beyond the single `#team` room.
+- File-attachment permission changes.
