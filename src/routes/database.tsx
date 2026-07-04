@@ -445,12 +445,15 @@ function AddCandidateDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[] }) => void;
+  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) => void;
   submitting: boolean;
 }) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const createDocFn = useServerFn(createDocument);
 
   function addSkill() {
     const v = skillInput.trim();
@@ -463,6 +466,44 @@ function AddCandidateDialog({
     setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
     setSkills([]);
     setSkillInput("");
+    setCvFile(null);
+  }
+
+  async function handleSubmit() {
+    let resumePath: string | undefined;
+    if (cvFile) {
+      setUploadingCv(true);
+      try {
+        const up = await uploadCvFile(cvFile);
+        resumePath = up.path;
+        // Best-effort document record; attach candidate_id afterwards would need id, skip here.
+        try {
+          await createDocFn({ data: {
+            name: up.name, kind: "resume",
+            storage_bucket: "documents", storage_path: up.path,
+            mime: up.mime, size_bytes: up.size,
+          }});
+        } catch { /* non-fatal */ }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "CV upload failed");
+        setUploadingCv(false);
+        return;
+      }
+      setUploadingCv(false);
+    }
+    onSubmit({
+      name: form.name.trim(),
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      role: form.role.trim() || undefined,
+      location: form.location.trim() || undefined,
+      experience: form.experience.trim() || undefined,
+      current_company: form.current_company.trim() || undefined,
+      linkedin_url: form.linkedin_url.trim() || undefined,
+      salary: form.salary.trim() || undefined,
+      skills: skills.length ? skills : undefined,
+      resume_url: resumePath,
+    });
   }
 
   return (
@@ -513,25 +554,30 @@ function AddCandidateDialog({
               </div>
             )}
           </Field>
+          <Field label="CV / Resume (PDF, DOC, DOCX, TXT — max 10 MB)">
+            <div className="flex items-center gap-2">
+              <Input type="file" accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)} />
+              {cvFile && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setCvFile(null)}>
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+            {cvFile && (
+              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                <FileText className="inline size-3 mr-1" />{cvFile.name} · {(cvFile.size / 1024).toFixed(0)} KB
+              </div>
+            )}
+          </Field>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            disabled={submitting || !form.name.trim()}
-            onClick={() => onSubmit({
-              name: form.name.trim(),
-              email: form.email.trim() || undefined,
-              phone: form.phone.trim() || undefined,
-              role: form.role.trim() || undefined,
-              location: form.location.trim() || undefined,
-              experience: form.experience.trim() || undefined,
-              current_company: form.current_company.trim() || undefined,
-              linkedin_url: form.linkedin_url.trim() || undefined,
-              salary: form.salary.trim() || undefined,
-              skills: skills.length ? skills : undefined,
-            })}
+            disabled={submitting || uploadingCv || !form.name.trim()}
+            onClick={handleSubmit}
           >
-            {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add candidate"}
+            {submitting || uploadingCv ? <Loader2 className="size-4 animate-spin" /> : "Add candidate"}
           </Button>
         </DialogFooter>
       </DialogContent>
