@@ -62,20 +62,13 @@ async function ensureThreadFor(
   clientId: string,
   kind: "client_recruiter" | "client_manager" = "client_recruiter",
 ): Promise<string> {
-  const { data: existing } = await ctx.supabase
-    .from("message_threads")
-    .select("id")
-    .eq("client_id", clientId)
-    .eq("kind", kind)
-    .maybeSingle();
-  if (existing?.id) return existing.id as string;
-  const { data: created, error } = await ctx.supabase
-    .from("message_threads")
-    .insert({ client_id: clientId, kind })
-    .select("id")
-    .single();
+  const { data, error } = await ctx.supabase.rpc("get_or_create_client_thread", {
+    _client_id: clientId,
+    _kind: kind,
+  });
   if (error) throw new Error(error.message);
-  return created.id as string;
+  if (!data) throw new Error("Unable to create thread");
+  return data as string;
 }
 
 export const listThreads = createServerFn({ method: "GET" })
