@@ -102,38 +102,41 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* KPIs + Upload JD */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Upload JD — spans 2 cols on desktop */}
+      {/* KPIs + Upload JD — split screen */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: KPI tabs */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
+          {kpis.map((k) => {
+            const Icon = k.icon;
+            return (
+              <div key={k.label} className="rounded-xl border border-border bg-card p-5">
+                <div className={`size-10 rounded-lg grid place-items-center bg-gradient-to-br ${k.tone}`}>
+                  <Icon className="size-5" />
+                </div>
+                <div className="mt-3 text-3xl font-semibold tabular-nums">{k.value}</div>
+                <div className="text-sm text-muted-foreground mt-0.5">{k.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right: Upload JD spotlight */}
         <Link to="/client/upload"
-          className="col-span-2 group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-5 hover:border-primary hover:shadow-xl transition flex flex-col justify-between min-h-[140px]">
-          <div className="absolute -right-10 -bottom-10 size-40 rounded-full bg-primary/20 blur-3xl opacity-60 group-hover:opacity-100 transition" />
+          className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-6 hover:border-primary hover:shadow-xl transition flex flex-col justify-between min-h-[180px]">
+          <div className="absolute -right-10 -bottom-10 size-48 rounded-full bg-primary/20 blur-3xl opacity-60 group-hover:opacity-100 transition" />
           <div className="relative flex items-start justify-between">
-            <div className="size-10 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-lg group-hover:scale-105 transition">
-              <FileUp className="size-5" />
+            <div className="size-12 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-lg group-hover:scale-105 transition">
+              <FileUp className="size-6" />
             </div>
             <ArrowUpRight className="size-5 text-primary opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
           </div>
-          <div className="relative mt-3">
-            <div className="text-base font-semibold tracking-tight">Upload a new JD</div>
-            <div className="text-xs text-muted-foreground mt-0.5">
+          <div className="relative mt-4">
+            <div className="text-lg font-semibold tracking-tight">Upload a new JD</div>
+            <div className="text-sm text-muted-foreground mt-1">
               Drop a job description — we'll parse and start sourcing in under a minute.
             </div>
           </div>
         </Link>
-
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          return (
-            <div key={k.label} className="rounded-xl border border-border bg-card p-5">
-              <div className={`size-10 rounded-lg grid place-items-center bg-gradient-to-br ${k.tone}`}>
-                <Icon className="size-5" />
-              </div>
-              <div className="mt-3 text-3xl font-semibold tabular-nums">{k.value}</div>
-              <div className="text-sm text-muted-foreground mt-0.5">{k.label}</div>
-            </div>
-          );
-        })}
       </div>
 
       {/* Positions */}
