@@ -1981,6 +1981,13 @@ export type Database = {
         Returns: boolean
       }
       current_user_agency_id: { Args: never; Returns: string }
+      get_or_create_client_thread: {
+        Args: {
+          _client_id: string
+          _kind: Database["public"]["Enums"]["thread_kind"]
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
