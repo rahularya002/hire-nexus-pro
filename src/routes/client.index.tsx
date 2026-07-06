@@ -120,20 +120,34 @@ function Dashboard() {
           })}
         </div>
 
-        {/* Right: Upload JD spotlight */}
+        {/* Right: Create position spotlight */}
         <Link to="/client/upload"
-          className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-6 hover:border-primary hover:shadow-xl transition flex flex-col justify-between min-h-[180px]">
-          <div className="absolute -right-10 -bottom-10 size-48 rounded-full bg-primary/20 blur-3xl opacity-60 group-hover:opacity-100 transition" />
+          className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-8 hover:border-primary hover:shadow-xl transition flex flex-col justify-between min-h-[240px]">
+          <div className="absolute -right-10 -bottom-10 size-56 rounded-full bg-primary/20 blur-3xl opacity-60 group-hover:opacity-100 transition" />
           <div className="relative flex items-start justify-between">
-            <div className="size-12 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-lg group-hover:scale-105 transition">
-              <FileUp className="size-6" />
+            <div className="size-14 rounded-2xl bg-primary text-primary-foreground grid place-items-center shadow-lg group-hover:scale-105 transition">
+              <Rocket className="size-7" />
             </div>
             <ArrowUpRight className="size-5 text-primary opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
           </div>
-          <div className="relative mt-4">
-            <div className="text-lg font-semibold tracking-tight">Upload a new JD</div>
-            <div className="text-sm text-muted-foreground mt-1">
-              Drop a job description — we'll parse and start sourcing in under a minute.
+          <div className="relative mt-6 space-y-4">
+            <div>
+              <div className="text-xl font-semibold tracking-tight">Create a new position</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                Upload a JD and we'll build the role, parse requirements, and start sourcing candidates in minutes.
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {[
+                "Auto-parse skills & experience",
+                "Instant candidate matching",
+                "Track every stage in one place",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Check className="size-3.5 text-primary shrink-0" />
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
           </div>
         </Link>
