@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, Paperclip, FileText, Upload } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -43,6 +43,7 @@ export const Route = createFileRoute("/database")({
 function Page() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
@@ -85,7 +86,12 @@ function Page() {
             Structured pool of every sourced candidate, persisted in your backend.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="size-4" /> Add candidate</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
+            <FileSpreadsheet className="size-4" /> Bulk import
+          </Button>
+          <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="size-4" /> Add candidate</Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -111,14 +117,15 @@ function Page() {
                 <th className="text-left font-medium px-2 py-2.5">Location</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
+                <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <TableRowsSkeleton rows={6} cols={5} />
+                <TableRowsSkeleton rows={6} cols={6} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8">
+                <tr><td colSpan={6} className="px-4 py-8">
                   <EmptyState
                     icon={q ? SearchX : Database}
                     title={q ? "No matches found" : "No candidates yet"}
@@ -143,12 +150,7 @@ function Page() {
                         {initialsOf(c.name)}
                       </div>
                       <div className="leading-tight">
-                        <div className="font-medium inline-flex items-center gap-1.5">
-                          {c.name}
-                          {c.resume_url && (
-                            <Paperclip className="size-3 text-primary/70" aria-label="CV attached" />
-                          )}
-                        </div>
+                        <div className="font-medium">{c.name}</div>
                         <div className="text-[11px] text-muted-foreground">{c.email ?? "—"}</div>
                       </div>
                     </div>
@@ -170,6 +172,9 @@ function Page() {
                     </span>
                   </td>
                   <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                    <CvCellButton candidate={c} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -182,6 +187,10 @@ function Page() {
         onOpenChange={setOpen}
         onSubmit={(d) => create.mutate(d)}
         submitting={create.isPending}
+      />
+      <BulkImportDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
       />
       <CandidateDetailSheet
         candidate={selected}
