@@ -1,52 +1,58 @@
 ## Problem
 
-Clients can schedule an interview without connecting Google Calendar. When they do, `provider = google_meet` is set but `syncGoogleMeet` silently no-ops (no token), so `meeting_link` stays `null`. Downstream every "Join" button is force-disabled (`!meeting_link && "opacity-50 pointer-events-none"`). Result: interview exists, no meeting link, no calendar invite emailed to candidate, no way to join — dead end.
+Post-interview workflow dead-ends after the client hits "Select":
 
-Same problem on the recruiter side (`createInterview`), but the immediate complaint is the client flow.
+1. `recordInterviewDecision("select")` flips `applications.stage` to `offered`. Nothing else.
+2. No UI ever creates a row in the `placements` table. `client.placements` and `billing` both read from `placements`, so both stay empty forever.
+3. The client has no way to say "offer accepted / candidate joined" and the recruiter has no button to convert an offered application into a placement.
 
-## Fix
+Result: candidate stuck in "Offered" limbo, no invoice trigger, no guarantee-window tracking.
 
-### 1. Gate the client scheduling dialog on Google connection
+## Fix — 3-step handoff
 
-In `src/routes/client.positions.$positionId.tsx`:
+### Step 1 (client, right after Select)
 
-- Query `getMyGoogleConnection` alongside existing queries.
-- In the "Schedule interview" dialog, when the selected provider is `google_meet` / `microsoft_teams` / `zoom` (any virtual) AND `connected === false`:
-  - Replace the submit button with a "Connect Google Calendar to continue" state
-  - Inline-render the existing `<GoogleCalendarCard />` (or a compact variant) inside the dialog so they connect without leaving the flow
-  - Only allow submit when `connected === true` OR provider is `on_site` / `phone`
-- After OAuth returns (existing `postMessage` invalidates `google-connection`), the dialog auto-unlocks.
+In `client.interviews.tsx` `PastDecision`, when `stage === "offered"`, replace the static "Selected" pill with two actions:
 
-### 2. Surface connection status on the position page
+- **Mark offer accepted / joined** → opens a small dialog to fill offer date, joining date, final CTC (optional notes). Submits `createClientPlacement` (new server fn).
+- **Withdraw / not joining** → sets stage back to `client_rejected` with a reason note.
 
-Above the candidate list, show a small banner when Google is not connected:
-"Connect Google Calendar to schedule video interviews and auto-send invites." with a Connect button (opens same OAuth flow).
+Also expose the same "Confirm joining" button on `client.positions.$positionId.tsx` for candidates whose stage is `offered` (so clients can find it from the role page too).
 
-### 3. Fix Join button UX (both `client.interviews.tsx` and `interviews.tsx`)
+### Step 2 (server, `src/lib/interviews.functions.ts`)
 
-Right now: link is rendered but styled disabled when `meeting_link` is null — looks broken with no explanation.
+Add `createClientPlacement` server fn:
 
-Change to: when `meeting_link` is null AND provider is a virtual provider AND scheduled_at exists:
-- Show a "Meeting link pending" pill instead of a dead Join button
-- Add a small "Retry sync" action (calls `updateInterview` with same `scheduled_at` to re-trigger `syncGoogleMeet`) shown only when Google is connected
-- When Google is NOT connected, the pill links to settings: "Connect Google Calendar to generate link"
+- Input: `application_id`, `offer_date`, `joining_date`, `ctc_display?`, `ctc_inr?`, `notes?`
+- Verifies caller is client team member for that position (via RLS-scoped read of `applications`)
+- Uses `supabaseAdmin` to insert into `placements` (client role isn't in staff insert RLS — mirrors the existing `requestClientInterview` pattern) with the right `agency_id` stamped from the parent application
+- Reads `client_billing_terms` to seed `guarantee_window_days` and `invoice_status = 'draft'`
+- Updates the application stage → `closed`
+- Marks the position as `closed` (only if openings are all filled — count offered/placed against `positions.openings`)
+- Logs `activities` (kind: `offer`, `client_visible: true`) so the recruiter sees "Candidate joined — raise invoice" (the existing DB trigger `notify_agency_on_joining` already fires notifications)
+- Returns the placement row
 
-For `on_site`, show location instead of Join. For `phone`, show phone label.
+### Step 3 (recruiter safety net)
 
-### 4. Backfill link on connect
+On the recruiter side (`interviews.$processId.tsx` or the pipeline card for `offered` applications), add a "Record placement" button that opens the same dialog and calls a staff-scoped `createPlacement` (already exists — just wire the button). This covers cases where the client confirms out-of-band.
 
-When a client connects Google Calendar (after `getMyGoogleConnection` invalidation), add a lightweight server fn `resyncPendingClientInterviews` that finds their upcoming `google_meet` interviews without `meeting_link` and re-runs `syncGoogleMeet`. Trigger it once from `GoogleCalendarCard` on successful connect (or reuse an existing invalidation hook).
+Also add on `client.placements.tsx`: an inline "Pending placements" section listing `offered`-stage applications with no placement row yet, each with a "Confirm joining" button — so clients returning later can still finish the handoff.
 
 ### Files touched
 
-- `src/routes/client.positions.$positionId.tsx` — dialog gating + banner
-- `src/routes/client.interviews.tsx` — Join button states
-- `src/routes/interviews.tsx` — Join button states (recruiter view, same fix)
-- `src/lib/interviews.functions.ts` — add `resyncPendingInterviews` server fn
-- `src/components/google-calendar-card.tsx` — call resync on successful connect
+- `src/lib/interviews.functions.ts` — new `createClientPlacement` server fn
+- `src/routes/client.interviews.tsx` — replace static "Selected" pill with joining dialog
+- `src/routes/client.positions.$positionId.tsx` — "Confirm joining" button on offered candidates
+- `src/routes/client.placements.tsx` — "Pending placements" section
+- `src/routes/interviews.$processId.tsx` — recruiter "Record placement" button on offered process
+- New component: `src/components/confirm-joining-dialog.tsx` (shared by client + recruiter)
 
-No schema changes. No changes to `syncGoogleMeet` logic itself.
+### No schema changes required
+
+`placements` table already has `offer_date`, `joining_date`, `ctc_inr`, `ctc_display`, `guarantee_window_days`, `invoice_status`. The `notify_agency_on_joining` trigger already fires on `joining_date` set.
 
 ## Out of scope
 
-- Microsoft Teams / Zoom OAuth (still no real integration — I'll keep those provider options but gate the same way; without Google, only `on_site` / `phone` are actually usable). If you want, I can hide Teams/Zoom from the picker entirely until we integrate them — say the word.
+- Actual invoice PDF generation (already handled by the billing module once `placements` rows exist)
+- Editing/deleting placements post-creation (already covered by existing `updatePlacement`)
+- Google Calendar cancellation of remaining interview rounds when marking closed (nice-to-have; say the word)
