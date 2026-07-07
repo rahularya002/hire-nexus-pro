@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, Paperclip, FileText, Upload } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -43,6 +43,7 @@ export const Route = createFileRoute("/database")({
 function Page() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
@@ -85,7 +86,12 @@ function Page() {
             Structured pool of every sourced candidate, persisted in your backend.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="size-4" /> Add candidate</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
+            <FileSpreadsheet className="size-4" /> Bulk import
+          </Button>
+          <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="size-4" /> Add candidate</Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -111,14 +117,15 @@ function Page() {
                 <th className="text-left font-medium px-2 py-2.5">Location</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
+                <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <TableRowsSkeleton rows={6} cols={5} />
+                <TableRowsSkeleton rows={6} cols={6} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8">
+                <tr><td colSpan={6} className="px-4 py-8">
                   <EmptyState
                     icon={q ? SearchX : Database}
                     title={q ? "No matches found" : "No candidates yet"}
@@ -143,12 +150,7 @@ function Page() {
                         {initialsOf(c.name)}
                       </div>
                       <div className="leading-tight">
-                        <div className="font-medium inline-flex items-center gap-1.5">
-                          {c.name}
-                          {c.resume_url && (
-                            <Paperclip className="size-3 text-primary/70" aria-label="CV attached" />
-                          )}
-                        </div>
+                        <div className="font-medium">{c.name}</div>
                         <div className="text-[11px] text-muted-foreground">{c.email ?? "—"}</div>
                       </div>
                     </div>
@@ -170,6 +172,9 @@ function Page() {
                     </span>
                   </td>
                   <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                    <CvCellButton candidate={c} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -182,6 +187,10 @@ function Page() {
         onOpenChange={setOpen}
         onSubmit={(d) => create.mutate(d)}
         submitting={create.isPending}
+      />
+      <BulkImportDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
       />
       <CandidateDetailSheet
         candidate={selected}
@@ -591,5 +600,298 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-xs">{label}</Label>
       {children}
     </div>
+  );
+}
+
+function CvCellButton({ candidate }: { candidate: CandidateRow }) {
+  const qc = useQueryClient();
+  const signFn = useServerFn(getResumeSignedUrl);
+  const updateFn = useServerFn(updateCandidate);
+  const createDocFn = useServerFn(createDocument);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function open() {
+    setBusy(true);
+    try {
+      const { url } = await signFn({ data: { candidateId: candidate.id } });
+      if (!url) throw new Error("No CV on file");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open CV");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFile(f: File | null) {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const up = await uploadCvFile(f);
+      await updateFn({ data: { id: candidate.id, resume_url: up.path } });
+      await createDocFn({ data: {
+        name: up.name, kind: "resume", candidate_id: candidate.id,
+        storage_bucket: "documents", storage_path: up.path,
+        mime: up.mime, size_bytes: up.size,
+      }}).catch(() => {});
+      toast.success("CV uploaded");
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <>
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+      {candidate.resume_url ? (
+        <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={open} disabled={busy}
+          title="Open CV">
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5 text-primary" />}
+          Open
+        </Button>
+      ) : (
+        <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs text-muted-foreground"
+          onClick={() => fileRef.current?.click()} disabled={busy} title="Upload CV">
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+          Upload
+        </Button>
+      )}
+    </>
+  );
+}
+
+type BulkRow = {
+  name: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  location?: string;
+  experience?: string;
+  current_company?: string;
+  linkedin_url?: string;
+  salary?: string;
+  skills?: string[];
+  _error?: string;
+};
+
+const BULK_COLUMNS: { key: keyof BulkRow; aliases: string[] }[] = [
+  { key: "name", aliases: ["name", "full name", "candidate", "candidate name"] },
+  { key: "email", aliases: ["email", "email address", "e-mail"] },
+  { key: "phone", aliases: ["phone", "mobile", "contact", "phone number"] },
+  { key: "role", aliases: ["role", "current role", "title", "job title", "designation"] },
+  { key: "current_company", aliases: ["company", "current company", "employer", "organisation", "organization"] },
+  { key: "location", aliases: ["location", "city", "based in"] },
+  { key: "experience", aliases: ["experience", "years of experience", "exp", "yoe"] },
+  { key: "linkedin_url", aliases: ["linkedin", "linkedin url", "linkedin profile"] },
+  { key: "salary", aliases: ["salary", "ctc", "compensation", "package"] },
+  { key: "skills", aliases: ["skills", "key skills", "tech stack"] },
+];
+
+function normHeader(h: string) {
+  return String(h ?? "").trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function mapRow(raw: Record<string, unknown>): BulkRow {
+  const out: BulkRow = { name: "" };
+  const normalized: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) normalized[normHeader(k)] = v;
+  for (const col of BULK_COLUMNS) {
+    for (const alias of col.aliases) {
+      if (alias in normalized && normalized[alias] != null && String(normalized[alias]).trim() !== "") {
+        const val = String(normalized[alias]).trim();
+        if (col.key === "skills") {
+          out.skills = val.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).slice(0, 40);
+        } else {
+          (out as Record<string, unknown>)[col.key] = val;
+        }
+        break;
+      }
+    }
+  }
+  if (!out.name) out._error = "Missing name";
+  return out;
+}
+
+function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const qc = useQueryClient();
+  const addCandidate = useServerFn(createCandidate);
+  const [rows, setRows] = useState<BulkRow[]>([]);
+  const [fileName, setFileName] = useState<string>("");
+  const [parsing, setParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; ok: number; failed: number } | null>(null);
+
+  function reset() {
+    setRows([]); setFileName(""); setProgress(null);
+  }
+
+  async function handleFile(f: File | null) {
+    if (!f) return;
+    setParsing(true);
+    setFileName(f.name);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const mapped = json.map(mapRow).filter((r) => r.name || r._error);
+      if (mapped.length === 0) throw new Error("No rows found. Make sure the first sheet has a header row.");
+      setRows(mapped);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not parse file");
+      setFileName("");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function downloadTemplate() {
+    // Simple CSV template — Excel opens it natively.
+    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary", "skills"];
+    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "₹40 LPA", "React, Node, TypeScript"];
+    const csv = headers.join(",") + "\n" + sample.map((v) => `"${v.replace(/"/g, '""')}"`).join(",") + "\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "candidates-template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function runImport() {
+    const valid = rows.filter((r) => !r._error);
+    if (valid.length === 0) { toast.error("Nothing valid to import"); return; }
+    setImporting(true);
+    let ok = 0, failed = 0;
+    setProgress({ done: 0, ok: 0, failed: 0 });
+    for (let i = 0; i < valid.length; i++) {
+      const r = valid[i];
+      try {
+        await addCandidate({ data: {
+          name: r.name,
+          email: r.email, phone: r.phone, role: r.role,
+          location: r.location, experience: r.experience,
+          current_company: r.current_company, linkedin_url: r.linkedin_url,
+          salary: r.salary, skills: r.skills,
+        }});
+        ok++;
+      } catch (e) {
+        failed++;
+        // Attach message back onto the row for UI
+        r._error = e instanceof Error ? e.message : "Failed";
+      }
+      setProgress({ done: i + 1, ok, failed });
+    }
+    setImporting(false);
+    qc.invalidateQueries({ queryKey: ["candidates"] });
+    toast.success(`Imported ${ok} · ${failed} failed`);
+    if (failed === 0) {
+      reset();
+      onOpenChange(false);
+    }
+  }
+
+  const validCount = rows.filter((r) => !r._error).length;
+  const errorCount = rows.length - validCount;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="inline-flex items-center gap-2">
+            <FileSpreadsheet className="size-5 text-primary" /> Bulk import candidates
+          </DialogTitle>
+          <DialogDescription>
+            Upload an Excel (.xlsx, .xls) or CSV file. First row must be a header row with columns like <code>name</code>, <code>email</code>, <code>phone</code>, <code>role</code>, <code>skills</code>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input type="file" accept=".xlsx,.xls,.csv"
+              onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              disabled={parsing || importing}
+              className="max-w-sm" />
+            <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-1.5">
+              <Download className="size-3.5" /> Download template
+            </Button>
+            {parsing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          </div>
+
+          {rows.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground">{fileName}</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600">
+                  <CheckCircle2 className="size-3" /> {validCount} valid
+                </span>
+                {errorCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/15 text-destructive">
+                    <XCircle className="size-3" /> {errorCount} issue{errorCount === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-border overflow-hidden max-h-[360px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
+                    <tr>
+                      <th className="text-left font-medium px-3 py-2">#</th>
+                      <th className="text-left font-medium px-2 py-2">Name</th>
+                      <th className="text-left font-medium px-2 py-2">Email</th>
+                      <th className="text-left font-medium px-2 py-2">Role</th>
+                      <th className="text-left font-medium px-2 py-2">Company</th>
+                      <th className="text-left font-medium px-2 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {rows.map((r, i) => (
+                      <tr key={i} className={r._error ? "bg-destructive/5" : ""}>
+                        <td className="px-3 py-1.5 text-muted-foreground">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-medium">{r.name || <span className="text-destructive">—</span>}</td>
+                        <td className="px-2 py-1.5">{r.email ?? "—"}</td>
+                        <td className="px-2 py-1.5">{r.role ?? "—"}</td>
+                        <td className="px-2 py-1.5">{r.current_company ?? "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {r._error ? (
+                            <span className="text-destructive">{r._error}</span>
+                          ) : (
+                            <span className="text-emerald-600">Ready</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {progress && (
+                <div className="text-xs text-muted-foreground">
+                  Progress: {progress.done} / {validCount} · {progress.ok} added · {progress.failed} failed
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>Cancel</Button>
+          <Button
+            onClick={runImport}
+            disabled={importing || parsing || validCount === 0}
+            className="gap-2"
+          >
+            {importing ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            Import {validCount > 0 ? `${validCount} candidate${validCount === 1 ? "" : "s"}` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
