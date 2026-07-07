@@ -209,18 +209,22 @@ export const searchSourcedCandidates = createServerFn({ method: "POST" })
         }));
       if (skills.length) {
         const title = data.jobTitle.toLowerCase().trim();
-        pool = pool.filter((candidate) => {
+        const filtered = pool.filter((candidate) => {
           const role = candidate.role?.toLowerCase() ?? "";
           return candidate._skillOverlap > 0 || (!!role && (role.includes(title) || title.includes(role)));
         });
+        // Fallback: if strict filter kills everything, keep top pool by recency so
+        // the recruiter still sees their database instead of a blank result.
+        pool = filtered.length ? filtered : pool;
       } else {
         const titleTokens = normalizeSkill(data.jobTitle)
           .split(" ")
           .filter((token) => token.length > 2);
-        pool = pool.filter((candidate) => {
+        const filtered = pool.filter((candidate) => {
           const role = normalizeSkill(candidate.role ?? "");
           return titleTokens.length === 0 || titleTokens.some((token) => role.includes(token));
         });
+        pool = filtered.length ? filtered : pool;
       }
       pool = pool
         .sort((a, b) => b._skillOverlap - a._skillOverlap)
