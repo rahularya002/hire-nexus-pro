@@ -38,6 +38,9 @@ import {
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
 import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
+import { GoogleCalendarCard } from "@/components/google-calendar-card";
+import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
+import { AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -71,6 +74,10 @@ function Detail() {
   const appsQ = useQuery({
     queryKey: ["client-position-apps", positionId],
     queryFn: () => fetchApps({ data: { positionId, stages: CLIENT_VISIBLE_STAGES } }),
+  });
+  const googleQ = useQuery({
+    queryKey: ["google-connection"],
+    queryFn: () => useServerFn(getMyGoogleConnection)(),
   });
 
   if (posQ.error) {
@@ -196,6 +203,23 @@ function Detail() {
 
       <div>
         <div className="text-sm font-semibold mb-3">Candidates shared with you ({apps.length})</div>
+        {!googleQ.isLoading && !googleQ.data?.connected && (
+          <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
+            <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold">Connect Google Calendar to schedule interviews</div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Video interviews need a connected Google account so we can auto-create a Meet link and email the candidate an invite.
+              </p>
+            </div>
+            <Link
+              to="/client/settings"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+            >
+              <Calendar className="size-3.5" /> Connect
+            </Link>
+          </div>
+        )}
         {appsQ.isLoading ? (
           <CardListSkeleton rows={3} />
         ) : apps.length === 0 ? (
@@ -211,6 +235,7 @@ function Detail() {
 
       <ScheduleInterviewDialog
         app={scheduleFor}
+        googleConnected={!!googleQ.data?.connected}
         onClose={() => setScheduleFor(null)}
         onSubmit={(scheduled_at, rounds, provider, location) =>
           scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location })
@@ -402,12 +427,13 @@ function Mini({ label, value }: { label: string; value: string }) {
 }
 
 function ScheduleInterviewDialog({
-  app, onClose, onSubmit, pending,
+  app, onClose, onSubmit, pending, googleConnected,
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
   onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null) => void;
   pending: boolean;
+  googleConnected: boolean;
 }) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("10:00");
@@ -437,7 +463,9 @@ function ScheduleInterviewDialog({
     }
   }, [app?.id]);
 
-  const canSubmit = !!date && !pending;
+  const isVirtual = provider === "google_meet" || provider === "microsoft_teams" || provider === "zoom";
+  const needsGoogle = isVirtual && !googleConnected;
+  const canSubmit = !!date && !pending && !needsGoogle;
 
   const defaultKindFor = (i: number): InterviewKind =>
     i === 0 ? "hr_screen" : i === 1 ? "technical" : i === 2 ? "hiring_manager" : "technical";
@@ -522,6 +550,10 @@ function ScheduleInterviewDialog({
                 placeholder="e.g. 4th floor, Tower B, Mumbai office"
               />
             </div>
+          )}
+
+          {needsGoogle && (
+            <GoogleCalendarCard description="Video interviews require a connected Google account so we can generate a Meet link and email the candidate an invite. Connect below to continue — or pick 'Offline / In-person' or 'Phone' instead." />
           )}
 
           <div className="grid gap-2">
