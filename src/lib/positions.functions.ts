@@ -110,10 +110,60 @@ export const createPosition = createServerFn({ method: "POST" })
     const { data: row, error } = await supabase
       .from("positions")
       .insert(clean({ ...data, created_by: userId }) as never)
-      .select("*")
+      .select("*, client:clients(name)")
       .single();
     if (error) throw new Error(error.message);
-    return row as PositionRow;
+
+    // Notify agency staff about the new requirement. Never let a notification
+    // failure block the create itself.
+    try {
+      const model = (row as any).recruitment_model as string | null;
+      const agencyId = (row as any).agency_id as string | null;
+      const title = (row as any).title as string;
+      const clientName = ((row as any).client?.name ?? null) as string | null;
+      const assignedId = ((row as any).assigned_recruiter_id ?? null) as string | null;
+
+      if (model !== "self" && agencyId) {
+        const { data: members } = await supabaseAdmin
+          .from("agency_members")
+          .select("user_id")
+          .eq("agency_id", agencyId);
+        const memberIds = (members ?? [])
+          .map((m) => m.user_id)
+          .filter((id) => id !== userId);
+        if (memberIds.length) {
+          const link = `/positions/${(row as any).id}`;
+          const body = clientName
+            ? `${clientName} posted a new requirement`
+            : "A client posted a new requirement";
+          await supabaseAdmin.from("notifications").insert(
+            memberIds.map((uid) => ({
+              user_id: uid,
+              kind: "system" as const,
+              title: `New requirement: ${title}`,
+              body: uid === assignedId ? `${body} — assigned to you` : body,
+              link,
+            })),
+          );
+        }
+
+        if (assignedId && assignedId !== userId) {
+          await supabaseAdmin.from("notifications").insert({
+            user_id: assignedId,
+            kind: "system" as const,
+            title: `Assigned: ${title}`,
+            body: clientName
+              ? `New requirement from ${clientName}`
+              : "You've been assigned a new requirement.",
+            link: `/positions/${(row as any).id}`,
+          });
+        }
+      }
+    } catch (notifyErr) {
+      console.error("[createPosition] notification insert failed", notifyErr);
+    }
+
+    return row as unknown as PositionRow;
   });
 
 export const updatePosition = createServerFn({ method: "POST" })

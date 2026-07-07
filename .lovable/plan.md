@@ -1,58 +1,36 @@
 ## Problem
 
-Post-interview workflow dead-ends after the client hits "Select":
+When a client creates a new requirement, no one on the agency side gets notified. `createPosition` in `src/lib/positions.functions.ts` just inserts the row and returns — there is no `notifications` insert, and there is no DB trigger on `positions` either (the only agency-side notification triggers are `notify_agency_on_new_job_application` and `notify_agency_on_joining`).
 
-1. `recordInterviewDecision("select")` flips `applications.stage` to `offered`. Nothing else.
-2. No UI ever creates a row in the `placements` table. `client.placements` and `billing` both read from `placements`, so both stay empty forever.
-3. The client has no way to say "offer accepted / candidate joined" and the recruiter has no button to convert an offered application into a placement.
+Related gap: `assignPositionRecruiter` already notifies the newly assigned recruiter, but the bulk `assignClientRecruiter` (used on the client detail page) does not — only a single-recruiter fallback lives there.
 
-Result: candidate stuck in "Offered" limbo, no invoice trigger, no guarantee-window tracking.
+## Fix
 
-## Fix — 3-step handoff
+### 1. Notify agency on new requirement (`createPosition`)
 
-### Step 1 (client, right after Select)
+After the insert succeeds, if `recruitment_model !== 'self'` (self-serve requirements don't need agency attention):
 
-In `client.interviews.tsx` `PastDecision`, when `stage === "offered"`, replace the static "Selected" pill with two actions:
+- Read `agency_id`, `title`, and client `name` from the newly created row.
+- Fetch all `agency_members.user_id` for that `agency_id` via `supabaseAdmin`.
+- Bulk insert one row per member into `notifications` with:
+  - `kind: 'system'`
+  - `title: 'New requirement: <title>'`
+  - `body: '<Client name> posted a new requirement'` (+ `" — assigned to you"` for the assigned recruiter if one was set at creation)
+  - `link: '/positions/<id>'`
+- If `assigned_recruiter_id` was set on create, also send that recruiter the existing "Assigned: <title>" notification (same shape as `assignPositionRecruiter`), so the assignment path stays consistent whether the recruiter is picked at creation or later.
 
-- **Mark offer accepted / joined** → opens a small dialog to fill offer date, joining date, final CTC (optional notes). Submits `createClientPlacement` (new server fn).
-- **Withdraw / not joining** → sets stage back to `client_rejected` with a reason note.
+Wrapped in try/catch with `console.error` so a notification failure never blocks requirement creation.
 
-Also expose the same "Confirm joining" button on `client.positions.$positionId.tsx` for candidates whose stage is `offered` (so clients can find it from the role page too).
+### 2. Fix `assignClientRecruiter` bulk assignment notification
 
-### Step 2 (server, `src/lib/interviews.functions.ts`)
+Today it only inserts a notification when there is at least one row updated, but it sends a single generic notification. Keep that, and additionally short-circuit duplicates: skip if the recruiter is already assigned to every updated row (i.e. no change).
 
-Add `createClientPlacement` server fn:
+### Out of scope
 
-- Input: `application_id`, `offer_date`, `joining_date`, `ctc_display?`, `ctc_inr?`, `notes?`
-- Verifies caller is client team member for that position (via RLS-scoped read of `applications`)
-- Uses `supabaseAdmin` to insert into `placements` (client role isn't in staff insert RLS — mirrors the existing `requestClientInterview` pattern) with the right `agency_id` stamped from the parent application
-- Reads `client_billing_terms` to seed `guarantee_window_days` and `invoice_status = 'draft'`
-- Updates the application stage → `closed`
-- Marks the position as `closed` (only if openings are all filled — count offered/placed against `positions.openings`)
-- Logs `activities` (kind: `offer`, `client_visible: true`) so the recruiter sees "Candidate joined — raise invoice" (the existing DB trigger `notify_agency_on_joining` already fires notifications)
-- Returns the placement row
+- No new DB trigger — keeping notification logic in the server functions matches the existing pattern (`assignPositionRecruiter`, `assignClientRecruiter`) and avoids a migration.
+- No changes to the notification bell UI; it already reads from the same `notifications` table.
+- No email/push — in-app only, same as today.
 
-### Step 3 (recruiter safety net)
+### Files
 
-On the recruiter side (`interviews.$processId.tsx` or the pipeline card for `offered` applications), add a "Record placement" button that opens the same dialog and calls a staff-scoped `createPlacement` (already exists — just wire the button). This covers cases where the client confirms out-of-band.
-
-Also add on `client.placements.tsx`: an inline "Pending placements" section listing `offered`-stage applications with no placement row yet, each with a "Confirm joining" button — so clients returning later can still finish the handoff.
-
-### Files touched
-
-- `src/lib/interviews.functions.ts` — new `createClientPlacement` server fn
-- `src/routes/client.interviews.tsx` — replace static "Selected" pill with joining dialog
-- `src/routes/client.positions.$positionId.tsx` — "Confirm joining" button on offered candidates
-- `src/routes/client.placements.tsx` — "Pending placements" section
-- `src/routes/interviews.$processId.tsx` — recruiter "Record placement" button on offered process
-- New component: `src/components/confirm-joining-dialog.tsx` (shared by client + recruiter)
-
-### No schema changes required
-
-`placements` table already has `offer_date`, `joining_date`, `ctc_inr`, `ctc_display`, `guarantee_window_days`, `invoice_status`. The `notify_agency_on_joining` trigger already fires on `joining_date` set.
-
-## Out of scope
-
-- Actual invoice PDF generation (already handled by the billing module once `placements` rows exist)
-- Editing/deleting placements post-creation (already covered by existing `updatePlacement`)
-- Google Calendar cancellation of remaining interview rounds when marking closed (nice-to-have; say the word)
+- `src/lib/positions.functions.ts` — extend `createPosition` handler; small tightening in `assignClientRecruiter`.
