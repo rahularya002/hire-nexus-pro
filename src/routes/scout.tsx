@@ -7,8 +7,7 @@ import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Building2, Ch
 import { AppShell } from "@/components/app-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
-import { parseJdFile } from "@/lib/parse-jd";
-import { extractFieldsFromJd } from "@/lib/parse-jd";
+import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import {
   searchSourcedCandidates,
   runApifyScout,
