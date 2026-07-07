@@ -163,7 +163,7 @@ export const createPosition = createServerFn({ method: "POST" })
       console.error("[createPosition] notification insert failed", notifyErr);
     }
 
-    return row as PositionRow;
+    return row as unknown as PositionRow;
   });
 
 export const updatePosition = createServerFn({ method: "POST" })
