@@ -82,6 +82,46 @@ function Page() {
     return { interviewDays: days, nextInterview: next };
   }, [all]);
 
+  const JoinCell = ({ r, size = "sm" }: { r: InterviewRow; size?: "sm" | "md" }) => {
+    const h = size === "md" ? "h-9" : "h-8";
+    if (r.provider === "on_site") {
+      return (
+        <span className={cn(h, "px-3 rounded-md border border-border text-xs font-medium inline-flex items-center gap-1 text-muted-foreground")}>
+          <MapPin className="size-3.5" /> {r.location?.trim() || "On-site (location TBD)"}
+        </span>
+      );
+    }
+    if (r.provider === "phone") {
+      return (
+        <span className={cn(h, "px-3 rounded-md border border-border text-xs font-medium inline-flex items-center gap-1 text-muted-foreground")}>
+          Phone call
+        </span>
+      );
+    }
+    if (r.meeting_link) {
+      return (
+        <a href={r.meeting_link} target="_blank" rel="noreferrer"
+           className={cn(h, "px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1")}>
+          <Video className="size-3.5" /> Join
+        </a>
+      );
+    }
+    if (!googleConnected) {
+      return (
+        <Link to="/client/settings"
+          className={cn(h, "px-3 rounded-md border border-warning/30 bg-warning/10 text-warning text-xs font-medium hover:bg-warning/15 inline-flex items-center gap-1")}>
+          <Link2Off className="size-3.5" /> Connect Google to generate link
+        </Link>
+      );
+    }
+    return (
+      <span className={cn(h, "px-3 rounded-md border border-border bg-secondary/40 text-muted-foreground text-xs font-medium inline-flex items-center gap-1")}
+            title="Meet link will appear once the recruiter syncs the event.">
+        <CalendarIcon className="size-3.5" /> Meeting link pending
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -129,17 +169,7 @@ function Page() {
                 R{nextInterview.round_index} · {interviewRoundLabel(nextInterview)} · {INTERVIEW_PROVIDER_LABEL[nextInterview.provider]}
               </div>
               <div className="mt-auto pt-4 flex gap-2">
-                <a
-                  href={nextInterview.meeting_link ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(
-                    "h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1",
-                    !nextInterview.meeting_link && "opacity-50 pointer-events-none",
-                  )}
-                >
-                  <Video className="size-3.5" /> Join
-                </a>
+                <JoinCell r={nextInterview} size="md" />
                 <Link
                   to="/client/positions/$positionId"
                   params={{ positionId: nextInterview.position_id }}
@@ -220,10 +250,7 @@ function Page() {
                   >
                     Reschedule
                   </button>
-                  <a href={r.meeting_link ?? "#"} target="_blank" rel="noreferrer"
-                     className={cn("h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1", !r.meeting_link && "opacity-50 pointer-events-none")}>
-                    <Video className="size-3.5" /> Join
-                  </a>
+                  <JoinCell r={r} />
                 </>
               )}
             </div>
