@@ -420,7 +420,7 @@ export function buildActorInput(
   if (source === "linkedin") {
     return {
       // harvestapi~linkedin-profile-search input schema.
-      profileScraperMode: "Full + email search ($0.1 per search page + $0.01 per full profile)",
+      profileScraperMode: "Full + email search",
       searchQuery: args.jobTitle,
       currentJobTitles: [args.jobTitle],
       locations: args.location ? [args.location] : [],
