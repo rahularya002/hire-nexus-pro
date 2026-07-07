@@ -706,3 +706,149 @@ export const recordInterviewDecision = createServerFn({ method: "POST" })
 
     return { ok: true, stage };
   });
+
+/* ---------------- Client-initiated placement (post-select "candidate joined") ---------------- */
+
+export const createClientPlacement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        application_id: z.string().uuid(),
+        offer_date: z.string().date().optional().nullable(),
+        joining_date: z.string().date(),
+        ctc_display: z.string().max(50).optional().nullable(),
+        ctc_inr: z.number().min(0).max(1e12).optional().nullable(),
+        notes: z.string().max(2000).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // RLS-scoped read verifies caller can see this application (client team member or agency staff).
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .select("id, candidate_id, position_id, position:positions(id,title,client_id)")
+      .eq("id", data.application_id)
+      .maybeSingle();
+    if (appErr) throw new Error(appErr.message);
+    if (!app) throw new Error("Application not found or not accessible");
+
+    const clientId = (app.position as any)?.client_id as string | undefined;
+    if (!clientId) throw new Error("Position has no client");
+
+    // Prevent duplicates.
+    const { data: existing } = await supabaseAdmin
+      .from("placements")
+      .select("id")
+      .eq("application_id", app.id)
+      .maybeSingle();
+    if (existing) throw new Error("Placement already recorded for this candidate");
+
+    // Stamp agency + seed guarantee window from client billing terms.
+    const { data: parentApp } = await supabaseAdmin
+      .from("applications")
+      .select("agency_id")
+      .eq("id", app.id)
+      .maybeSingle();
+    const agencyId = parentApp?.agency_id;
+    if (!agencyId) throw new Error("Application has no agency owner");
+
+    const { data: terms } = await supabaseAdmin
+      .from("client_billing_terms")
+      .select("replacement_window_days")
+      .eq("client_id", clientId)
+      .maybeSingle();
+    const guaranteeWindow = Number(terms?.replacement_window_days ?? 90);
+
+    const insertRow = clean({
+      application_id: app.id,
+      candidate_id: app.candidate_id,
+      position_id: app.position_id,
+      client_id: clientId,
+      agency_id: agencyId,
+      offer_date: data.offer_date ?? null,
+      joining_date: data.joining_date,
+      ctc_display: data.ctc_display?.trim() || null,
+      ctc_inr: data.ctc_inr ?? null,
+      guarantee_window_days: guaranteeWindow,
+      invoice_status: "draft" as const,
+      notes: data.notes?.trim() || null,
+      created_by: userId,
+    });
+
+    const { data: row, error: insErr } = await supabaseAdmin
+      .from("placements")
+      .insert(insertRow as never)
+      .select(PLACEMENT_SELECT)
+      .single();
+    if (insErr) throw new Error(insErr.message);
+
+    // Close the application; trigger notify_agency_on_joining fires from joining_date being set.
+    await supabaseAdmin
+      .from("applications")
+      .update({ stage: "closed" })
+      .eq("id", app.id);
+
+    await logActivity(supabaseAdmin, userId, {
+      kind: "offer",
+      title: `Candidate joined${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
+      detail: `${row.position?.title ?? ""} · joining ${data.joining_date}`.trim(),
+      application_id: app.id,
+      candidate_id: app.candidate_id,
+      position_id: app.position_id,
+      client_id: clientId,
+      client_visible: true,
+    });
+
+    return row as PlacementRow;
+  });
+
+/* ---------------- Applications pending a placement record ---------------- */
+
+export type PendingPlacementRow = {
+  application_id: string;
+  candidate_id: string;
+  candidate_name: string | null;
+  position_id: string;
+  position_title: string | null;
+  client_id: string | null;
+  client_name: string | null;
+  offered_at: string | null;
+};
+
+export const listPendingPlacements = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: apps, error } = await supabase
+      .from("applications")
+      .select(
+        "id, candidate_id, position_id, updated_at, candidate:candidates(id,name), position:positions(id,title,client_id,client:clients(id,name))",
+      )
+      .eq("stage", "offered")
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    const ids = (apps ?? []).map((a: any) => a.id);
+    if (ids.length === 0) return [] as PendingPlacementRow[];
+    // Filter out any that already have a placement row (RLS-scoped read).
+    const { data: existing } = await supabase
+      .from("placements")
+      .select("application_id")
+      .in("application_id", ids);
+    const taken = new Set((existing ?? []).map((r: any) => r.application_id));
+    return (apps ?? [])
+      .filter((a: any) => !taken.has(a.id))
+      .map((a: any) => ({
+        application_id: a.id,
+        candidate_id: a.candidate_id,
+        candidate_name: a.candidate?.name ?? null,
+        position_id: a.position_id,
+        position_title: a.position?.title ?? null,
+        client_id: a.position?.client_id ?? null,
+        client_name: a.position?.client?.name ?? null,
+        offered_at: a.updated_at ?? null,
+      })) as PendingPlacementRow[];
+  });
