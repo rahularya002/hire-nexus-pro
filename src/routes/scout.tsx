@@ -7,7 +7,7 @@ import { Sparkles, Loader2, Check, Paperclip, FileText, X, Layers, Building2, Ch
 import { AppShell } from "@/components/app-shell";
 import { getPositionById } from "@/lib/positions.functions";
 import { listScoutClients } from "@/lib/clients.functions";
-import { parseJdFile } from "@/lib/parse-jd";
+import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import {
   searchSourcedCandidates,
   runApifyScout,
@@ -156,6 +156,21 @@ function Scout() {
         return;
       }
       setCv({ name: file.name, text });
+      // Auto-populate title / skills / location so DB search actually filters against the JD.
+      try {
+        const fields = extractFieldsFromJd(text);
+        if (fields.jobTitle && !titleContext) setTitleContext(fields.jobTitle);
+        if (fields.location && !locationContext) setLocationContext(fields.location);
+        if (fields.skills && skillsContext.length === 0) {
+          const parts = fields.skills
+            .split(/[,;|/]/)
+            .map((s) => s.trim())
+            .filter((s) => s.length >= 2 && s.length <= 40);
+          if (parts.length) setSkillsContext(parts);
+        }
+      } catch (e) {
+        console.warn("JD field extract failed:", e);
+      }
     } catch (e) {
       console.error(e);
       setError("Failed to read CV. Try PDF, DOCX, or TXT.");
