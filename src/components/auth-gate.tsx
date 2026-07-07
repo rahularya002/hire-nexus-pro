@@ -22,8 +22,6 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
       navigate({ to: "/login", replace: true });
       return;
     }
-    // Wait until profile + roles have actually loaded before deciding
-    // where to send the user — otherwise we flash /pending on first paint.
     if (!profileLoaded) return;
     const isAgency =
       roles.includes("admin") ||
@@ -34,22 +32,14 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
 
     if (variant === "agency") {
       if (!isAgency) {
-        // Client trying to enter agency portal -> send to client portal (or pending)
-        if (isClient) {
-          if (profile?.status !== "active") navigate({ to: "/pending", replace: true });
-          else navigate({ to: "/client", replace: true });
-        } else {
-          navigate({ to: "/pending", replace: true });
-        }
+        if (isClient) navigate({ to: "/client", replace: true });
+        else navigate({ to: "/login", replace: true });
       }
     } else {
       if (!isClient) {
         if (isAgency) navigate({ to: "/dashboard", replace: true });
-        else navigate({ to: "/pending", replace: true });
+        else navigate({ to: "/login", replace: true });
         return;
-      }
-      if (profile?.status !== "active") {
-        navigate({ to: "/pending", replace: true });
       }
     }
   }, [loading, profileLoaded, session, profile, roles, variant, navigate]);
@@ -62,7 +52,7 @@ export function AuthGate({ variant, children }: { variant: Variant; children: Re
     roles.includes("recruiter");
   const isClient = roles.includes("client");
   if (variant === "agency" && !isAgency) return <FullScreenLoader />;
-  if (variant === "client" && (!isClient || profile?.status !== "active")) return <FullScreenLoader />;
+  if (variant === "client" && !isClient) return <FullScreenLoader />;
 
   return <>{children}</>;
 }
