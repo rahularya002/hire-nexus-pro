@@ -67,6 +67,7 @@ function Detail() {
   const fetchApps = useServerFn(listApplications);
   const updateStage = useServerFn(updateApplicationStage);
   const requestInterview = useServerFn(requestClientInterview);
+  const fetchGoogle = useServerFn(getMyGoogleConnection);
   const [scheduleFor, setScheduleFor] = useState<ApplicationRow | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -77,7 +78,7 @@ function Detail() {
   });
   const googleQ = useQuery({
     queryKey: ["google-connection"],
-    queryFn: () => useServerFn(getMyGoogleConnection)(),
+    queryFn: () => fetchGoogle(),
   });
 
   if (posQ.error) {
