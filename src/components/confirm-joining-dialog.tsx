@@ -166,7 +166,9 @@ export function ConfirmJoiningDialog({ open, onClose, applicationId, candidateNa
         </form>
       </div>
 
-      <style>{`.input-base{width:100%;height:2.25rem;border-radius:0.375rem;border:1px solid hsl(var(--input));background:hsl(var(--background));padding:0 0.625rem;font-size:0.8125rem}
+      <style>{`.input-base{width:100%;height:2.25rem;border-radius:0.375rem;border:1px solid oklch(0.45 0.02 60 / 0.45);background:oklch(0.14 0.02 45);padding:0 0.625rem;font-size:0.8125rem;outline:none;transition:border-color 150ms,color 150ms,box-shadow 150ms;color:var(--color-foreground)}
+      .input-base::placeholder{color:oklch(0.55 0.02 60 / 0.6)}
+      .input-base:focus{border-color:oklch(0.72 0.18 50 / 0.7);box-shadow:0 0 0 1px oklch(0.72 0.18 50 / 0.25)}
       textarea.input-base{height:auto;padding:0.5rem 0.625rem}`}</style>
     </div>
   );
