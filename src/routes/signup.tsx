@@ -34,7 +34,7 @@ function SignupPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/pending", replace: true });
+    navigate({ to: "/login", replace: true });
   };
 
   return (

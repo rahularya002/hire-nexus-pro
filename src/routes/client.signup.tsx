@@ -34,7 +34,7 @@ function ClientSignupPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/pending", replace: true });
+    navigate({ to: "/client/login", replace: true });
   };
 
   return (

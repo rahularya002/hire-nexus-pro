@@ -19,12 +19,10 @@ function ClientLoginPage() {
 
   useEffect(() => {
     if (loading || !session || !profileLoaded) return;
-    if (roles.includes("client") && profile?.status === "active") {
+    if (roles.includes("client")) {
       navigate({ to: "/client", replace: true });
     } else if (roles.includes("admin") || roles.includes("recruiter") || roles.includes("lead_recruiter") || roles.includes("senior_recruiter")) {
       navigate({ to: "/dashboard", replace: true });
-    } else {
-      navigate({ to: "/pending", replace: true });
     }
   }, [loading, profileLoaded, session, roles, profile, navigate]);
 

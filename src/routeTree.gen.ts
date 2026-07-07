@@ -20,7 +20,6 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PostingRouteImport } from './routes/posting'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as PipelineRouteImport } from './routes/pipeline'
-import { Route as PendingRouteImport } from './routes/pending'
 import { Route as OngoingRouteImport } from './routes/ongoing'
 import { Route as MyClientsRouteImport } from './routes/my-clients'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -127,11 +126,6 @@ const PositionsRoute = PositionsRouteImport.update({
 const PipelineRoute = PipelineRouteImport.update({
   id: '/pipeline',
   path: '/pipeline',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PendingRoute = PendingRouteImport.update({
-  id: '/pending',
-  path: '/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OngoingRoute = OngoingRouteImport.update({
@@ -411,7 +405,6 @@ export interface FileRoutesByFullPath {
   '/messages': typeof MessagesRoute
   '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
-  '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/posting': typeof PostingRouteWithChildren
@@ -476,7 +469,6 @@ export interface FileRoutesByTo {
   '/messages': typeof MessagesRoute
   '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
-  '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/profile': typeof ProfileRoute
@@ -540,7 +532,6 @@ export interface FileRoutesById {
   '/messages': typeof MessagesRoute
   '/my-clients': typeof MyClientsRoute
   '/ongoing': typeof OngoingRoute
-  '/pending': typeof PendingRoute
   '/pipeline': typeof PipelineRoute
   '/positions': typeof PositionsRouteWithChildren
   '/posting': typeof PostingRouteWithChildren
@@ -608,7 +599,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/my-clients'
     | '/ongoing'
-    | '/pending'
     | '/pipeline'
     | '/positions'
     | '/posting'
@@ -673,7 +663,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/my-clients'
     | '/ongoing'
-    | '/pending'
     | '/pipeline'
     | '/positions'
     | '/profile'
@@ -736,7 +725,6 @@ export interface FileRouteTypes {
     | '/messages'
     | '/my-clients'
     | '/ongoing'
-    | '/pending'
     | '/pipeline'
     | '/positions'
     | '/posting'
@@ -803,7 +791,6 @@ export interface RootRouteChildren {
   MessagesRoute: typeof MessagesRoute
   MyClientsRoute: typeof MyClientsRoute
   OngoingRoute: typeof OngoingRoute
-  PendingRoute: typeof PendingRoute
   PipelineRoute: typeof PipelineRoute
   PositionsRoute: typeof PositionsRouteWithChildren
   PostingRoute: typeof PostingRouteWithChildren
@@ -915,13 +902,6 @@ declare module '@tanstack/react-router' {
       path: '/pipeline'
       fullPath: '/pipeline'
       preLoaderRoute: typeof PipelineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pending': {
-      id: '/pending'
-      path: '/pending'
-      fullPath: '/pending'
-      preLoaderRoute: typeof PendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ongoing': {
@@ -1410,7 +1390,6 @@ const rootRouteChildren: RootRouteChildren = {
   MessagesRoute: MessagesRoute,
   MyClientsRoute: MyClientsRoute,
   OngoingRoute: OngoingRoute,
-  PendingRoute: PendingRoute,
   PipelineRoute: PipelineRoute,
   PositionsRoute: PositionsRouteWithChildren,
   PostingRoute: PostingRouteWithChildren,
