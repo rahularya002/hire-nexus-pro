@@ -26,10 +26,8 @@ function LoginPage() {
       navigate({ to: "/dashboard", replace: true });
     } else if (roles.includes("senior_recruiter") || roles.includes("recruiter")) {
       navigate({ to: "/me", replace: true });
-    } else if (roles.includes("client") && profile?.status === "active") {
+    } else if (roles.includes("client")) {
       navigate({ to: "/client", replace: true });
-    } else {
-      navigate({ to: "/pending", replace: true });
     }
   }, [loading, profileLoaded, session, roles, profile, navigate]);
 
