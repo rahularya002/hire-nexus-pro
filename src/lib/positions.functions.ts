@@ -185,11 +185,28 @@ export const assignPositionRecruiter = createServerFn({ method: "POST" })
 
 export const listAssignableRecruiters = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
+    // Scope to the caller's agency so recruiters from other agencies never leak.
+    const { data: callerMembership } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!callerMembership?.agency_id) return [] as { id: string; name: string; role: string }[];
+
+    const { data: agencyMembers, error: amErr } = await supabaseAdmin
+      .from("agency_members")
+      .select("user_id")
+      .eq("agency_id", callerMembership.agency_id);
+    if (amErr) throw new Error(amErr.message);
+    const memberIds = (agencyMembers ?? []).map((m) => m.user_id);
+    if (memberIds.length === 0) return [] as { id: string; name: string; role: string }[];
+
     const { data: roles, error: rErr } = await supabaseAdmin
       .from("user_roles")
       .select("user_id, role")
-      .in("role", ["recruiter", "senior_recruiter", "lead_recruiter"]);
+      .in("role", ["recruiter", "senior_recruiter", "lead_recruiter"])
+      .in("user_id", memberIds);
     if (rErr) throw new Error(rErr.message);
     const ids = (roles ?? []).map((r) => r.user_id);
     if (ids.length === 0) return [] as { id: string; name: string; role: string }[];
