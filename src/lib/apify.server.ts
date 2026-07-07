@@ -419,9 +419,10 @@ export function buildActorInput(
   const keywords = [args.jobTitle, ...(args.skills ?? [])].filter(Boolean).join(" ");
   if (source === "linkedin") {
     return {
-      // Most LinkedIn search-scrapers accept these. Adjust if you swap actor.
-      currentJobTitle: args.jobTitle,
-      keywords,
+      // harvestapi~linkedin-profile-search input schema.
+      profileScraperMode: "Full ($4 per 1k)",
+      searchQuery: args.jobTitle,
+      currentJobTitles: [args.jobTitle],
       locations: args.location ? [args.location] : [],
       maxItems: args.maxResults,
     };
