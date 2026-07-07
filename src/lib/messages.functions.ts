@@ -214,8 +214,21 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (!trimmed && data.attachments.length === 0) {
       throw new Error("Message is empty.");
     }
-    const stamp =
-      data.senderRole === "staff"
+    // For client<->agency threads mark the sender's own side as read so
+    // their own message never counts as unread to themselves. For team
+    // threads (team_room / team_dm) both sides are staff, so stamping
+    // read_by_staff_at would also mark the message read for the recipient
+    // and their unread badge would never appear. Skip the stamp there —
+    // markThreadRead handles it when the recipient opens the thread.
+    const { data: thread } = await supabase
+      .from("message_threads")
+      .select("kind")
+      .eq("id", data.threadId)
+      .maybeSingle();
+    const isTeamThread = thread?.kind === "team_room" || thread?.kind === "team_dm";
+    const stamp = isTeamThread
+      ? {}
+      : data.senderRole === "staff"
         ? { read_by_staff_at: new Date().toISOString() }
         : { read_by_client_at: new Date().toISOString() };
     const { data: row, error } = await supabase
