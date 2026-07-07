@@ -157,7 +157,7 @@ export function ConfirmJoiningDialog({ open, onClose, applicationId, candidateNa
             <button
               type="submit"
               disabled={mutation.isPending || !joiningDate}
-              className="h-9 px-4 rounded-md text-sm bg-success text-success-foreground hover:bg-success/90 disabled:opacity-50 inline-flex items-center gap-1.5"
+              className="h-9 px-4 rounded-md text-sm bg-success text-primary-foreground hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               <CheckCircle2 className="size-4" />
               {mutation.isPending ? "Saving…" : "Confirm placement"}
