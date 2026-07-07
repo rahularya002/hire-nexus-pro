@@ -16,6 +16,7 @@ import {
 } from "@/lib/interviews.functions";
 import { cn } from "@/lib/utils";
 import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
+import { ConfirmJoiningDialog } from "@/components/confirm-joining-dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 
@@ -272,6 +273,7 @@ function PastDecision({ row }: { row: InterviewRow }) {
   const decide = useServerFn(recordInterviewDecision);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const stage = row.application?.stage ?? null;
 
   const mutation = useMutation({
@@ -287,11 +289,35 @@ function PastDecision({ row }: { row: InterviewRow }) {
     },
   });
 
-  if (stage === "offered" || stage === "closed") {
+  if (stage === "closed") {
     return (
-      <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-success/10 text-success border border-success/20 text-xs font-medium">
-        <Check className="size-3.5" /> Selected
+      <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-success/15 text-success border border-success/25 text-xs font-medium">
+        <Check className="size-3.5" /> Joined · placement recorded
       </span>
+    );
+  }
+  if (stage === "offered") {
+    return (
+      <>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-success/10 text-success border border-success/20 text-[11px] font-medium">
+            <Check className="size-3" /> Selected
+          </span>
+          <button
+            onClick={() => setConfirmOpen(true)}
+            className="h-8 px-3 rounded-md bg-success text-primary-foreground text-xs font-medium hover:opacity-90 inline-flex items-center gap-1"
+          >
+            <Check className="size-3.5" /> Confirm joining
+          </button>
+        </div>
+        <ConfirmJoiningDialog
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          applicationId={row.application_id}
+          candidateName={row.candidate?.name ?? null}
+          positionTitle={row.position?.title ?? null}
+        />
+      </>
     );
   }
   if (stage === "client_rejected") {
