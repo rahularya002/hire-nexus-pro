@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Calendar, IndianRupee, Shield } from "lucide-react";
+import { CheckCircle2, Calendar, IndianRupee, Shield, Clock } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
-import { listPlacements } from "@/lib/interviews.functions";
+import { listPlacements, listPendingPlacements } from "@/lib/interviews.functions";
+import { ConfirmJoiningDialog } from "@/components/confirm-joining-dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/client/placements")({
@@ -23,6 +25,16 @@ function Page() {
     queryKey: ["client-placements"],
     queryFn: () => fetchPlacements({ data: {} }),
   });
+  const fetchPending = useServerFn(listPendingPlacements);
+  const { data: pending = [] } = useQuery({
+    queryKey: ["client-pending-placements"],
+    queryFn: () => fetchPending(),
+  });
+  const [confirmFor, setConfirmFor] = useState<{
+    id: string;
+    candidate: string | null;
+    position: string | null;
+  } | null>(null);
 
   const inWindowOf = (p: typeof placements[number]) => {
     if (!p.joining_date) return { remaining: 0, days: 0 };
@@ -54,6 +66,49 @@ function Page() {
         <Stat label="In guarantee window" value={stats.inWindow.toString()} />
         <Stat label="Invoices paid" value={`${stats.paid}/${stats.total}`} />
       </div>
+
+      {pending.length > 0 && (
+        <div className="rounded-xl border border-warning/30 bg-warning/5 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-warning/20 flex items-center gap-2 text-warning">
+            <Clock className="size-4" />
+            <div className="text-sm font-semibold">Awaiting joining confirmation</div>
+            <span className="text-[11px] text-muted-foreground">
+              {pending.length} candidate{pending.length === 1 ? "" : "s"} you selected — confirm joining to record the placement
+            </span>
+          </div>
+          <ul className="divide-y divide-warning/15">
+            {pending.map((p) => (
+              <li key={p.application_id} className="flex items-center gap-3 px-4 py-3">
+                <div className="size-8 rounded-full bg-gradient-to-br from-warning/40 to-primary/40 grid place-items-center text-[11px] font-semibold">
+                  {(p.candidate_name ?? "?").split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{p.candidate_name ?? "Candidate"}</div>
+                  <Link
+                    to="/client/positions/$positionId"
+                    params={{ positionId: p.position_id }}
+                    className="text-xs text-muted-foreground hover:text-primary truncate block"
+                  >
+                    {p.position_title ?? "Position"}
+                  </Link>
+                </div>
+                <button
+                  onClick={() =>
+                    setConfirmFor({
+                      id: p.application_id,
+                      candidate: p.candidate_name,
+                      position: p.position_title,
+                    })
+                  }
+                  className="h-8 px-3 rounded-md bg-success text-primary-foreground text-xs font-medium hover:opacity-90 inline-flex items-center gap-1"
+                >
+                  <CheckCircle2 className="size-3.5" /> Confirm joining
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {placements.length === 0 && !isLoading && (
@@ -118,6 +173,13 @@ function Page() {
         </table>
         )}
       </div>
+      <ConfirmJoiningDialog
+        open={!!confirmFor}
+        onClose={() => setConfirmFor(null)}
+        applicationId={confirmFor?.id ?? ""}
+        candidateName={confirmFor?.candidate ?? null}
+        positionTitle={confirmFor?.position ?? null}
+      />
     </div>
   );
 }
