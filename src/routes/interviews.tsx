@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Video, ArrowUpRight, Building2 } from "lucide-react";
+import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Link2Off, Calendar as CalendarIcon } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { Link } from "@tanstack/react-router";
+import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import {
   listInterviews,
   INTERVIEW_STATUS_LABEL,
@@ -34,10 +36,16 @@ function initialsOf(name?: string | null) {
 
 function Page() {
   const fetchInterviews = useServerFn(listInterviews);
+  const fetchGoogle = useServerFn(getMyGoogleConnection);
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["staff-interviews"],
     queryFn: () => fetchInterviews({ data: { scope: "all" } }),
   });
+  const { data: google } = useQuery({
+    queryKey: ["google-connection"],
+    queryFn: () => fetchGoogle(),
+  });
+  const googleConnected = !!google?.connected;
 
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const endToday = new Date(); endToday.setHours(23,59,59,999);
@@ -81,7 +89,7 @@ function Page() {
           <h2 className="font-semibold tracking-tight text-sm">Today's interviews</h2>
           <span className="text-xs text-muted-foreground">{todays.length} scheduled</span>
         </div>
-        <TodayByCompany rows={todays} />
+        <TodayByCompany rows={todays} googleConnected={googleConnected} />
       </div>
 
       {/* Multi-round processes */}
