@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
   type Attachment,
   type MessageRow,
@@ -93,6 +94,8 @@ export function DbChatThread({
   storageFolder?: string;
 }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
   const listFn = useServerFn(listMessages);
   const sendFn = useServerFn(sendMessage);
   const markFn = useServerFn(markThreadRead);
@@ -247,7 +250,12 @@ export function DbChatThread({
               new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() <
                 5 * 60 * 1000 &&
               !showDay;
-            const mine = m.sender_role === viewer;
+            // In team chats both sides are role=staff, so ownership must be
+            // decided by user id. Fall back to role when the viewer's id
+            // isn't hydrated yet (e.g. first paint on the client portal).
+            const mine = currentUserId
+              ? m.sender_id === currentUserId
+              : m.sender_role === viewer;
             return (
               <div key={m.id}>
                 {showDay && (
