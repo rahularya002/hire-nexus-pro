@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare, ArrowRight } from "lucide-react";
+import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare, ArrowRight, Link2Off, Calendar as CalendarIcon } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
   listInterviews,
@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { RescheduleInterviewDialog } from "@/components/reschedule-interview-dialog";
 import { Calendar } from "@/components/ui/calendar";
+import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 
 export const Route = createFileRoute("/client/interviews")({
   component: () => <ClientShell><Page /></ClientShell>,
@@ -48,10 +49,16 @@ function Page() {
   const [rescheduleFor, setRescheduleFor] = useState<InterviewRow | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | undefined>(undefined);
   const fetchInterviews = useServerFn(listInterviews);
+  const fetchGoogle = useServerFn(getMyGoogleConnection);
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["client-interviews"],
     queryFn: () => fetchInterviews({ data: { scope: "all" } }),
   });
+  const { data: google } = useQuery({
+    queryKey: ["google-connection"],
+    queryFn: () => fetchGoogle(),
+  });
+  const googleConnected = !!google?.connected;
 
   const counts = { today: 0, upcoming: 0, past: 0 } as Record<Tab, number>;
   for (const i of all) { const b = bucketize(i.scheduled_at); if (b) counts[b]++; }
