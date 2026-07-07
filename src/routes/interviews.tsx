@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Video, ArrowUpRight, Building2 } from "lucide-react";
+import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Link2Off, Calendar as CalendarIcon } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import {
   listInterviews,
   INTERVIEW_STATUS_LABEL,
@@ -34,10 +35,16 @@ function initialsOf(name?: string | null) {
 
 function Page() {
   const fetchInterviews = useServerFn(listInterviews);
+  const fetchGoogle = useServerFn(getMyGoogleConnection);
   const { data: all = [], isLoading } = useQuery({
     queryKey: ["staff-interviews"],
     queryFn: () => fetchInterviews({ data: { scope: "all" } }),
   });
+  const { data: google } = useQuery({
+    queryKey: ["google-connection"],
+    queryFn: () => fetchGoogle(),
+  });
+  const googleConnected = !!google?.connected;
 
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const endToday = new Date(); endToday.setHours(23,59,59,999);
@@ -81,7 +88,7 @@ function Page() {
           <h2 className="font-semibold tracking-tight text-sm">Today's interviews</h2>
           <span className="text-xs text-muted-foreground">{todays.length} scheduled</span>
         </div>
-        <TodayByCompany rows={todays} />
+        <TodayByCompany rows={todays} googleConnected={googleConnected} />
       </div>
 
       {/* Multi-round processes */}
@@ -152,7 +159,7 @@ function Page() {
   );
 }
 
-function TodayByCompany({ rows }: { rows: InterviewRow[] }) {
+function TodayByCompany({ rows, googleConnected }: { rows: InterviewRow[]; googleConnected: boolean }) {
   const groups = rows.reduce<Record<string, InterviewRow[]>>((acc, i) => {
     const key = i.position?.client?.name ?? "Unknown client";
     (acc[key] ||= []).push(i);
@@ -186,10 +193,26 @@ function TodayByCompany({ rows }: { rows: InterviewRow[] }) {
                 <span className="text-[11px] px-2 py-0.5 rounded-md bg-info/10 text-info inline-flex items-center gap-1">
                   <Video className="size-3" />{INTERVIEW_PROVIDER_LABEL[i.provider]}
                 </span>
-                <a href={i.meeting_link ?? "#"} target="_blank" rel="noreferrer"
-                   className={cn("text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center", !i.meeting_link && "opacity-50 pointer-events-none")}>
-                  Join
-                </a>
+                {i.provider === "on_site" ? (
+                  <span className="text-xs font-medium h-8 px-3 rounded-md border border-border inline-flex items-center gap-1 text-muted-foreground">
+                    <MapPin className="size-3" /> {i.location?.trim() || "On-site"}
+                  </span>
+                ) : i.provider === "phone" ? (
+                  <span className="text-xs font-medium h-8 px-3 rounded-md border border-border inline-flex items-center text-muted-foreground">Phone</span>
+                ) : i.meeting_link ? (
+                  <a href={i.meeting_link} target="_blank" rel="noreferrer"
+                     className="text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1">
+                    <Video className="size-3" /> Join
+                  </a>
+                ) : !googleConnected ? (
+                  <Link to="/settings" className="text-xs font-medium h-8 px-3 rounded-md border border-warning/30 bg-warning/10 text-warning inline-flex items-center gap-1 hover:bg-warning/15">
+                    <Link2Off className="size-3" /> Connect Google
+                  </Link>
+                ) : (
+                  <span className="text-xs font-medium h-8 px-3 rounded-md border border-border bg-secondary/40 text-muted-foreground inline-flex items-center gap-1">
+                    <CalendarIcon className="size-3" /> Link pending
+                  </span>
+                )}
               </div>
             ))}
           </div>

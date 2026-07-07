@@ -1,67 +1,52 @@
-## 1. Agency · Closed positions grouped by client
+## Problem
 
-File: `src/routes/closed.tsx`
+Clients can schedule an interview without connecting Google Calendar. When they do, `provider = google_meet` is set but `syncGoogleMeet` silently no-ops (no token), so `meeting_link` stays `null`. Downstream every "Join" button is force-disabled (`!meeting_link && "opacity-50 pointer-events-none"`). Result: interview exists, no meeting link, no calendar invite emailed to candidate, no way to join — dead end.
 
-- Group `positions.filter(status==='closed')` by `p.client?.id`.
-- Render one collapsible section per client with:
-  - Client header row: color dot + client name + counts (`X closed positions · Y placements`).
-  - Grid of the existing closed-position cards underneath (same card design, unchanged).
-- Sort clients by total placements desc, then by name.
-- Add a lightweight client filter chip row at the top ("All · Client A · Client B") so an agency can jump straight to one client.
-- Empty state unchanged.
+Same problem on the recruiter side (`createInterview`), but the immediate complaint is the client flow.
 
-No schema or server-function changes.
+## Fix
 
-## 2. Candidate database · CV upload
+### 1. Gate the client scheduling dialog on Google connection
 
-Schema already has `candidates.resume_url` and `documents` supports `kind='resume'`. Wire it into the UI.
+In `src/routes/client.positions.$positionId.tsx`:
 
-Files:
-- `src/routes/database.tsx` — Add Candidate dialog + detail sheet
-- `src/lib/candidates.functions.ts` — accept `resume_url` on create (already in schema)
+- Query `getMyGoogleConnection` alongside existing queries.
+- In the "Schedule interview" dialog, when the selected provider is `google_meet` / `microsoft_teams` / `zoom` (any virtual) AND `connected === false`:
+  - Replace the submit button with a "Connect Google Calendar to continue" state
+  - Inline-render the existing `<GoogleCalendarCard />` (or a compact variant) inside the dialog so they connect without leaving the flow
+  - Only allow submit when `connected === true` OR provider is `on_site` / `phone`
+- After OAuth returns (existing `postMessage` invalidates `google-connection`), the dialog auto-unlocks.
 
-Add Candidate dialog:
-- New "CV / Resume" field: file input (PDF/DOC/DOCX, max 10 MB).
-- On submit: if file present, upload to Supabase Storage `documents` bucket at `candidates/{userId}/{ts}-{name}`, call `createDocument({ kind:'resume', ... })`, then pass the resulting public URL as `resume_url` when creating the candidate.
-- Show upload progress / error inline; block submit until upload completes.
+### 2. Surface connection status on the position page
 
-Candidate detail sheet:
-- New "CV" row in Profile tab: if `resume_url` present, show filename + "Open" / "Download" buttons; otherwise show "Upload CV" button that opens the same upload flow and patches the candidate via existing `updateCandidate`.
+Above the candidate list, show a small banner when Google is not connected:
+"Connect Google Calendar to schedule video interviews and auto-send invites." with a Connect button (opens same OAuth flow).
 
-Table:
-- Add a small paperclip icon in the Candidate cell when `resume_url` is present, so recruiters can see at a glance who has a CV.
+### 3. Fix Join button UX (both `client.interviews.tsx` and `interviews.tsx`)
 
-`EditCandidateDialog` (`src/components/edit-candidate-dialog.tsx`): add the same CV upload/replace control so existing candidates can get a CV attached.
+Right now: link is rendered but styled disabled when `meeting_link` is null — looks broken with no explanation.
 
-## 3. Client dashboard hero · spotlight Upload JD
+Change to: when `meeting_link` is null AND provider is a virtual provider AND scheduled_at exists:
+- Show a "Meeting link pending" pill instead of a dead Join button
+- Add a small "Retry sync" action (calls `updateInterview` with same `scheduled_at` to re-trigger `syncGoogleMeet`) shown only when Google is connected
+- When Google is NOT connected, the pill links to settings: "Connect Google Calendar to generate link"
 
-File: `src/routes/client.index.tsx` (hero block only, lines ~74-103)
+For `on_site`, show location instead of Join. For `phone`, show phone label.
 
-Replace the current single-column hero with a 2-column layout on `lg+`:
+### 4. Backfill link on connect
 
-```text
-┌──────────────────────────────┬──────────────────────────┐
-│ Left (col-span-2 on lg)      │ Right                    │
-│ - Eyebrow                    │ Primary CTA card:        │
-│ - "Welcome back, {company}"  │  ┌────────────────────┐  │
-│ - Snapshot sentence          │  │  ↑  Upload New JD  │  │
-│ - Small "N mandates · M      │  │  Start a search    │  │
-│   profiles shared" chips     │  │  in 60 seconds     │  │
-│                              │  │  [ Upload JD ]     │  │
-│                              │  └────────────────────┘  │
-│                              │ Secondary CTA (link):    │
-│                              │  + Create position       │
-│                              │    manually              │
-└──────────────────────────────┴──────────────────────────┘
-```
+When a client connects Google Calendar (after `getMyGoogleConnection` invalidation), add a lightweight server fn `resyncPendingClientInterviews` that finds their upcoming `google_meet` interviews without `meeting_link` and re-runs `syncGoogleMeet`. Trigger it once from `GoogleCalendarCard` on successful connect (or reuse an existing invalidation hook).
 
-Details:
-- Right column: prominent card with gradient background, dashed drop-zone-style border, large upload icon, headline "Upload a JD", one-line helper, and a solid button. Whole card is a `Link to="/client/upload"`.
-- Below the card, a smaller `Link to="/client/upload"` styled as a ghost row "+ Create position manually" (routes to same page; the upload page already lets users skip file upload and fill the form).
-- On mobile the two columns stack; CTA card stays full-width and visually dominant.
-- Existing team dashboard (`ClientTeamDashboard`) is untouched — this change is for the primary client dashboard only.
+### Files touched
+
+- `src/routes/client.positions.$positionId.tsx` — dialog gating + banner
+- `src/routes/client.interviews.tsx` — Join button states
+- `src/routes/interviews.tsx` — Join button states (recruiter view, same fix)
+- `src/lib/interviews.functions.ts` — add `resyncPendingInterviews` server fn
+- `src/components/google-calendar-card.tsx` — call resync on successful connect
+
+No schema changes. No changes to `syncGoogleMeet` logic itself.
 
 ## Out of scope
 
-- No changes to JD upload logic itself, positions server functions, or notifications.
-- No new tables or migrations (existing `resume_url` + `documents` cover the CV work).
+- Microsoft Teams / Zoom OAuth (still no real integration — I'll keep those provider options but gate the same way; without Google, only `on_site` / `phone` are actually usable). If you want, I can hide Teams/Zoom from the picker entirely until we integrate them — say the word.
