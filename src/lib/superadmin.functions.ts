@@ -120,14 +120,33 @@ export const createAgency = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context.supabase, context.userId);
 
+    let ownerId: string;
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email: data.ownerEmail,
       password: data.ownerPassword,
       email_confirm: true,
       user_metadata: { full_name: data.ownerName },
     });
-    if (createErr || !created?.user) throw new Error(createErr?.message ?? "Could not create owner.");
-    const ownerId = created.user.id;
+    if (created?.user) {
+      ownerId = created.user.id;
+    } else {
+      const msg = createErr?.message ?? "";
+      const alreadyExists = /already been registered|already exists|duplicate/i.test(msg);
+      if (!alreadyExists) throw new Error(msg || "Could not create owner.");
+      // Reuse existing auth user by email
+      const { data: existing, error: findErr } = await supabaseAdmin
+        .from("profiles").select("id").eq("email", data.ownerEmail).maybeSingle();
+      if (findErr || !existing?.id) {
+        throw new Error("An account with this email already exists. Use a different email.");
+      }
+      ownerId = existing.id;
+      // Reset password so the provided credentials work
+      await supabaseAdmin.auth.admin.updateUserById(ownerId, {
+        password: data.ownerPassword,
+        email_confirm: true,
+        user_metadata: { full_name: data.ownerName },
+      });
+    }
 
     await supabaseAdmin.from("profiles")
       .update({ full_name: data.ownerName, status: "active" })
