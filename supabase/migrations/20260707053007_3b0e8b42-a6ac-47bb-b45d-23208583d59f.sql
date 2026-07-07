@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles ALTER COLUMN status SET DEFAULT 'active'::public.profile_status;
+UPDATE public.profiles SET status = 'active'::public.profile_status WHERE status = 'pending'::public.profile_status;
