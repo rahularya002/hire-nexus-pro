@@ -7,12 +7,15 @@ import {
   startGoogleOAuth,
   disconnectGoogle,
 } from "@/lib/google-calendar.functions";
+import { resyncPendingInterviews } from "@/lib/interviews.functions";
+import { toast } from "sonner";
 
 export function GoogleCalendarCard({ description }: { description?: string }) {
   const qc = useQueryClient();
   const fetchStatus = useServerFn(getMyGoogleConnection);
   const startFn = useServerFn(startGoogleOAuth);
   const disconnectFn = useServerFn(disconnectGoogle);
+  const resyncFn = useServerFn(resyncPendingInterviews);
 
   const { data, isLoading } = useQuery({
     queryKey: ["google-connection"],
@@ -25,11 +28,22 @@ export function GoogleCalendarCard({ description }: { description?: string }) {
     const onMsg = (e: MessageEvent) => {
       if (e.data?.type === "google-oauth") {
         qc.invalidateQueries({ queryKey: ["google-connection"] });
+        // Backfill Meet links for any interviews requested before connecting.
+        resyncFn()
+          .then((r) => {
+            if (r?.synced) {
+              toast.success(`Generated Meet links for ${r.synced} interview${r.synced === 1 ? "" : "s"}.`);
+              qc.invalidateQueries({ queryKey: ["client-interviews"] });
+              qc.invalidateQueries({ queryKey: ["staff-interviews"] });
+              qc.invalidateQueries({ queryKey: ["interviews"] });
+            }
+          })
+          .catch(() => {});
       }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [qc]);
+  }, [qc, resyncFn]);
 
   const connect = async () => {
     setBusy(true);

@@ -406,6 +406,30 @@ export const deleteInterview = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/* ---------------- Backfill Meet links after connecting Google ---------------- */
+
+export const resyncPendingInterviews = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const nowIso = new Date().toISOString();
+    // RLS-scoped read: caller only sees interviews they can access.
+    const { data: rows, error } = await supabase
+      .from("interviews")
+      .select("id")
+      .eq("provider", "google_meet")
+      .is("meeting_link", null)
+      .gte("scheduled_at", nowIso)
+      .limit(50);
+    if (error) throw new Error(error.message);
+    let synced = 0;
+    for (const r of rows ?? []) {
+      await syncGoogleMeet(userId, r.id);
+      synced++;
+    }
+    return { synced };
+  });
+
 /* ---------------- Client-facing interview request ---------------- */
 
 export const requestClientInterview = createServerFn({ method: "POST" })
