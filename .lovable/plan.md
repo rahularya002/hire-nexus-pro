@@ -1,36 +1,39 @@
-## Problem
+# Fix `/posting` crash
 
-When a client creates a new requirement, no one on the agency side gets notified. `createPosition` in `src/lib/positions.functions.ts` just inserts the row and returns — there is no `notifications` insert, and there is no DB trigger on `positions` either (the only agency-side notification triggers are `notify_agency_on_new_job_application` and `notify_agency_on_joining`).
+## What's actually happening
 
-Related gap: `assignPositionRecruiter` already notifies the newly assigned recruiter, but the bulk `assignClientRecruiter` (used on the client detail page) does not — only a single-recruiter fallback lives there.
+`/posting` throws inside the component tree and the root `errorComponent` in `src/routes/__root.tsx` catches it — that's the dark "This page didn't load / Try again / Go home" screen you saw. The route itself works: rendered fine in a headless browser signed in as an agency admin (empty state, sidebar, header all present). So the crash is conditional on the current session or a runtime edge case, not a broken route.
 
-## Fix
+Three likely causes, in order of probability:
 
-### 1. Notify agency on new requirement (`createPosition`)
+1. **Session mismatch** — signed in as a client account or as a recruiter without an `agency_members` row. `listJobPosts` runs, returns `[]` under RLS, but a downstream assumption (channels/counts) throws.
+2. **Stale/expired token** — the server function returns a 401 and the error surfaces during render instead of being handled.
+3. **No agency scope on the query** — `listJobPosts` never filters by `agency_id`; if a user has multiple agency memberships or none, the query can return odd shapes that break the card render.
 
-After the insert succeeds, if `recruitment_model !== 'self'` (self-serve requirements don't need agency attention):
+## Fix in one turn
 
-- Read `agency_id`, `title`, and client `name` from the newly created row.
-- Fetch all `agency_members.user_id` for that `agency_id` via `supabaseAdmin`.
-- Bulk insert one row per member into `notifications` with:
-  - `kind: 'system'`
-  - `title: 'New requirement: <title>'`
-  - `body: '<Client name> posted a new requirement'` (+ `" — assigned to you"` for the assigned recruiter if one was set at creation)
-  - `link: '/positions/<id>'`
-- If `assigned_recruiter_id` was set on create, also send that recruiter the existing "Assigned: <title>" notification (same shape as `assignPositionRecruiter`), so the assignment path stays consistent whether the recruiter is picked at creation or later.
+**Step 1 — reproduce with your session**
+Playwright run with your `LOVABLE_BROWSER_*` credentials against `/posting`; capture console + pageerror + network. This tells me which of the three causes is real in ~30s.
 
-Wrapped in try/catch with `console.error` so a notification failure never blocks requirement creation.
+**Step 2 — harden the route regardless of which cause it is**
 
-### 2. Fix `assignClientRecruiter` bulk assignment notification
+- Wrap `Page()` in a local error boundary that shows an inline "Couldn't load posts — Retry" card instead of blowing up the whole app tree.
+- In `listJobPosts` (`src/lib/posting.functions.ts`), explicitly scope by the caller's agency: look up `agency_members.agency_id` for `userId`, return `[]` if none, filter `job_posts` by that `agency_id`. Same treatment for `job_post_channels` join.
+- Defensive nulls in `PostCard`: `post.channels ?? []` is already there, but also guard `post.applications_count` and `post.status`.
 
-Today it only inserts a notification when there is at least one row updated, but it sends a single generic notification. Keep that, and additionally short-circuit duplicates: skip if the recruiter is already assigned to every updated row (i.e. no change).
+**Step 3 — targeted fix for whatever step 1 revealed**
 
-### Out of scope
+- If it's session/auth → clear stale token + redirect to `/login` from the boundary, don't crash.
+- If it's a specific row shape → tighten the Zod/serialization on the server side.
 
-- No new DB trigger — keeping notification logic in the server functions matches the existing pattern (`assignPositionRecruiter`, `assignClientRecruiter`) and avoids a migration.
-- No changes to the notification bell UI; it already reads from the same `notifications` table.
-- No email/push — in-app only, same as today.
+**Step 4 — verify**
+Re-run Playwright with the same session, confirm the page renders (empty state or list). Check console is clean.
 
-### Files
+## Files that will change
 
-- `src/lib/positions.functions.ts` — extend `createPosition` handler; small tightening in `assignClientRecruiter`.
+- `src/routes/posting.index.tsx` — local error boundary + null guards
+- `src/lib/posting.functions.ts` — agency-scoped query, safer return shape
+
+No schema changes, no migrations.
+
+Approve this and I'll run the repro + ship the fix in the next turn.

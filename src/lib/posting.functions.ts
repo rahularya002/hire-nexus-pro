@@ -79,14 +79,22 @@ const upsertSchema = z.object({
 export const listJobPosts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    // Scope to caller's agency. Non-agency users (clients, unassigned) see nothing.
+    const { data: membership } = await supabase
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!membership?.agency_id) return [] as JobPostRow[];
     const { data: posts, error } = await supabase
       .from("job_posts")
       .select("*, channels:job_post_channels(*)")
+      .eq("agency_id", membership.agency_id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     const ids = (posts ?? []).map((p: any) => p.id);
-    let counts: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     if (ids.length) {
       const { data: apps } = await supabase
         .from("job_applications")
@@ -94,7 +102,11 @@ export const listJobPosts = createServerFn({ method: "GET" })
         .in("job_post_id", ids);
       for (const a of apps ?? []) counts[a.job_post_id] = (counts[a.job_post_id] ?? 0) + 1;
     }
-    return (posts ?? []).map((p: any) => ({ ...p, applications_count: counts[p.id] ?? 0 })) as JobPostRow[];
+    return (posts ?? []).map((p: any) => ({
+      ...p,
+      channels: p.channels ?? [],
+      applications_count: counts[p.id] ?? 0,
+    })) as JobPostRow[];
   });
 
 export const getJobPost = createServerFn({ method: "GET" })
