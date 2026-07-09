@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Megaphone, ExternalLink, Users, Loader2 } from "lucide-react";
+import { Plus, Megaphone, ExternalLink, Users, Loader2, AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { listJobPosts, type JobPostRow } from "@/lib/posting.functions";
 
@@ -36,9 +36,10 @@ function StatusPill({ status }: { status: string }) {
 
 function Page() {
   const fetchPosts = useServerFn(listJobPosts);
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["job-posts"],
     queryFn: () => fetchPosts(),
+    retry: 1,
   });
 
   return (
@@ -60,13 +61,28 @@ function Page() {
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading posts…</div>
+      ) : error ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-5 flex items-start gap-3">
+          <AlertTriangle className="size-5 text-destructive shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-sm">Couldn't load job posts</div>
+            <p className="text-xs text-muted-foreground mt-1 break-words">
+              {(error as Error)?.message ?? "Something went wrong."}
+            </p>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-3 inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium disabled:opacity-60"
+            >
+              {isFetching && <Loader2 className="size-3 animate-spin" />} Retry
+            </button>
+          </div>
+        </div>
       ) : posts.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid gap-3">
-          {posts.map((p) => (
-            <PostCard key={p.id} post={p} />
-          ))}
+          {posts.map((p) => <PostCard key={p.id} post={p} />)}
         </div>
       )}
     </div>
@@ -74,6 +90,8 @@ function Page() {
 }
 
 function PostCard({ post }: { post: JobPostRow }) {
+  const status = post.status ?? "draft";
+  const count = post.applications_count ?? 0;
   return (
     <Link
       to="/posting/$postId"
@@ -83,15 +101,15 @@ function PostCard({ post }: { post: JobPostRow }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold truncate">{post.title}</h3>
-            <StatusPill status={post.status} />
+            <h3 className="font-semibold truncate">{post.title ?? "Untitled"}</h3>
+            <StatusPill status={status} />
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {post.location ?? "Remote / unspecified"} · created {new Date(post.created_at).toLocaleDateString()}
+            {post.location ?? "Remote / unspecified"} · created {post.created_at ? new Date(post.created_at).toLocaleDateString() : "—"}
           </div>
         </div>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <Users className="size-3.5" /> {post.applications_count ?? 0} applicant{(post.applications_count ?? 0) === 1 ? "" : "s"}
+          <Users className="size-3.5" /> {count} applicant{count === 1 ? "" : "s"}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
