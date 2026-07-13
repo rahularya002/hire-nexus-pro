@@ -182,3 +182,41 @@ export const createTestCallToken = createServerFn({ method: "POST" })
       firstMessage,
     };
   });
+
+export const getConversationDebug = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ conversationId: z.string().min(1) }).parse(i))
+  .handler(async ({ data }) => {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) throw new Error("ElevenLabs is not connected.");
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversations/${encodeURIComponent(data.conversationId)}`,
+      { headers: { "xi-api-key": apiKey } },
+    );
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`ElevenLabs conversation fetch failed (${res.status}): ${text}`);
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { raw: text };
+    }
+    const p = parsed as Record<string, unknown>;
+    return {
+      status: p.status ?? null,
+      terminationReason:
+        (p.termination_reason as string | undefined) ??
+        ((p.metadata as Record<string, unknown> | undefined)?.termination_reason as string | undefined) ??
+        null,
+      callDuration:
+        (p.call_duration_secs as number | undefined) ??
+        ((p.metadata as Record<string, unknown> | undefined)?.call_duration_secs as number | undefined) ??
+        null,
+      analysis: p.analysis ?? null,
+      metadata: p.metadata ?? null,
+      transcript: p.transcript ?? null,
+      raw: parsed,
+    };
+  });
