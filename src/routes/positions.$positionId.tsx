@@ -212,7 +212,7 @@ function CandidatePipeline({ positionId, canAct }: { positionId: string; canAct:
                     onShortlist={() => m.mutate({ id: a.id, stage: "recruiter_shortlist" })}
                     onReject={() => m.mutate({ id: a.id, stage: "client_rejected" })}
                     onEdit={() => setEditCandidate(a.candidate ?? null)}
-                    positionId={p.id}
+                    positionId={positionId}
                   />
                 ))}
               </div>
@@ -233,7 +233,7 @@ function CandidatePipeline({ positionId, canAct }: { positionId: string; canAct:
 }
 
 function CandidateRow({
-  app, canAct, pending, onShare, onShortlist, onReject, onEdit,
+  app, canAct, pending, onShare, onShortlist, onReject, onEdit, positionId,
 }: {
   app: ApplicationRow;
   canAct: boolean;
@@ -242,6 +242,7 @@ function CandidateRow({
   onShortlist: () => void;
   onReject: () => void;
   onEdit: () => void;
+  positionId: string;
 }) {
   const c = app.candidate;
   if (!c) return null;
@@ -306,6 +307,15 @@ function CandidateRow({
               >
                 <Pencil className="size-3.5" /> Edit
               </button>
+            )}
+            {canAct && (
+              <CandidateScreenButton
+                candidateId={c.id}
+                candidateName={c.name}
+                candidatePhone={c.phone ?? null}
+                positionId={positionId}
+                size="sm"
+              />
             )}
             <div className="flex-1" />
             {canAct && canShortlist && (
