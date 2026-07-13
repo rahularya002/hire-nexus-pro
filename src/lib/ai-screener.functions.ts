@@ -217,6 +217,6 @@ export const getConversationDebug = createServerFn({ method: "POST" })
       analysis: p.analysis ?? null,
       metadata: p.metadata ?? null,
       transcript: p.transcript ?? null,
-      raw: parsed,
+      raw: parsed as Record<string, unknown> | null,
     };
   });
