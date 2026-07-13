@@ -1436,6 +1436,66 @@ export type Database = {
           },
         ]
       }
+      position_ai_screeners: {
+        Row: {
+          agency_id: string
+          ask_location: boolean
+          ask_notice_ctc: boolean
+          ask_skills: boolean
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          job_pitch: string
+          position_id: string
+          updated_at: string
+          voice_id: string | null
+        }
+        Insert: {
+          agency_id: string
+          ask_location?: boolean
+          ask_notice_ctc?: boolean
+          ask_skills?: boolean
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          job_pitch?: string
+          position_id: string
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Update: {
+          agency_id?: string
+          ask_location?: boolean
+          ask_notice_ctc?: boolean
+          ask_skills?: boolean
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          job_pitch?: string
+          position_id?: string
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "position_ai_screeners_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "position_ai_screeners_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: true
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       position_sourced_matches: {
         Row: {
           agency_id: string
