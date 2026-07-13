@@ -54,6 +54,19 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Call error";
       toast.error(message);
     },
+    onConnect: () => {
+      // Inject the pitch as contextual info so we don't need dashboard-side
+      // prompt/firstMessage overrides (which crash the SDK when disabled).
+      const ctx = pendingContextRef.current;
+      if (ctx) {
+        try {
+          conversation.sendContextualUpdate(ctx);
+        } catch {
+          /* ignore */
+        }
+        pendingContextRef.current = null;
+      }
+    },
   });
 
   const status = conversation.status; // 'connected' | 'connecting' | 'disconnected'
@@ -101,15 +114,15 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
       });
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const t = await tokenFn({ data: { positionId } });
-      conversation.startSession({
+      pendingContextRef.current = [
+        `Role brief for this test call:`,
+        t.systemPrompt,
+        ``,
+        `Suggested opening line: ${t.firstMessage}`,
+      ].join("\n");
+      await conversation.startSession({
         conversationToken: t.token,
         connectionType: "webrtc",
-        overrides: {
-          agent: {
-            prompt: { prompt: t.systemPrompt },
-            firstMessage: t.firstMessage,
-          },
-        },
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't start test call");
