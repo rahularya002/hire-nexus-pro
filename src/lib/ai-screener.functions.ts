@@ -407,10 +407,11 @@ export const recordScreeningResult = createServerFn({ method: "POST" })
       .eq("id", data.candidateId)
       .maybeSingle();
 
+    if (!pos?.agency_id) throw new Error("Position agency not found");
     const { data: inserted, error: insErr } = await supabase
       .from("candidate_screening_calls")
       .insert({
-        agency_id: pos?.agency_id,
+        agency_id: pos.agency_id as string,
         candidate_id: data.candidateId,
         position_id: data.positionId,
         application_id: app?.id ?? null,
