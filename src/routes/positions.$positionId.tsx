@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
 import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
+import { CandidateScreenButton } from "@/components/candidate-screen-button";
 import { EmptyState } from "@/components/empty-state";
 import { CardListSkeleton } from "@/components/skeletons";
 import {
@@ -211,6 +212,7 @@ function CandidatePipeline({ positionId, canAct }: { positionId: string; canAct:
                     onShortlist={() => m.mutate({ id: a.id, stage: "recruiter_shortlist" })}
                     onReject={() => m.mutate({ id: a.id, stage: "client_rejected" })}
                     onEdit={() => setEditCandidate(a.candidate ?? null)}
+                    positionId={p.id}
                   />
                 ))}
               </div>
