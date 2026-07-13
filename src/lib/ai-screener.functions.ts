@@ -180,6 +180,12 @@ export const createTestCallToken = createServerFn({ method: "POST" })
       agentId,
       systemPrompt,
       firstMessage,
+      dynamicVariables: {
+        candidate_name: "there",
+        job_title: pos.title,
+        company_name:
+          (pos as { client?: { name?: string | null } | null }).client?.name ?? "our team",
+      } as Record<string, string>,
     };
   });
 
