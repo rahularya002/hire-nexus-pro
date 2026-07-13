@@ -208,6 +208,89 @@ export type Database = {
           },
         ]
       }
+      candidate_screening_calls: {
+        Row: {
+          agency_id: string
+          application_id: string | null
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          duration_sec: number | null
+          elevenlabs_conversation_id: string | null
+          id: string
+          mode: string
+          position_id: string | null
+          status: string
+          summary: string | null
+          transcript: Json | null
+          updated_at: string
+          verdict: string | null
+        }
+        Insert: {
+          agency_id: string
+          application_id?: string | null
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_sec?: number | null
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          mode?: string
+          position_id?: string | null
+          status?: string
+          summary?: string | null
+          transcript?: Json | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Update: {
+          agency_id?: string
+          application_id?: string | null
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_sec?: number | null
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          mode?: string
+          position_id?: string | null
+          status?: string
+          summary?: string | null
+          transcript?: Json | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_screening_calls_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_screening_calls_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_screening_calls_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_screening_calls_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidates: {
         Row: {
           agency_id: string
