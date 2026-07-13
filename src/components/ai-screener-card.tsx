@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
@@ -39,6 +39,7 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const [askSkills, setAskSkills] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const pendingContextRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!q.data) return;
@@ -53,6 +54,19 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Call error";
       toast.error(message);
+    },
+    onConnect: () => {
+      // Inject the pitch as contextual info so we don't need dashboard-side
+      // prompt/firstMessage overrides (which crash the SDK when disabled).
+      const ctx = pendingContextRef.current;
+      if (ctx) {
+        try {
+          conversation.sendContextualUpdate(ctx);
+        } catch {
+          /* ignore */
+        }
+        pendingContextRef.current = null;
+      }
     },
   });
 
@@ -101,15 +115,15 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
       });
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const t = await tokenFn({ data: { positionId } });
-      conversation.startSession({
+      pendingContextRef.current = [
+        `Role brief for this test call:`,
+        t.systemPrompt,
+        ``,
+        `Suggested opening line: ${t.firstMessage}`,
+      ].join("\n");
+      await conversation.startSession({
         conversationToken: t.token,
         connectionType: "webrtc",
-        overrides: {
-          agent: {
-            prompt: { prompt: t.systemPrompt },
-            firstMessage: t.firstMessage,
-          },
-        },
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't start test call");
