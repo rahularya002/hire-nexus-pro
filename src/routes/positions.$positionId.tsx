@@ -266,12 +266,22 @@ function CandidateRow({
                 {[c.role, c.experience, c.location].filter(Boolean).join(" · ") || "—"}
               </div>
             </div>
-            {app.match_score != null && (
-              <div className="text-right shrink-0">
-                <div className="text-base font-semibold tabular-nums text-success">{app.match_score}%</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">ai match</div>
-              </div>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {canAct && (
+                <button
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary"
+                >
+                  <Pencil className="size-3.5" /> Edit
+                </button>
+              )}
+              {app.match_score != null && (
+                <div className="text-right shrink-0">
+                  <div className="text-base font-semibold tabular-nums text-success">{app.match_score}%</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">ai match</div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
@@ -290,6 +300,15 @@ function CandidateRow({
           )}
 
           <div className="flex items-center gap-2 mt-4 flex-wrap">
+            {canAct && (
+              <CandidateScreenButton
+                candidateId={c.id}
+                candidateName={c.name}
+                candidatePhone={c.phone ?? null}
+                positionId={positionId}
+                size="sm"
+              />
+            )}
             {c.resume_url && (
               <a href={c.resume_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary">
                 <Eye className="size-3.5" /> CV
@@ -299,23 +318,6 @@ function CandidateRow({
               <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-xs font-medium hover:bg-[#0A66C2]/20">
                 <Linkedin className="size-3.5" /> LinkedIn
               </a>
-            )}
-            {canAct && (
-              <button
-                onClick={onEdit}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary"
-              >
-                <Pencil className="size-3.5" /> Edit
-              </button>
-            )}
-            {canAct && (
-              <CandidateScreenButton
-                candidateId={c.id}
-                candidateName={c.name}
-                candidatePhone={c.phone ?? null}
-                positionId={positionId}
-                size="sm"
-              />
             )}
             <div className="flex-1" />
             {canAct && canShortlist && (
