@@ -40,6 +40,7 @@ import { EditPositionDialog } from "@/components/edit-position-dialog";
 import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
 import { GoogleCalendarCard } from "@/components/google-calendar-card";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
+import { AiScreenerCard } from "@/components/ai-screener-card";
 import { AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
@@ -201,6 +202,8 @@ function Detail() {
           </div>
         </div>
       </div>
+
+      <AiScreenerCard positionId={initial.id} />
 
       <div>
         <div className="text-sm font-semibold mb-3">Candidates shared with you ({apps.length})</div>
