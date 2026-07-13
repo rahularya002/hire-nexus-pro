@@ -50,73 +50,80 @@ export function CandidateScreenButton(props: Props) {
   const hasPhone = !!props.candidatePhone?.trim();
 
   const trigger = (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          size={props.size === "sm" ? "sm" : "default"}
-          variant="outline"
-          className="gap-1.5"
-        >
-          <Sparkles className="size-3.5 text-primary" />
-          AI Screen
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="end">
-        <div className="text-xs text-muted-foreground px-2 py-1.5">
-          Automated first-round screening call
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setMode("browser");
-            setOpen(true);
-          }}
-          className="w-full text-left flex items-start gap-2 rounded-md px-2 py-2 hover:bg-secondary"
-        >
-          <Mic className="size-4 mt-0.5 text-primary shrink-0" />
-          <div className="min-w-0">
-            <div className="text-sm font-medium">Rehearse in browser</div>
-            <div className="text-[11px] text-muted-foreground">
-              You talk to the agent as the candidate. No telephony cost.
-            </div>
-          </div>
-        </button>
-        <TooltipProvider>
-          <Tooltip>
+    <TooltipProvider>
+      <Tooltip>
+        <Popover>
+          <PopoverTrigger asChild>
             <TooltipTrigger asChild>
-              <div>
-                <button
-                  type="button"
-                  disabled={!hasPhone}
-                  onClick={() => {
-                    if (!hasPhone) return;
-                    setMode("phone");
-                    setOpen(true);
-                  }}
-                  className={cn(
-                    "w-full text-left flex items-start gap-2 rounded-md px-2 py-2",
-                    hasPhone ? "hover:bg-secondary" : "opacity-50 cursor-not-allowed",
-                  )}
-                >
-                  <PhoneCall className="size-4 mt-0.5 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">Call candidate</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {hasPhone ? "Places a real phone call (setup required)." : "Add a phone number first."}
-                    </div>
-                  </div>
-                </button>
-              </div>
+              <Button
+                size={props.size === "sm" ? "sm" : "default"}
+                variant="outline"
+                className="gap-1.5"
+              >
+                <Sparkles className="size-3.5 text-primary" />
+                AI Screen
+              </Button>
             </TooltipTrigger>
-            {!hasPhone && (
-              <TooltipContent side="left">
-                Add a phone number to enable AI calling.
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      </PopoverContent>
-    </Popover>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="end">
+            <div className="text-xs text-muted-foreground px-2 py-1.5">
+              Automated first-round screening call
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("browser");
+                setOpen(true);
+              }}
+              className="w-full text-left flex items-start gap-2 rounded-md px-2 py-2 hover:bg-secondary"
+            >
+              <Mic className="size-4 mt-0.5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">Rehearse in browser</div>
+                <div className="text-[11px] text-muted-foreground">
+                  You talk to the agent as the candidate. No telephony cost.
+                </div>
+              </div>
+            </button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <button
+                      type="button"
+                      disabled={!hasPhone}
+                      onClick={() => {
+                        if (!hasPhone) return;
+                        setMode("phone");
+                        setOpen(true);
+                      }}
+                      className={cn(
+                        "w-full text-left flex items-start gap-2 rounded-md px-2 py-2",
+                        hasPhone ? "hover:bg-secondary" : "opacity-50 cursor-not-allowed",
+                      )}
+                    >
+                      <PhoneCall className="size-4 mt-0.5 text-primary shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">Call candidate</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {hasPhone ? "Places a real phone call (setup required)." : "Add a phone number first."}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </TooltipTrigger>
+                {!hasPhone && (
+                  <TooltipContent side="left">
+                    Add a phone number to enable AI calling.
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          </PopoverContent>
+        </Popover>
+        <TooltipContent side="top">automated ai call</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 
   return (
