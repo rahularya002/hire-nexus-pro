@@ -144,6 +144,7 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
       await conversation.startSession({
         conversationToken: t.token,
         connectionType: "webrtc",
+        dynamicVariables: t.dynamicVariables,
       });
       try {
         const id = conversation.getId?.();

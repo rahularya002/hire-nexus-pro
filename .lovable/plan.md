@@ -1,54 +1,39 @@
-## Problem
+## Root cause
 
-The room connects, mic publishes, then the ElevenLabs agent closes the WebRTC session immediately (`code 1006, wasClean: false`). No `onError` fires and no `error_event` is delivered — the server just drops us. Agent is active with an LLM + voice, and the workspace has Convai quota, so the failure is happening between "session started" and "first turn" on ElevenLabs' side.
+The agent's dashboard first message uses `{{candidate_name}}`, `{{job_title}}`, `{{company_name}}`. When those aren't provided, ElevenLabs fails to render the opening turn and drops the WebRTC session (the `reason: "agent"` disconnect we saw). `dynamicVariables` is a separate mechanism from `overrides` — it doesn't require the "Allow overrides" toggle, so it won't re-trigger the earlier SDK crash.
 
-Because ElevenLabs isn't giving us a client-side reason, we can't guess-and-fix. We need to pull the real reason out of ElevenLabs and only then patch the client.
+## Changes
 
-## Step 1 — Add diagnostics to the test-call flow
+### 1. `src/lib/ai-screener.functions.ts` — `createTestCallToken`
 
-Update `src/components/ai-screener-card.tsx`:
+Return a `dynamicVariables` object alongside `token`, populated from the position + caller:
 
-- Add `onDisconnect`, `onDebug`, and `onMessage` handlers on `useConversation` that log the full payload (`console.info` + a toast with the last debug event so it's visible without opening devtools).
-- Capture the conversation ID via `conversation.getId()` after `startSession` resolves and stash it in component state — this is what we'll use to look the session up server-side.
-- Temporarily drop the `sendContextualUpdate` call on connect. That isolates whether contextual updates immediately after connect are what's triggering the close.
+- `candidate_name`: `"there"` for the test call (no real candidate yet). Later, when triggered per-candidate, pass the actual name.
+- `job_title`: `pos.title`
+- `company_name`: `pos.client?.name ?? "our team"`
 
-No overrides are sent (already removed last turn), so this variant is the minimal "just talk to the agent as configured in the dashboard" path.
+Keep `systemPrompt` and `firstMessage` in the return for the contextual-update fallback, but they're no longer the primary mechanism.
 
-## Step 2 — Add a server function to fetch the ElevenLabs conversation record
+### 2. `src/components/ai-screener-card.tsx` — `startTestCall`
 
-New export in `src/lib/ai-screener.functions.ts`:
+Pass `dynamicVariables` into `conversation.startSession`:
 
-```text
-getConversationDebug({ conversationId })
-  -> GET https://api.elevenlabs.io/v1/convai/conversations/{id}
-     with xi-api-key
-  -> return { status, terminationReason, transcript, analysis, metadata }
+```ts
+await conversation.startSession({
+  conversationToken: t.token,
+  connectionType: "webrtc",
+  dynamicVariables: t.dynamicVariables,
+});
 ```
 
-Gated by `requireSupabaseAuth` and scoped to the caller's agency (we already know the agent_id belongs to this workspace).
+Keep the existing `sendContextualUpdate` on `conversation_initiation_metadata` as a role-brief augmentation (extra context for the LLM), since the agent's own dashboard prompt already covers the flow.
 
-Add a small "Debug last call" button next to "Get a test call" that calls this function with the captured conversation ID and dumps the result into a toast + console. ElevenLabs' conversation record includes `termination_reason` and any tool/LLM errors, which is exactly the missing signal.
+### 3. Verify with Debug last call
 
-## Step 3 — Fix based on what the record says
+After the fix, the test call should stay connected. If it still drops, the **Debug last call** button will now surface a specific `termination_reason` (e.g. still-missing variable name), and we adjust the variable list to match.
 
-The likely outcomes and the corresponding fix (we will pick one after Step 2, not all of them):
+## Out of scope
 
-- `termination_reason` mentions **overrides / dynamic variables / missing var** → the dashboard prompt or first-message contains `{{variables}}` we're not supplying. Fix: either remove the variables from the dashboard prompt, or send them via `dynamicVariables` in `startSession` (this is separate from `overrides` and doesn't require the "Allow overrides" toggle).
-- `termination_reason` mentions **allowed origin / domain** → add the preview + published Lovable domains to the agent's Allowed Origins list in the ElevenLabs dashboard. Documentation-only fix, no code change.
-- `termination_reason` mentions **auth / token** → the token endpoint needs a different `agent_id` or the agent requires `require_auth=false`. Fix in dashboard + verify `createTestCallToken`.
-- `termination_reason` mentions **LLM / provider error** (e.g. missing OpenAI key on their side, model not enabled) → dashboard fix on their model config.
-- Record is empty / conversation never reached the LLM → most likely a WebRTC negotiation / codec issue; fall back to `connectionType: "websocket"` with `getElevenLabsConversationSignedUrl` and retry.
-
-## Step 4 — Re-enable contextual role brief safely
-
-Once the call stays open:
-
-- Put the `sendContextualUpdate(roleBrief)` back, but call it inside `onMessage` when we receive `conversation_initiation_metadata` (guaranteed-ready signal) instead of `onConnect`.
-- Keep the debug button behind a dev-only check (visible only when `import.meta.env.DEV` or for superadmins) so end users don't see it.
-
-## Technical notes
-
-- `dynamicVariables` is the correct field for supplying `{{title}}`, `{{client_name}}`, etc. to a dashboard-configured agent — it does not need any dashboard toggle, unlike `overrides.agent.prompt`.
-- The ElevenLabs conversations API is `GET /v1/convai/conversations/{conversation_id}`; it becomes queryable within a few seconds of the call ending.
-- Nothing in Step 1 or Step 2 changes server-side auth, RLS, or the `position_ai_screeners` table.
-- No new secrets required.
+- No schema changes.
+- No changes to `saveScreener` or the UI script editor.
+- Real per-candidate variable wiring (when the agent is triggered from a candidate row) is a follow-up once the test call is confirmed working.
