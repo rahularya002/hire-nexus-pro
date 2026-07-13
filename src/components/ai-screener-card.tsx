@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
-import { Phone, PhoneOff, Loader2, Sparkles, Save, CheckCircle2 } from "lucide-react";
+import { Phone, PhoneOff, Loader2, Sparkles, Save, CheckCircle2, Bug } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   getScreenerForPosition,
   saveScreener,
   createTestCallToken,
+  getConversationDebug,
 } from "@/lib/ai-screener.functions";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const getFn = useServerFn(getScreenerForPosition);
   const saveFn = useServerFn(saveScreener);
   const tokenFn = useServerFn(createTestCallToken);
+  const debugFn = useServerFn(getConversationDebug);
 
   const q = useQuery({
     queryKey: ["ai-screener", positionId],
@@ -40,6 +42,8 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const pendingContextRef = useRef<string | null>(null);
+  const [lastConvId, setLastConvId] = useState<string | null>(null);
+  const [debugging, setDebugging] = useState(false);
 
   useEffect(() => {
     if (!q.data) return;
@@ -53,19 +57,35 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const conversation = useConversation({
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Call error";
+      console.error("[ai-screener] onError", err);
       toast.error(message);
     },
-    onConnect: () => {
-      // Inject the pitch as contextual info so we don't need dashboard-side
-      // prompt/firstMessage overrides (which crash the SDK when disabled).
-      const ctx = pendingContextRef.current;
-      if (ctx) {
-        try {
-          conversation.sendContextualUpdate(ctx);
-        } catch {
-          /* ignore */
+    onConnect: (payload) => {
+      console.info("[ai-screener] onConnect", payload);
+      try {
+        const id = conversation.getId?.();
+        if (id) setLastConvId(id);
+      } catch { /* ignore */ }
+    },
+    onDisconnect: (payload) => {
+      console.warn("[ai-screener] onDisconnect", payload);
+    },
+    onDebug: (evt) => {
+      console.info("[ai-screener] debug", evt);
+    },
+    onMessage: (msg) => {
+      console.info("[ai-screener] message", msg);
+      // Send the role brief only once the server confirms init.
+      if ((msg as { type?: string }).type === "conversation_initiation_metadata") {
+        const ctx = pendingContextRef.current;
+        if (ctx) {
+          try {
+            conversation.sendContextualUpdate(ctx);
+          } catch (e) {
+            console.warn("[ai-screener] sendContextualUpdate failed", e);
+          }
+          pendingContextRef.current = null;
         }
-        pendingContextRef.current = null;
       }
     },
   });
@@ -125,10 +145,37 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
         conversationToken: t.token,
         connectionType: "webrtc",
       });
+      try {
+        const id = conversation.getId?.();
+        if (id) setLastConvId(id);
+      } catch { /* ignore */ }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't start test call");
     } finally {
       setConnecting(false);
+    }
+  }
+
+  async function debugLastCall() {
+    if (!lastConvId) {
+      toast.error("No recent call ID yet — start a test call first.");
+      return;
+    }
+    setDebugging(true);
+    try {
+      // give ElevenLabs a moment to finalize the record
+      await new Promise((r) => setTimeout(r, 1500));
+      const info = await debugFn({ data: { conversationId: lastConvId } });
+      console.info("[ai-screener] conversation debug", info);
+      const reason = info.terminationReason || info.status || "unknown";
+      toast.message(`Call ended: ${reason}`, {
+        description: `Duration ${info.callDuration ?? 0}s. Full payload in console.`,
+      });
+    } catch (e) {
+      console.error("[ai-screener] debug fetch failed", e);
+      toast.error(e instanceof Error ? e.message : "Debug fetch failed");
+    } finally {
+      setDebugging(false);
     }
   }
 
@@ -225,6 +272,12 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
             {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
             Save
           </Button>
+          {lastConvId && (
+            <Button variant="outline" size="sm" onClick={debugLastCall} disabled={debugging} title={`Conversation ${lastConvId}`}>
+              {debugging ? <Loader2 className="size-3.5 animate-spin" /> : <Bug className="size-3.5" />}
+              Debug last call
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={startTestCall}
