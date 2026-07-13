@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { Phone, PhoneOff, Loader2, Sparkles, Save, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,14 @@ import {
 import { cn } from "@/lib/utils";
 
 export function AiScreenerCard({ positionId }: { positionId: string }) {
+  return (
+    <ConversationProvider>
+      <AiScreenerCardInner positionId={positionId} />
+    </ConversationProvider>
+  );
+}
+
+function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const qc = useQueryClient();
   const getFn = useServerFn(getScreenerForPosition);
   const saveFn = useServerFn(saveScreener);
@@ -93,7 +101,7 @@ export function AiScreenerCard({ positionId }: { positionId: string }) {
       });
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const t = await tokenFn({ data: { positionId } });
-      await conversation.startSession({
+      conversation.startSession({
         conversationToken: t.token,
         connectionType: "webrtc",
         overrides: {
