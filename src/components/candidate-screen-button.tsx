@@ -153,8 +153,8 @@ function ScreeningCallDialog(
   const autoRecordedRef = useRef(false);
 
   const conversation = useConversation({
-    onError: (err) => {
-      const message = err instanceof Error ? err.message : "Call error";
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Call error";
       toast.error(message);
     },
     onConnect: () => {
