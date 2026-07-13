@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
@@ -39,6 +39,7 @@ function AiScreenerCardInner({ positionId }: { positionId: string }) {
   const [askSkills, setAskSkills] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const pendingContextRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!q.data) return;
