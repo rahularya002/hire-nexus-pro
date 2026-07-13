@@ -266,12 +266,22 @@ function CandidateRow({
                 {[c.role, c.experience, c.location].filter(Boolean).join(" · ") || "—"}
               </div>
             </div>
-            {app.match_score != null && (
-              <div className="text-right shrink-0">
-                <div className="text-base font-semibold tabular-nums text-success">{app.match_score}%</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">ai match</div>
-              </div>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {canAct && (
+                <button
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary"
+                >
+                  <Pencil className="size-3.5" /> Edit
+                </button>
+              )}
+              {app.match_score != null && (
+                <div className="text-right shrink-0">
+                  <div className="text-base font-semibold tabular-nums text-success">{app.match_score}%</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">ai match</div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
