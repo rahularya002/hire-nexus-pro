@@ -1,39 +1,49 @@
-# Fix `/posting` crash
+# Automated Screening Call (AI Rex–style)
 
-## What's actually happening
+Add an "Enable automated calling" section to each position page. The client writes a pitch script + screening questions, and can hit **Get a test call** to talk to the AI agent live in the browser via ElevenLabs Conversational AI.
 
-`/posting` throws inside the component tree and the root `errorComponent` in `src/routes/__root.tsx` catches it — that's the dark "This page didn't load / Try again / Go home" screen you saw. The route itself works: rendered fine in a headless browser signed in as an agency admin (empty state, sidebar, header all present). So the crash is conditional on the current session or a runtime edge case, not a broken route.
+## Scope
+- Voice: **ElevenLabs Conversational AI** — browser test call (WebRTC via `@elevenlabs/react`). Real phone dial-out to candidates is out of scope for this iteration (noted as a follow-up).
+- Location: `src/routes/client.positions.$positionId.tsx` only.
+- Fixed screening questions: notice period & current CTC, location / relocation, key skills confirmation (skills pulled from the position).
 
-Three likely causes, in order of probability:
+## Database
+New migration adds a per-position screener config:
+- Table `position_ai_screeners`: `id`, `position_id (unique fk)`, `agency_id`, `enabled bool`, `job_pitch text`, `ask_notice_ctc bool`, `ask_location bool`, `ask_skills bool`, `voice_id text`, `created_by`, `created_at`, `updated_at`.
+- RLS: client team of the position OR agency members of the position can select/insert/update. Standard `GRANT`s to `authenticated` + `service_role`.
 
-1. **Session mismatch** — signed in as a client account or as a recruiter without an `agency_members` row. `listJobPosts` runs, returns `[]` under RLS, but a downstream assumption (channels/counts) throws.
-2. **Stale/expired token** — the server function returns a 401 and the error surfaces during render instead of being handled.
-3. **No agency scope on the query** — `listJobPosts` never filters by `agency_id`; if a user has multiple agency memberships or none, the query can return odd shapes that break the card render.
+## Backend (server functions in `src/lib/ai-screener.functions.ts`)
+- `getScreenerForPosition({ positionId })` — returns row or defaults; auto-seeds pitch text from position title/skills/location on first load.
+- `saveScreener({ positionId, enabled, jobPitch, askNoticeCtc, askLocation, askSkills, voiceId })`.
+- `createTestCallToken({ positionId })` — server-only: builds a system prompt + first message from the saved screener, then POSTs to `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=...` with `xi-api-key: ELEVENLABS_API_KEY` and returns `{ token }`. System prompt is passed via conversation overrides on the client.
 
-## Fix in one turn
+All protected with `requireSupabaseAuth` + position access check.
 
-**Step 1 — reproduce with your session**
-Playwright run with your `LOVABLE_BROWSER_*` credentials against `/posting`; capture console + pageerror + network. This tells me which of the three causes is real in ~30s.
+## Secrets / Connector
+- Use the **ElevenLabs standard App connector** (`standard_connectors--connect` with `connector_id: "elevenlabs"`) to sync `ELEVENLABS_API_KEY` server-side. No manual paste.
+- Requires an ElevenLabs Agent — user must create one in ElevenLabs dashboard once and save its Agent ID. Stored as a secret `ELEVENLABS_SCREENER_AGENT_ID` via `add_secret` (requested after connector is linked). "Overrides" must be enabled on that agent so per-position prompt/first-message can be injected.
 
-**Step 2 — harden the route regardless of which cause it is**
+## Frontend
+New component `src/components/ai-screener-card.tsx` shown on the position page:
+- Header: **"Enable automated calling"** toggle (matches user's screenshot).
+- **Job pitch** textarea (multiline, auto-seeded from position: *"Hello! This is a call from the {agency} team. We are hiring a {title} for {client} in {location} with {experience} experience..."*).
+- Checkbox list of screening questions (the three fixed ones).
+- Right-aligned **Get a test call** button with phone icon. On click:
+  1. Saves current draft.
+  2. Requests mic permission.
+  3. Calls `createTestCallToken` server fn.
+  4. Uses `useConversation` from `@elevenlabs/react` with `startSession({ conversationToken, connectionType: "webrtc", overrides: { agent: { prompt: {prompt: buildPrompt()}, firstMessage: jobPitch } } })`.
+  5. Shows live status pill (connecting / agent speaking / listening) and an **End call** button.
 
-- Wrap `Page()` in a local error boundary that shows an inline "Couldn't load posts — Retry" card instead of blowing up the whole app tree.
-- In `listJobPosts` (`src/lib/posting.functions.ts`), explicitly scope by the caller's agency: look up `agency_members.agency_id` for `userId`, return `[]` if none, filter `job_posts` by that `agency_id`. Same treatment for `job_post_channels` join.
-- Defensive nulls in `PostCard`: `post.channels ?? []` is already there, but also guard `post.applications_count` and `post.status`.
+Package: `bun add @elevenlabs/react`.
 
-**Step 3 — targeted fix for whatever step 1 revealed**
+## Follow-ups (not in this iteration)
+- Real outbound calls to candidate phone numbers via Twilio bridge.
+- Per-candidate transcript storage & auto-scoring in the pipeline.
 
-- If it's session/auth → clear stale token + redirect to `/login` from the boundary, don't crash.
-- If it's a specific row shape → tighten the Zod/serialization on the server side.
-
-**Step 4 — verify**
-Re-run Playwright with the same session, confirm the page renders (empty state or list). Check console is clean.
-
-## Files that will change
-
-- `src/routes/posting.index.tsx` — local error boundary + null guards
-- `src/lib/posting.functions.ts` — agency-scoped query, safer return shape
-
-No schema changes, no migrations.
-
-Approve this and I'll run the repro + ship the fix in the next turn.
+## Files touched
+- new migration for `position_ai_screeners`
+- new `src/lib/ai-screener.functions.ts`
+- new `src/components/ai-screener-card.tsx`
+- edit `src/routes/client.positions.$positionId.tsx` (mount the card)
+- `package.json` (via `bun add`)
