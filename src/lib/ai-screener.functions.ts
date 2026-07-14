@@ -437,7 +437,8 @@ export const recordScreeningResult = createServerFn({ method: "POST" })
       ? summary.slice(0, 240)
       : `${cand?.name ?? "Candidate"} screening call · ${durationSec ?? 0}s${verdict ? ` · verdict: ${verdict}` : ""}`;
     if (recipients.size) {
-      await supabase.from("notifications").insert(
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error: notifErr } = await supabaseAdmin.from("notifications").insert(
         Array.from(recipients).map((uid) => ({
           user_id: uid,
           kind: "system" as const,
@@ -446,6 +447,7 @@ export const recordScreeningResult = createServerFn({ method: "POST" })
           link: `/positions/${data.positionId}`,
         })),
       );
+      if (notifErr) console.error("[recordScreeningResult] notification insert failed", notifErr);
     }
 
     return {

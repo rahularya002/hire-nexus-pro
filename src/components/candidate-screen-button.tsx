@@ -195,7 +195,6 @@ function ScreeningCallDialog(
   useEffect(() => {
     // Kick off the call as soon as the dialog opens.
     if (!props.open) return;
-    if (props.mode !== "browser") return;
     if (isLive || connecting) return;
     void startCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps

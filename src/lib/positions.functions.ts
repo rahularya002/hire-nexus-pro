@@ -147,17 +147,8 @@ export const createPosition = createServerFn({ method: "POST" })
           );
         }
 
-        if (assignedId && assignedId !== userId) {
-          await supabaseAdmin.from("notifications").insert({
-            user_id: assignedId,
-            kind: "system" as const,
-            title: `Assigned: ${title}`,
-            body: clientName
-              ? `New requirement from ${clientName}`
-              : "You've been assigned a new requirement.",
-            link: `/positions/${(row as any).id}`,
-          });
-        }
+        // Assignee already receives the tailored "— assigned to you" row above;
+        // skip the duplicate "Assigned: …" notification.
       }
     } catch (notifyErr) {
       console.error("[createPosition] notification insert failed", notifyErr);
