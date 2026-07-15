@@ -444,6 +444,7 @@ export const requestClientInterview = createServerFn({ method: "POST" })
         scheduled_at: z.string().datetime(),
         provider: z.enum(INTERVIEW_PROVIDERS).optional(),
         location: z.string().max(300).optional().nullable(),
+        meeting_link: z.string().url().max(500).optional().nullable(),
         rounds: z
           .array(
             z.object({
@@ -482,6 +483,7 @@ export const requestClientInterview = createServerFn({ method: "POST" })
       status: "pending_confirmation" as const,
       provider: (data.provider ?? "google_meet") as InterviewProvider,
       location: data.provider === "on_site" && i === 0 ? (data.location?.trim() || null) : null,
+      meeting_link: i === 0 ? (data.meeting_link?.trim() || null) : null,
       created_by: userId,
     }));
     // Service-role insert: stamp agency_id from the parent application
