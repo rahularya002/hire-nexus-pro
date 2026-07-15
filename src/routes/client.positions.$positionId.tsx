@@ -38,10 +38,8 @@ import {
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
 import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
-import { GoogleCalendarCard } from "@/components/google-calendar-card";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import { AiScreenerCard } from "@/components/ai-screener-card";
-import { AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
