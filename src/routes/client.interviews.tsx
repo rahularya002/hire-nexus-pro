@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare, ArrowRight, Link2Off, Calendar as CalendarIcon } from "lucide-react";
+import { CalendarClock, Video, MapPin, Users, Check, X, RotateCw, MessageSquare, ArrowRight, Calendar as CalendarIcon } from "lucide-react";
 import { ClientShell } from "@/components/client-shell";
 import {
   listInterviews,
