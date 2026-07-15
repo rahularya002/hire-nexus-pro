@@ -183,6 +183,9 @@ async function syncGoogleMeet(userId: string, interviewId: string) {
     if (!row) return;
     if (row.provider !== "google_meet" || !row.scheduled_at) return;
 
+    // If someone already pasted a meeting link, don't overwrite it.
+    if ((row as any).meeting_link) return;
+
     const conn = await getValidAccessToken(userId);
     if (!conn) return; // recruiter hasn't connected
 
