@@ -208,19 +208,16 @@ function Detail() {
       <div>
         <div className="text-sm font-semibold mb-3">Candidates shared with you ({apps.length})</div>
         {!googleQ.isLoading && !googleQ.data?.connected && (
-          <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
-            <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold">Connect Google Calendar to schedule interviews</div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Video interviews need a connected Google account so we can auto-create a Meet link and email the candidate an invite.
-              </p>
+          <div className="mb-3 rounded-xl border border-border bg-secondary/40 p-3 flex items-start gap-3 flex-wrap text-xs">
+            <Calendar className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 text-muted-foreground">
+              <span className="font-medium text-foreground">Optional:</span> connect Google Calendar and interviews you schedule will auto-generate a Meet link and email invites. You can also just paste meeting links manually when scheduling.
             </div>
             <Link
               to="/client/settings"
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-[11px] font-medium hover:bg-secondary"
             >
-              <Calendar className="size-3.5" /> Connect
+              Connect
             </Link>
           </div>
         )}
@@ -241,8 +238,8 @@ function Detail() {
         app={scheduleFor}
         googleConnected={!!googleQ.data?.connected}
         onClose={() => setScheduleFor(null)}
-        onSubmit={(scheduled_at, rounds, provider, location) =>
-          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location })
+        onSubmit={(scheduled_at, rounds, provider, location, meeting_link) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location, meeting_link })
         }
         pending={scheduleM.isPending}
       />
