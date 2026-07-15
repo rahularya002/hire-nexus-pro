@@ -35,6 +35,7 @@ export function RescheduleInterviewDialog({
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("10:00");
   const [reason, setReason] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
 
   useEffect(() => {
     if (!interview) return;
@@ -47,23 +48,34 @@ export function RescheduleInterviewDialog({
       setTime("10:00");
     }
     setReason("");
+    setMeetingLink(interview.meeting_link ?? "");
   }, [interview?.id]);
+
+  const isVirtual =
+    interview?.provider === "google_meet" ||
+    interview?.provider === "microsoft_teams" ||
+    interview?.provider === "zoom";
+  const linkTrimmed = meetingLink.trim();
+  const linkInvalid = !!linkTrimmed && !/^https?:\/\//i.test(linkTrimmed);
 
   const m = useMutation({
     mutationFn: async () => {
       if (!interview || !date) throw new Error("Pick a date and time");
+      if (linkInvalid) throw new Error("Meeting link must start with http:// or https://");
       const [h, mi] = time.split(":").map(Number);
       const dt = new Date(date);
       dt.setHours(h || 10, mi || 0, 0, 0);
       const notes = reason.trim()
         ? `${interview.notes ?? ""}${interview.notes ? "\n" : ""}Reschedule: ${reason.trim()}`.slice(0, 9_900)
         : undefined;
+      const linkChanged = (interview.meeting_link ?? "") !== linkTrimmed;
       return updateFn({
         data: {
           id: interview.id,
           scheduled_at: dt.toISOString(),
           status: "reschedule_requested",
           ...(notes ? { notes } : {}),
+          ...(isVirtual && linkChanged ? { meeting_link: linkTrimmed || null } : {}),
         },
       });
     },
@@ -124,6 +136,20 @@ export function RescheduleInterviewDialog({
               maxLength={200}
             />
           </div>
+          {isVirtual && (
+            <div className="grid gap-2">
+              <Label>Meeting link (optional)</Label>
+              <Input
+                type="url"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                placeholder="https://meet.google.com/... or Teams/Zoom link"
+              />
+              {linkInvalid && (
+                <p className="text-[11px] text-destructive">Link must start with http:// or https://</p>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={m.isPending}>Cancel</Button>
