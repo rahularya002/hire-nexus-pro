@@ -176,7 +176,7 @@ async function syncGoogleMeet(userId: string, interviewId: string) {
     const { data: row } = await supabaseAdmin
       .from("interviews")
       .select(
-        "id, provider, scheduled_at, duration_minutes, interviewer, notes, round_index, external_event_id, candidate:candidates(name,email), position:positions(title, client:clients(name))",
+        "id, provider, scheduled_at, duration_minutes, interviewer, notes, round_index, external_event_id, meeting_link, candidate:candidates(name,email), position:positions(title, client:clients(name))",
       )
       .eq("id", interviewId)
       .maybeSingle();
