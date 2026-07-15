@@ -536,9 +536,11 @@ function ScheduleInterviewDialog({
             </Select>
             <p className="text-[11px] text-muted-foreground">
               {provider === "google_meet"
-                ? "The recruiter will generate a Google Meet link from their connected calendar when they confirm."
+                ? googleConnected
+                  ? "We'll auto-generate a Google Meet link from your connected calendar. You can also paste one below."
+                  : "Paste a Meet link below, or leave blank and add it later. (Optional: connect Google Calendar in Settings to auto-generate one.)"
                 : provider === "microsoft_teams" || provider === "zoom"
-                  ? "The recruiter will share the meeting link when they confirm."
+                  ? "Paste the meeting link below, or add it later after the recruiter confirms."
                   : provider === "on_site"
                     ? "Add the office address / location below."
                     : "The recruiter will call the candidate at the confirmed time."}
@@ -556,8 +558,19 @@ function ScheduleInterviewDialog({
             </div>
           )}
 
-          {needsGoogle && (
-            <GoogleCalendarCard description="Video interviews require a connected Google account so we can generate a Meet link and email the candidate an invite. Connect below to continue — or pick 'Offline / In-person' or 'Phone' instead." />
+          {isVirtual && (
+            <div className="grid gap-2">
+              <Label>Meeting link (optional)</Label>
+              <Input
+                type="url"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                placeholder="https://meet.google.com/... or Teams/Zoom link"
+              />
+              {linkInvalid && (
+                <p className="text-[11px] text-destructive">Link must start with http:// or https://</p>
+              )}
+            </div>
           )}
 
           <div className="grid gap-2">
@@ -604,7 +617,13 @@ function ScheduleInterviewDialog({
                     : null,
                 interviewer: r.interviewer?.trim() || null,
               }));
-              onSubmit(dt.toISOString(), cleaned, provider, provider === "on_site" ? (location.trim() || null) : null);
+              onSubmit(
+                dt.toISOString(),
+                cleaned,
+                provider,
+                provider === "on_site" ? (location.trim() || null) : null,
+                isVirtual ? (linkTrimmed || null) : null,
+              );
             }}
           >
             {pending ? "Requesting…" : "Request interview"}
