@@ -107,17 +107,9 @@ function Page() {
         </a>
       );
     }
-    if (!googleConnected) {
-      return (
-        <Link to="/client/settings"
-          className={cn(h, "px-3 rounded-md border border-warning/30 bg-warning/10 text-warning text-xs font-medium hover:bg-warning/15 inline-flex items-center gap-1")}>
-          <Link2Off className="size-3.5" /> Connect Google to generate link
-        </Link>
-      );
-    }
     return (
       <span className={cn(h, "px-3 rounded-md border border-border bg-secondary/40 text-muted-foreground text-xs font-medium inline-flex items-center gap-1")}
-            title="Meet link will appear once the recruiter syncs the event.">
+            title={googleConnected ? "Meet link will appear once the event syncs." : "No meeting link yet — reschedule to add one, or connect Google Calendar in Settings to auto-generate."}>
         <CalendarIcon className="size-3.5" /> Meeting link pending
       </span>
     );
