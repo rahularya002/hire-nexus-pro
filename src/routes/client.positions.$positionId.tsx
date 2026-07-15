@@ -432,7 +432,7 @@ function ScheduleInterviewDialog({
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
-  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null) => void;
+  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null, meeting_link: string | null) => void;
   pending: boolean;
   googleConnected: boolean;
 }) {
@@ -440,6 +440,7 @@ function ScheduleInterviewDialog({
   const [time, setTime] = useState("10:00");
   const [provider, setProvider] = useState<InterviewProvider>("google_meet");
   const [location, setLocation] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
   const [rounds, setRounds] = useState<RoundDraft[]>([
     { kind: "hr_screen", custom_kind_label: null, interviewer: "" },
   ]);
@@ -460,13 +461,15 @@ function ScheduleInterviewDialog({
       setTime("10:00");
       setProvider("google_meet");
       setLocation("");
+      setMeetingLink("");
       setRounds([{ kind: "hr_screen", custom_kind_label: null, interviewer: "" }]);
     }
   }, [app?.id]);
 
   const isVirtual = provider === "google_meet" || provider === "microsoft_teams" || provider === "zoom";
-  const needsGoogle = isVirtual && !googleConnected;
-  const canSubmit = !!date && !pending && !needsGoogle;
+  const linkTrimmed = meetingLink.trim();
+  const linkInvalid = !!linkTrimmed && !/^https?:\/\//i.test(linkTrimmed);
+  const canSubmit = !!date && !pending && !linkInvalid;
 
   const defaultKindFor = (i: number): InterviewKind =>
     i === 0 ? "hr_screen" : i === 1 ? "technical" : i === 2 ? "hiring_manager" : "technical";
