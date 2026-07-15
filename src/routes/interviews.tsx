@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Link2Off, Calendar as CalendarIcon } from "lucide-react";
+import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Calendar as CalendarIcon } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import {
