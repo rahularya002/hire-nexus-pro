@@ -117,7 +117,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null; meeting_link: string | null }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
