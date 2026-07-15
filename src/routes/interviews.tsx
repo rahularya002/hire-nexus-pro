@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Link2Off, Calendar as CalendarIcon } from "lucide-react";
+import { CalendarClock, Video, ArrowUpRight, Building2, MapPin, Calendar as CalendarIcon } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import {
@@ -204,12 +204,11 @@ function TodayByCompany({ rows, googleConnected }: { rows: InterviewRow[]; googl
                      className="text-xs font-medium h-8 px-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1">
                     <Video className="size-3" /> Join
                   </a>
-                ) : !googleConnected ? (
-                  <Link to="/settings" className="text-xs font-medium h-8 px-3 rounded-md border border-warning/30 bg-warning/10 text-warning inline-flex items-center gap-1 hover:bg-warning/15">
-                    <Link2Off className="size-3" /> Connect Google
-                  </Link>
                 ) : (
-                  <span className="text-xs font-medium h-8 px-3 rounded-md border border-border bg-secondary/40 text-muted-foreground inline-flex items-center gap-1">
+                  <span
+                    className="text-xs font-medium h-8 px-3 rounded-md border border-border bg-secondary/40 text-muted-foreground inline-flex items-center gap-1"
+                    title={googleConnected ? "Meet link will appear once the event syncs." : "No link yet — add one on reschedule, or connect Google in Settings to auto-generate."}
+                  >
                     <CalendarIcon className="size-3" /> Link pending
                   </span>
                 )}

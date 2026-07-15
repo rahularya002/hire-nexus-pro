@@ -38,10 +38,8 @@ import {
 import { listClientMembers } from "@/lib/client-team.functions";
 import { EditPositionDialog } from "@/components/edit-position-dialog";
 import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
-import { GoogleCalendarCard } from "@/components/google-calendar-card";
 import { getMyGoogleConnection } from "@/lib/google-calendar.functions";
 import { AiScreenerCard } from "@/components/ai-screener-card";
-import { AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/client/positions/$positionId")({
   component: () => <ClientShell><Detail /></ClientShell>,
@@ -117,7 +115,7 @@ function Detail() {
   });
 
   const scheduleM = useMutation({
-    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null }) =>
+    mutationFn: (vars: { application_id: string; scheduled_at: string; rounds: RoundDraft[]; provider: InterviewProvider; location: string | null; meeting_link: string | null }) =>
       requestInterview({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-position-apps", positionId] });
@@ -208,19 +206,16 @@ function Detail() {
       <div>
         <div className="text-sm font-semibold mb-3">Candidates shared with you ({apps.length})</div>
         {!googleQ.isLoading && !googleQ.data?.connected && (
-          <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
-            <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold">Connect Google Calendar to schedule interviews</div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Video interviews need a connected Google account so we can auto-create a Meet link and email the candidate an invite.
-              </p>
+          <div className="mb-3 rounded-xl border border-border bg-secondary/40 p-3 flex items-start gap-3 flex-wrap text-xs">
+            <Calendar className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 text-muted-foreground">
+              <span className="font-medium text-foreground">Optional:</span> connect Google Calendar and interviews you schedule will auto-generate a Meet link and email invites. You can also just paste meeting links manually when scheduling.
             </div>
             <Link
               to="/client/settings"
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-[11px] font-medium hover:bg-secondary"
             >
-              <Calendar className="size-3.5" /> Connect
+              Connect
             </Link>
           </div>
         )}
@@ -241,8 +236,8 @@ function Detail() {
         app={scheduleFor}
         googleConnected={!!googleQ.data?.connected}
         onClose={() => setScheduleFor(null)}
-        onSubmit={(scheduled_at, rounds, provider, location) =>
-          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location })
+        onSubmit={(scheduled_at, rounds, provider, location, meeting_link) =>
+          scheduleFor && scheduleM.mutate({ application_id: scheduleFor.id, scheduled_at, rounds, provider, location, meeting_link })
         }
         pending={scheduleM.isPending}
       />
@@ -435,7 +430,7 @@ function ScheduleInterviewDialog({
 }: {
   app: ApplicationRow | null;
   onClose: () => void;
-  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null) => void;
+  onSubmit: (scheduled_at: string, rounds: RoundDraft[], provider: InterviewProvider, location: string | null, meeting_link: string | null) => void;
   pending: boolean;
   googleConnected: boolean;
 }) {
@@ -443,6 +438,7 @@ function ScheduleInterviewDialog({
   const [time, setTime] = useState("10:00");
   const [provider, setProvider] = useState<InterviewProvider>("google_meet");
   const [location, setLocation] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
   const [rounds, setRounds] = useState<RoundDraft[]>([
     { kind: "hr_screen", custom_kind_label: null, interviewer: "" },
   ]);
@@ -463,13 +459,15 @@ function ScheduleInterviewDialog({
       setTime("10:00");
       setProvider("google_meet");
       setLocation("");
+      setMeetingLink("");
       setRounds([{ kind: "hr_screen", custom_kind_label: null, interviewer: "" }]);
     }
   }, [app?.id]);
 
   const isVirtual = provider === "google_meet" || provider === "microsoft_teams" || provider === "zoom";
-  const needsGoogle = isVirtual && !googleConnected;
-  const canSubmit = !!date && !pending && !needsGoogle;
+  const linkTrimmed = meetingLink.trim();
+  const linkInvalid = !!linkTrimmed && !/^https?:\/\//i.test(linkTrimmed);
+  const canSubmit = !!date && !pending && !linkInvalid;
 
   const defaultKindFor = (i: number): InterviewKind =>
     i === 0 ? "hr_screen" : i === 1 ? "technical" : i === 2 ? "hiring_manager" : "technical";
@@ -536,9 +534,11 @@ function ScheduleInterviewDialog({
             </Select>
             <p className="text-[11px] text-muted-foreground">
               {provider === "google_meet"
-                ? "The recruiter will generate a Google Meet link from their connected calendar when they confirm."
+                ? googleConnected
+                  ? "We'll auto-generate a Google Meet link from your connected calendar. You can also paste one below."
+                  : "Paste a Meet link below, or leave blank and add it later. (Optional: connect Google Calendar in Settings to auto-generate one.)"
                 : provider === "microsoft_teams" || provider === "zoom"
-                  ? "The recruiter will share the meeting link when they confirm."
+                  ? "Paste the meeting link below, or add it later after the recruiter confirms."
                   : provider === "on_site"
                     ? "Add the office address / location below."
                     : "The recruiter will call the candidate at the confirmed time."}
@@ -556,8 +556,19 @@ function ScheduleInterviewDialog({
             </div>
           )}
 
-          {needsGoogle && (
-            <GoogleCalendarCard description="Video interviews require a connected Google account so we can generate a Meet link and email the candidate an invite. Connect below to continue — or pick 'Offline / In-person' or 'Phone' instead." />
+          {isVirtual && (
+            <div className="grid gap-2">
+              <Label>Meeting link (optional)</Label>
+              <Input
+                type="url"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                placeholder="https://meet.google.com/... or Teams/Zoom link"
+              />
+              {linkInvalid && (
+                <p className="text-[11px] text-destructive">Link must start with http:// or https://</p>
+              )}
+            </div>
           )}
 
           <div className="grid gap-2">
@@ -604,7 +615,13 @@ function ScheduleInterviewDialog({
                     : null,
                 interviewer: r.interviewer?.trim() || null,
               }));
-              onSubmit(dt.toISOString(), cleaned, provider, provider === "on_site" ? (location.trim() || null) : null);
+              onSubmit(
+                dt.toISOString(),
+                cleaned,
+                provider,
+                provider === "on_site" ? (location.trim() || null) : null,
+                isVirtual ? (linkTrimmed || null) : null,
+              );
             }}
           >
             {pending ? "Requesting…" : "Request interview"}

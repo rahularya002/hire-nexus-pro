@@ -46,7 +46,7 @@ function ClientSettingsInner() {
         <p className="text-sm text-muted-foreground mt-1">Account security, integrations, and session.</p>
       </div>
 
-      <GoogleCalendarCard description="Connect your Google account so interviews you request auto-create a calendar event with a Google Meet link and email invites to everyone." />
+      <GoogleCalendarCard description="Optional — connect Google so interviews you request auto-generate a Meet link and email invites to everyone. You can also skip this and paste meeting links manually when scheduling." />
 
       <form onSubmit={changePassword} className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center gap-2">

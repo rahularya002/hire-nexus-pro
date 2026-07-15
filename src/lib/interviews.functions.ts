@@ -176,12 +176,15 @@ async function syncGoogleMeet(userId: string, interviewId: string) {
     const { data: row } = await supabaseAdmin
       .from("interviews")
       .select(
-        "id, provider, scheduled_at, duration_minutes, interviewer, notes, round_index, external_event_id, candidate:candidates(name,email), position:positions(title, client:clients(name))",
+        "id, provider, scheduled_at, duration_minutes, interviewer, notes, round_index, external_event_id, meeting_link, candidate:candidates(name,email), position:positions(title, client:clients(name))",
       )
       .eq("id", interviewId)
       .maybeSingle();
     if (!row) return;
     if (row.provider !== "google_meet" || !row.scheduled_at) return;
+
+    // If someone already pasted a meeting link, don't overwrite it.
+    if ((row as any).meeting_link) return;
 
     const conn = await getValidAccessToken(userId);
     if (!conn) return; // recruiter hasn't connected
@@ -441,6 +444,7 @@ export const requestClientInterview = createServerFn({ method: "POST" })
         scheduled_at: z.string().datetime(),
         provider: z.enum(INTERVIEW_PROVIDERS).optional(),
         location: z.string().max(300).optional().nullable(),
+        meeting_link: z.string().url().max(500).optional().nullable(),
         rounds: z
           .array(
             z.object({
@@ -479,6 +483,7 @@ export const requestClientInterview = createServerFn({ method: "POST" })
       status: "pending_confirmation" as const,
       provider: (data.provider ?? "google_meet") as InterviewProvider,
       location: data.provider === "on_site" && i === 0 ? (data.location?.trim() || null) : null,
+      meeting_link: i === 0 ? (data.meeting_link?.trim() || null) : null,
       created_by: userId,
     }));
     // Service-role insert: stamp agency_id from the parent application

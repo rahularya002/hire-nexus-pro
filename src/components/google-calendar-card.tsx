@@ -80,7 +80,7 @@ export function GoogleCalendarCard({ description }: { description?: string }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {description ??
-          "Connect your Google account so interviews you schedule auto-create a calendar event with a Google Meet link and email invites to the candidate."}
+          "Optional — connect Google so interviews you schedule auto-generate a Meet link and email invites to the candidate. You can also skip this and paste meeting links manually when scheduling."}
       </p>
       {isLoading ? (
         <div className="text-xs text-muted-foreground">Loading…</div>
