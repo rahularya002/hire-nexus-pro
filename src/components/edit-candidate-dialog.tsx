@@ -37,6 +37,8 @@ export function EditCandidateDialog({
   const [phone, setPhone] = useState(candidate.phone ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedin_url ?? "");
   const [salary, setSalary] = useState(candidate.salary ?? "");
+  const [salaryMin, setSalaryMin] = useState<string>(candidate.salary_min != null ? String(candidate.salary_min) : "");
+  const [salaryMax, setSalaryMax] = useState<string>(candidate.salary_max != null ? String(candidate.salary_max) : "");
   const [notes, setNotes] = useState(candidate.notes ?? "");
   const [skills, setSkills] = useState<string[]>(candidate.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
@@ -56,6 +58,8 @@ export function EditCandidateDialog({
     setPhone(candidate.phone ?? "");
     setLinkedinUrl(candidate.linkedin_url ?? "");
     setSalary(candidate.salary ?? "");
+    setSalaryMin(candidate.salary_min != null ? String(candidate.salary_min) : "");
+    setSalaryMax(candidate.salary_max != null ? String(candidate.salary_max) : "");
     setNotes(candidate.notes ?? "");
     setSkills(candidate.skills ?? []);
     setSkillInput("");
@@ -76,6 +80,8 @@ export function EditCandidateDialog({
           phone: phone.trim() || null,
           linkedin_url: linkedinUrl.trim() || null,
           salary: salary.trim() || null,
+          salary_min: salaryMin.trim() === "" ? null : Number(salaryMin),
+          salary_max: salaryMax.trim() === "" ? null : Number(salaryMax),
           notes: notes.trim() || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
           resume_url: resumePath,
@@ -181,6 +187,14 @@ export function EditCandidateDialog({
             <div className="grid gap-1.5">
               <Label htmlFor="ec-salary">Salary / CTC</Label>
               <Input id="ec-salary" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="₹50 LPA" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-salary-min">Salary min (LPA)</Label>
+              <Input id="ec-salary-min" type="number" min={0} value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} placeholder="12" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-salary-max">Salary max (LPA)</Label>
+              <Input id="ec-salary-max" type="number" min={0} value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} placeholder="18" />
             </div>
           </div>
 
