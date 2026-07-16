@@ -18,6 +18,7 @@ export type JobPostRow = {
   comp_min: number | null;
   comp_max: number | null;
   currency: string | null;
+  experience: string | null;
   tags: string[];
   status: JobPostStatus;
   is_public: boolean;
@@ -71,6 +72,7 @@ const upsertSchema = z.object({
   comp_min: z.number().nullable().optional(),
   comp_max: z.number().nullable().optional(),
   currency: z.string().max(8).nullable().optional(),
+  experience: z.string().max(80).nullable().optional(),
   tags: z.array(z.string().min(1).max(40)).max(20).default([]),
   is_public: z.boolean().default(true),
   channels: z.array(z.enum(["linkedin", "naukri", "indeed", "internal"])).default(["internal"]),
@@ -141,6 +143,7 @@ export const createJobPost = createServerFn({ method: "POST" })
         comp_min: data.comp_min ?? null,
         comp_max: data.comp_max ?? null,
         currency: data.currency ?? "INR",
+        experience: data.experience ?? null,
         tags: data.tags ?? [],
         is_public: data.is_public,
         status: "draft",
