@@ -1,20 +1,36 @@
-## Add Salary Range + Experience to Job Posting Form
+## Goal
+Replace the browser's native number-input spinners (the little up/down arrows shown in the screenshot) with themed inline +/- controls that match the app's dark UI.
 
-### Schema
-- Migration on `public.job_posts`: add `experience text` column (nullable). `comp_min` / `comp_max` / `currency` already exist and will be reused for salary range.
+## Approach
+Add a reusable `NumberInput` component and globally hide native spinners so any lingering `type="number"` fields also look clean.
 
-### Server (`src/lib/posting.functions.ts`)
-- Extend Zod schema + `JobPost` type with `comp_min number|null`, `comp_max number|null`, `currency` (default "INR"), `experience string|null`.
-- Persist these on insert in `createJobPost`.
-- Update select lists that read job_posts to include the new fields where they surface.
+### 1. Global CSS — hide native spinners
+In `src/styles.css`, add a small utility to strip the WebKit/Firefox spinner chrome from `input[type="number"]` (and a `.no-spinner` utility) so no field ever shows the outdated arrows.
 
-### Form (`src/routes/posting.new.tsx`)
-- Add three inputs in the grid: **Experience** (e.g. "3–6 years"), **Salary min**, **Salary max**, plus a small **Currency** select (INR/USD default INR).
-- When prefilling from a Position, parse the position's `salary` string into min/max where possible and copy `experience`.
-- Send the new fields to `createJobPost`.
+### 2. New component: `src/components/ui/number-input.tsx`
+A drop-in wrapper around shadcn `Input` that:
+- Renders a themed `−` button on the left and `+` button on the right (ghost/secondary, rounded, using `text-muted-foreground` + hover `bg-accent` — matches existing buttons).
+- Uses `Minus` / `Plus` icons from `lucide-react`.
+- Props: `value`, `onChange(value: string)`, `min`, `max`, `step` (default 1), `placeholder`, `id`, `className`, `disabled`.
+- Clamps to min/max, supports empty string, keeps `inputMode="numeric"`.
+- Buttons: `size-8` square, border-l/border-r on input, so it reads as one integrated control.
 
-### Display
-- Public job page (`src/routes/jobs.$slug.tsx`) and post detail (`src/routes/posting.$postId.tsx`): show "Experience" and formatted salary range ("₹12–18 LPA") alongside location/employment.
+### 3. Swap number inputs to `NumberInput`
+Replace every `<Input type="number" ... />` (and the raw `<input type="number">` in superadmin pages) in the files below:
+- `src/routes/database.tsx` (salary min/max filters + form fields)
+- `src/routes/positions.tsx` (openings)
+- `src/routes/client.upload.tsx` (openings)
+- `src/routes/billing.clients.$clientId.tsx`
+- `src/routes/superadmin.settings.tsx`
+- `src/routes/superadmin.agencies.new.tsx`
+- `src/routes/superadmin.agencies.$id.tsx`
+- `src/components/edit-candidate-dialog.tsx` (salary min/max)
+- `src/components/edit-position-dialog.tsx` (openings)
+- `src/components/edit-terms-dialog.tsx` (fees, days, percentages — keeps `step` for decimals)
+- `src/components/confirm-joining-dialog.tsx` (CTC)
 
-### Out of scope
-- No changes to channel publishing payloads beyond appending the salary/experience line to the shared text builder.
+Behavior and validation stay identical; only the control chrome changes.
+
+## Out of scope
+- No changes to server functions, schemas, or business logic.
+- Non-number inputs untouched.
