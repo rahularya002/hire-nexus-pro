@@ -42,6 +42,9 @@ export const Route = createFileRoute("/database")({
 
 function Page() {
   const [q, setQ] = useState("");
+  const [locFilter, setLocFilter] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
@@ -54,7 +57,7 @@ function Page() {
   });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; salary_min?: number | null; salary_max?: number | null; skills?: string[]; resume_url?: string }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
@@ -66,13 +69,29 @@ function Page() {
 
   const filtered = useMemo(() => {
     const needle = q.toLowerCase().trim();
-    if (!needle) return candidates;
-    return candidates.filter((c) =>
-      [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(needle)),
-    );
-  }, [candidates, q]);
+    const loc = locFilter.toLowerCase().trim();
+    const minF = salaryMin.trim() === "" ? null : Number(salaryMin);
+    const maxF = salaryMax.trim() === "" ? null : Number(salaryMax);
+    return candidates.filter((c) => {
+      if (needle) {
+        const hay = [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
+          .filter(Boolean)
+          .some((v) => v!.toLowerCase().includes(needle));
+        if (!hay) return false;
+      }
+      if (loc) {
+        if (!c.location || !c.location.toLowerCase().includes(loc)) return false;
+      }
+      if (minF != null || maxF != null) {
+        const cMin = c.salary_min ?? c.salary_max ?? null;
+        const cMax = c.salary_max ?? c.salary_min ?? null;
+        if (cMin == null && cMax == null) return false;
+        if (minF != null && (cMax ?? -Infinity) < minF) return false;
+        if (maxF != null && (cMin ?? Infinity) > maxF) return false;
+      }
+      return true;
+    });
+  }, [candidates, q, locFilter, salaryMin, salaryMax]);
 
   return (
     <div className="space-y-5">
@@ -107,6 +126,49 @@ function Page() {
         <span className="text-xs text-muted-foreground">{filtered.length} candidates</span>
       </div>
 
+      <div className="flex items-end gap-2 flex-wrap">
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</Label>
+          <div className="relative">
+            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              value={locFilter}
+              onChange={(e) => setLocFilter(e.target.value)}
+              placeholder="e.g. Bengaluru"
+              className="h-9 pl-8 w-52"
+            />
+          </div>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary min (LPA)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={salaryMin}
+            onChange={(e) => setSalaryMin(e.target.value)}
+            placeholder="0"
+            className="h-9 w-32"
+          />
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary max (LPA)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={salaryMax}
+            onChange={(e) => setSalaryMax(e.target.value)}
+            placeholder="∞"
+            className="h-9 w-32"
+          />
+        </div>
+        {(locFilter || salaryMin || salaryMax) && (
+          <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs"
+            onClick={() => { setLocFilter(""); setSalaryMin(""); setSalaryMax(""); }}>
+            <X className="size-3.5" /> Clear filters
+          </Button>
+        )}
+      </div>
+
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -116,16 +178,17 @@ function Page() {
                 <th className="text-left font-medium px-2 py-2.5">Role / experience</th>
                 <th className="text-left font-medium px-2 py-2.5">Location</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
+                <th className="text-left font-medium px-2 py-2.5">Salary range</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
                 <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <TableRowsSkeleton rows={6} cols={6} />
+                <TableRowsSkeleton rows={6} cols={7} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8">
+                <tr><td colSpan={7} className="px-4 py-8">
                   <EmptyState
                     icon={q ? SearchX : Database}
                     title={q ? "No matches found" : "No candidates yet"}
@@ -171,6 +234,7 @@ function Page() {
                       <Building2 className="size-3 text-muted-foreground" />{c.current_company ?? "—"}
                     </span>
                   </td>
+                  <td className="px-2 py-3 text-xs">{formatSalaryRange(c.salary_min, c.salary_max, c.salary)}</td>
                   <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
                   <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <CvCellButton candidate={c} />
@@ -256,6 +320,7 @@ function CandidateDetailSheet({
                 <Row k="Experience" v={candidate.experience} />
                 <Row k="Location" v={candidate.location} />
                 <Row k="Current company" v={candidate.current_company} />
+                <Row k="Salary range" v={formatSalaryRange(candidate.salary_min, candidate.salary_max, candidate.salary)} />
                 <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
                 <Row k="Source" v={candidate.source} />
                 <CvRow candidate={candidate} />
@@ -455,9 +520,10 @@ function AddCandidateDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) => void;
+  // salary_min/salary_max are added below in the handler
   submitting: boolean;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -472,7 +538,7 @@ function AddCandidateDialog({
   }
 
   function reset() {
-    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
     setSkills([]);
     setSkillInput("");
     setCvFile(null);
@@ -509,10 +575,11 @@ function AddCandidateDialog({
       experience: form.experience.trim() || undefined,
       current_company: form.current_company.trim() || undefined,
       linkedin_url: form.linkedin_url.trim() || undefined,
-      salary: form.salary.trim() || undefined,
       skills: skills.length ? skills : undefined,
       resume_url: resumePath,
-    });
+      ...(form.salary_min.trim() !== "" ? { salary_min: Number(form.salary_min) } : {}),
+      ...(form.salary_max.trim() !== "" ? { salary_max: Number(form.salary_max) } : {}),
+    } as Parameters<typeof onSubmit>[0]);
   }
 
   return (
@@ -538,7 +605,10 @@ function AddCandidateDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="LinkedIn URL"><Input value={form.linkedin_url} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/…" /></Field>
-            <Field label="Salary / CTC"><Input value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="₹50 LPA" /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Salary min (LPA)"><Input type="number" min={0} value={form.salary_min} onChange={(e) => setForm({ ...form, salary_min: e.target.value })} placeholder="12" /></Field>
+              <Field label="Salary max (LPA)"><Input type="number" min={0} value={form.salary_max} onChange={(e) => setForm({ ...form, salary_max: e.target.value })} placeholder="18" /></Field>
+            </div>
           </div>
           <Field label="Skills">
             <div className="flex gap-2">
@@ -601,6 +671,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+function formatSalaryRange(min: number | null, max: number | null, fallback: string | null): string {
+  if (min != null && max != null) {
+    return min === max ? `₹${min} LPA` : `₹${min}–${max} LPA`;
+  }
+  if (min != null) return `≥ ₹${min} LPA`;
+  if (max != null) return `≤ ₹${max} LPA`;
+  return fallback ?? "—";
 }
 
 function CvCellButton({ candidate }: { candidate: CandidateRow }) {
@@ -676,6 +755,8 @@ type BulkRow = {
   current_company?: string;
   linkedin_url?: string;
   salary?: string;
+  salary_min?: number;
+  salary_max?: number;
   skills?: string[];
   _error?: string;
 };
@@ -690,6 +771,8 @@ const BULK_COLUMNS: { key: keyof BulkRow; aliases: string[] }[] = [
   { key: "experience", aliases: ["experience", "years of experience", "exp", "yoe"] },
   { key: "linkedin_url", aliases: ["linkedin", "linkedin url", "linkedin profile"] },
   { key: "salary", aliases: ["salary", "ctc", "compensation", "package"] },
+  { key: "salary_min", aliases: ["salary min", "salary minimum", "min salary", "ctc min", "min ctc", "salary min lpa"] },
+  { key: "salary_max", aliases: ["salary max", "salary maximum", "max salary", "ctc max", "max ctc", "salary max lpa"] },
   { key: "skills", aliases: ["skills", "key skills", "tech stack"] },
 ];
 
@@ -707,6 +790,9 @@ function mapRow(raw: Record<string, unknown>): BulkRow {
         const val = String(normalized[alias]).trim();
         if (col.key === "skills") {
           out.skills = val.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).slice(0, 40);
+        } else if (col.key === "salary_min" || col.key === "salary_max") {
+          const n = Number(val.replace(/[^0-9.]/g, ""));
+          if (Number.isFinite(n)) (out as Record<string, unknown>)[col.key] = n;
         } else {
           (out as Record<string, unknown>)[col.key] = val;
         }
@@ -754,8 +840,8 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   function downloadTemplate() {
     // Simple CSV template — Excel opens it natively.
-    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary", "skills"];
-    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "₹40 LPA", "React, Node, TypeScript"];
+    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills"];
+    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript"];
     const csv = headers.join(",") + "\n" + sample.map((v) => `"${v.replace(/"/g, '""')}"`).join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -779,6 +865,7 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           location: r.location, experience: r.experience,
           current_company: r.current_company, linkedin_url: r.linkedin_url,
           salary: r.salary, skills: r.skills,
+          salary_min: r.salary_min, salary_max: r.salary_max,
         }});
         ok++;
       } catch (e) {

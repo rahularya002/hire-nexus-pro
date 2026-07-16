@@ -308,6 +308,8 @@ export type Database = {
           resume_url: string | null
           role: string | null
           salary: string | null
+          salary_max: number | null
+          salary_min: number | null
           skills: string[]
           source: Database["public"]["Enums"]["candidate_source"]
           updated_at: string
@@ -328,6 +330,8 @@ export type Database = {
           resume_url?: string | null
           role?: string | null
           salary?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           updated_at?: string
@@ -348,6 +352,8 @@ export type Database = {
           resume_url?: string | null
           role?: string | null
           salary?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           updated_at?: string

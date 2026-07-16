@@ -53,6 +53,8 @@ export type CandidateRow = {
   resume_url: string | null;
   linkedin_url: string | null;
   salary: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
   source: "manual" | "scout" | "referral" | "database" | "inbound";
   notes: string | null;
   created_at: string;
@@ -92,6 +94,8 @@ const candidateSchema = z.object({
   resume_url: z.string().max(500).optional().nullable(),
   linkedin_url: z.string().url().max(500).optional().nullable(),
   salary: z.string().max(200).optional().nullable(),
+  salary_min: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  salary_max: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
   notes: z.string().max(10_000).optional().nullable(),
 });
