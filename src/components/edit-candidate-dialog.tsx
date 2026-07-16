@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCandidate, getResumeSignedUrl, type CandidateRow } from "@/lib/candidates.functions";
@@ -190,11 +191,11 @@ export function EditCandidateDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="ec-salary-min">Salary min (LPA)</Label>
-              <Input id="ec-salary-min" type="number" min={0} value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} placeholder="12" />
+              <NumberInput id="ec-salary-min" min={0} value={salaryMin} onChange={setSalaryMin} placeholder="12" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="ec-salary-max">Salary max (LPA)</Label>
-              <Input id="ec-salary-max" type="number" min={0} value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} placeholder="18" />
+              <NumberInput id="ec-salary-max" min={0} value={salaryMax} onChange={setSalaryMax} placeholder="18" />
             </div>
           </div>
 

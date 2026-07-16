@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
 import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import { extractJdWithAi } from "@/lib/jd-extract.functions";
+import { NumberInput } from "@/components/ui/number-input";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({

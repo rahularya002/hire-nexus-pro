@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
@@ -261,13 +262,12 @@ function Page() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="custom-days" className="text-xs">Custom (days)</Label>
-                <Input
+                <NumberInput
                   id="custom-days"
-                  type="number"
                   min={0}
                   max={180}
                   value={Number.isFinite(netDays) ? netDays : ""}
-                  onChange={(e) => setNetDays(Math.max(0, Math.min(180, Number(e.target.value) || 0)))}
+                  onChange={(v) => setNetDays(Math.max(0, Math.min(180, Number(v) || 0)))}
                   className="mt-1"
                 />
               </div>

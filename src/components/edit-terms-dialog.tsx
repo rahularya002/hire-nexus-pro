@@ -6,6 +6,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -129,8 +130,8 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
               </Field>
               {draft.fee_model !== "tiered" && (
                 <Field label={draft.fee_model === "percent_ctc" ? "Percent of CTC" : "Flat fee (INR)"}>
-                  <Input type="number" step="0.01" min="0" value={draft.fee_value}
-                    onChange={(e) => set("fee_value", Number(e.target.value))} />
+                  <NumberInput step={0.01} min={0} value={draft.fee_value}
+                    onChange={(v) => set("fee_value", Number(v))} />
                 </Field>
               )}
             </div>
@@ -151,18 +152,18 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
                 {draft.tiers.map((t, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                     <Field label="CTC up to (INR)" small>
-                      <Input type="number" min="0" value={t.upToCtcInr}
-                        onChange={(e) => {
+                      <NumberInput min={0} value={t.upToCtcInr}
+                        onChange={(v) => {
                           const next = [...draft.tiers];
-                          next[idx] = { ...next[idx], upToCtcInr: Number(e.target.value) };
+                          next[idx] = { ...next[idx], upToCtcInr: Number(v) };
                           set("tiers", next);
                         }} />
                     </Field>
                     <Field label="Flat fee (INR)" small>
-                      <Input type="number" min="0" value={t.flatFeeInr}
-                        onChange={(e) => {
+                      <NumberInput min={0} value={t.flatFeeInr}
+                        onChange={(v) => {
                           const next = [...draft.tiers];
-                          next[idx] = { ...next[idx], flatFeeInr: Number(e.target.value) };
+                          next[idx] = { ...next[idx], flatFeeInr: Number(v) };
                           set("tiers", next);
                         }} />
                     </Field>
@@ -192,12 +193,12 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
                 </Select>
               </Field>
               <Field label="Invoice day (1–28)">
-                <Input type="number" min="1" max="28" value={draft.invoice_day_of_month}
-                  onChange={(e) => set("invoice_day_of_month", Number(e.target.value))} />
+                <NumberInput min={1} max={28} value={draft.invoice_day_of_month}
+                  onChange={(v) => set("invoice_day_of_month", Number(v))} />
               </Field>
               <Field label="Payment terms (days)">
-                <Input type="number" min="0" max="180" value={draft.payment_terms_days}
-                  onChange={(e) => set("payment_terms_days", Number(e.target.value))} />
+                <NumberInput min={0} max={180} value={draft.payment_terms_days}
+                  onChange={(v) => set("payment_terms_days", Number(v))} />
               </Field>
             </div>
           </section>
@@ -207,8 +208,8 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground">Replacement guarantee</h3>
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Window (days)">
-                <Input type="number" min="0" max="365" value={draft.replacement_window_days}
-                  onChange={(e) => set("replacement_window_days", Number(e.target.value))} />
+                <NumberInput min={0} max={365} value={draft.replacement_window_days}
+                  onChange={(v) => set("replacement_window_days", Number(v))} />
               </Field>
               <Field label="Policy">
                 <Select value={draft.replacement_policy} onValueChange={(v) => set("replacement_policy", v as ReplacementPolicy)}>
@@ -228,12 +229,12 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground">Taxes & PO</h3>
             <div className="grid sm:grid-cols-3 gap-3">
               <Field label="GST %">
-                <Input type="number" step="0.01" min="0" max="50" value={draft.gst_pct}
-                  onChange={(e) => set("gst_pct", Number(e.target.value))} />
+                <NumberInput step={0.01} min={0} max={50} value={draft.gst_pct}
+                  onChange={(v) => set("gst_pct", Number(v))} />
               </Field>
               <Field label="TDS %">
-                <Input type="number" step="0.01" min="0" max="50" value={draft.tds_pct}
-                  onChange={(e) => set("tds_pct", Number(e.target.value))} />
+                <NumberInput step={0.01} min={0} max={50} value={draft.tds_pct}
+                  onChange={(v) => set("tds_pct", Number(v))} />
               </Field>
               <Field label="Currency">
                 <Input value={draft.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} />
