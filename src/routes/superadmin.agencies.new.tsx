@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { SuperAdminShell } from "@/components/superadmin-shell";
 import { createAgency } from "@/lib/superadmin.functions";
+import { NumberInput } from "@/components/ui/number-input";
 
 export const Route = createFileRoute("/superadmin/agencies/new")({
   ssr: false,

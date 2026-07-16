@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { SuperAdminShell } from "@/components/superadmin-shell";
 import { SCOUT_SOURCES } from "@/lib/scout-sources";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   listSourceSettings,
   upsertSourceSetting,

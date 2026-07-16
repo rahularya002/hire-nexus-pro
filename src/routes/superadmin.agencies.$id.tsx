@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { SuperAdminShell } from "@/components/superadmin-shell";
 import { getAgency, updateAgencyPlan, updateAgencyStatus, extendTrial, updateAgencyDetails, updateAgencyOwnerLogin } from "@/lib/superadmin.functions";
+import { NumberInput } from "@/components/ui/number-input";
 
 export const Route = createFileRoute("/superadmin/agencies/$id")({
   ssr: false,
