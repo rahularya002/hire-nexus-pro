@@ -320,6 +320,7 @@ function CandidateDetailSheet({
                 <Row k="Experience" v={candidate.experience} />
                 <Row k="Location" v={candidate.location} />
                 <Row k="Current company" v={candidate.current_company} />
+                <Row k="Salary range" v={formatSalaryRange(candidate.salary_min, candidate.salary_max, candidate.salary)} />
                 <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
                 <Row k="Source" v={candidate.source} />
                 <CvRow candidate={candidate} />
