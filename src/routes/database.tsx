@@ -754,6 +754,8 @@ type BulkRow = {
   current_company?: string;
   linkedin_url?: string;
   salary?: string;
+  salary_min?: number;
+  salary_max?: number;
   skills?: string[];
   _error?: string;
 };
@@ -768,6 +770,8 @@ const BULK_COLUMNS: { key: keyof BulkRow; aliases: string[] }[] = [
   { key: "experience", aliases: ["experience", "years of experience", "exp", "yoe"] },
   { key: "linkedin_url", aliases: ["linkedin", "linkedin url", "linkedin profile"] },
   { key: "salary", aliases: ["salary", "ctc", "compensation", "package"] },
+  { key: "salary_min", aliases: ["salary min", "salary minimum", "min salary", "ctc min", "min ctc", "salary min lpa"] },
+  { key: "salary_max", aliases: ["salary max", "salary maximum", "max salary", "ctc max", "max ctc", "salary max lpa"] },
   { key: "skills", aliases: ["skills", "key skills", "tech stack"] },
 ];
 
@@ -785,6 +789,9 @@ function mapRow(raw: Record<string, unknown>): BulkRow {
         const val = String(normalized[alias]).trim();
         if (col.key === "skills") {
           out.skills = val.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).slice(0, 40);
+        } else if (col.key === "salary_min" || col.key === "salary_max") {
+          const n = Number(val.replace(/[^0-9.]/g, ""));
+          if (Number.isFinite(n)) (out as Record<string, unknown>)[col.key] = n;
         } else {
           (out as Record<string, unknown>)[col.key] = val;
         }
@@ -832,8 +839,8 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   function downloadTemplate() {
     // Simple CSV template — Excel opens it natively.
-    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary", "skills"];
-    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "₹40 LPA", "React, Node, TypeScript"];
+    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills"];
+    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript"];
     const csv = headers.join(",") + "\n" + sample.map((v) => `"${v.replace(/"/g, '""')}"`).join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -857,6 +864,7 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           location: r.location, experience: r.experience,
           current_company: r.current_company, linkedin_url: r.linkedin_url,
           salary: r.salary, skills: r.skills,
+          salary_min: r.salary_min, salary_max: r.salary_max,
         }});
         ok++;
       } catch (e) {
