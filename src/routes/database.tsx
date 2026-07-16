@@ -667,6 +667,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function formatSalaryRange(min: number | null, max: number | null, fallback: string | null): string {
+  if (min != null && max != null) {
+    return min === max ? `₹${min} LPA` : `₹${min}–${max} LPA`;
+  }
+  if (min != null) return `≥ ₹${min} LPA`;
+  if (max != null) return `≤ ₹${max} LPA`;
+  return fallback ?? "—";
+}
+
 function CvCellButton({ candidate }: { candidate: CandidateRow }) {
   const qc = useQueryClient();
   const signFn = useServerFn(getResumeSignedUrl);
