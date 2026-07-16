@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge, RecruitmentModelBadge } from "@/components/ui-bits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -226,7 +227,7 @@ function NewPositionDialog({ open, onOpenChange, clients }: { open: boolean; onO
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5"><Label>Experience</Label><Input value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="5-8 yrs" /></div>
             <div className="space-y-1.5"><Label>Salary</Label><Input value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="₹30-40 LPA" /></div>
-            <div className="space-y-1.5"><Label>Openings</Label><Input type="number" min={1} value={openings} onChange={(e) => setOpenings(Math.max(1, Number(e.target.value) || 1))} /></div>
+            <div className="space-y-1.5"><Label>Openings</Label><NumberInput min={1} value={openings} onChange={(v) => setOpenings(Math.max(1, Number(v) || 1))} /></div>
           </div>
           <div className="space-y-1.5">
             <Label>Priority</Label>
