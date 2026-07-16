@@ -519,9 +519,10 @@ function AddCandidateDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) => void;
+  // salary_min/salary_max are added below in the handler
   submitting: boolean;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -536,7 +537,7 @@ function AddCandidateDialog({
   }
 
   function reset() {
-    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary: "" });
+    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
     setSkills([]);
     setSkillInput("");
     setCvFile(null);
@@ -573,10 +574,11 @@ function AddCandidateDialog({
       experience: form.experience.trim() || undefined,
       current_company: form.current_company.trim() || undefined,
       linkedin_url: form.linkedin_url.trim() || undefined,
-      salary: form.salary.trim() || undefined,
       skills: skills.length ? skills : undefined,
       resume_url: resumePath,
-    });
+      ...(form.salary_min.trim() !== "" ? { salary_min: Number(form.salary_min) } : {}),
+      ...(form.salary_max.trim() !== "" ? { salary_max: Number(form.salary_max) } : {}),
+    } as Parameters<typeof onSubmit>[0]);
   }
 
   return (
@@ -602,7 +604,10 @@ function AddCandidateDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="LinkedIn URL"><Input value={form.linkedin_url} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/…" /></Field>
-            <Field label="Salary / CTC"><Input value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="₹50 LPA" /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Salary min (LPA)"><Input type="number" min={0} value={form.salary_min} onChange={(e) => setForm({ ...form, salary_min: e.target.value })} placeholder="12" /></Field>
+              <Field label="Salary max (LPA)"><Input type="number" min={0} value={form.salary_max} onChange={(e) => setForm({ ...form, salary_max: e.target.value })} placeholder="18" /></Field>
+            </div>
           </div>
           <Field label="Skills">
             <div className="flex gap-2">
