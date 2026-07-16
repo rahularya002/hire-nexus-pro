@@ -193,6 +193,42 @@ function NewPost() {
               className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
             />
           </Field>
+          <Field label="Experience">
+            <input
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+              placeholder="3-6 years"
+              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+            />
+          </Field>
+          <Field label="Salary range (LPA)">
+            <div className="flex gap-2">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="h-10 px-2 rounded-md border border-input bg-background text-sm w-20"
+              >
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+              <input
+                value={compMin}
+                onChange={(e) => setCompMin(e.target.value)}
+                placeholder="Min"
+                inputMode="decimal"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              />
+              <input
+                value={compMax}
+                onChange={(e) => setCompMax(e.target.value)}
+                placeholder="Max"
+                inputMode="decimal"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              />
+            </div>
+          </Field>
           <Field label="Tags / skills (comma separated)">
             <input
               value={tags}
