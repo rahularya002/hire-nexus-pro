@@ -224,6 +224,11 @@ function ThreadRowItem({
               Manager
             </span>
           )}
+          {thread.kind === "client_recruiter" && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-semibold uppercase tracking-wider shrink-0">
+              Recruiter
+            </span>
+          )}
           {thread.pinned && <Pin className="size-3 text-muted-foreground shrink-0" />}
           {last && (
             <span className="text-[10px] text-muted-foreground shrink-0">
