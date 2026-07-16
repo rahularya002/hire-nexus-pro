@@ -178,16 +178,17 @@ function Page() {
                 <th className="text-left font-medium px-2 py-2.5">Role / experience</th>
                 <th className="text-left font-medium px-2 py-2.5">Location</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
+                <th className="text-left font-medium px-2 py-2.5">Salary range</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
                 <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <TableRowsSkeleton rows={6} cols={6} />
+                <TableRowsSkeleton rows={6} cols={7} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8">
+                <tr><td colSpan={7} className="px-4 py-8">
                   <EmptyState
                     icon={q ? SearchX : Database}
                     title={q ? "No matches found" : "No candidates yet"}
@@ -233,6 +234,7 @@ function Page() {
                       <Building2 className="size-3 text-muted-foreground" />{c.current_company ?? "—"}
                     </span>
                   </td>
+                  <td className="px-2 py-3 text-xs">{formatSalaryRange(c.salary_min, c.salary_max, c.salary)}</td>
                   <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
                   <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <CvCellButton candidate={c} />
