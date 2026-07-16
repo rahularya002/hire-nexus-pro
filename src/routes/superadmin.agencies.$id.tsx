@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { SuperAdminShell } from "@/components/superadmin-shell";
-import { getAgency, updateAgencyPlan, updateAgencyStatus, extendTrial } from "@/lib/superadmin.functions";
+import { getAgency, updateAgencyPlan, updateAgencyStatus, extendTrial, updateAgencyDetails, updateAgencyOwnerLogin } from "@/lib/superadmin.functions";
 
 export const Route = createFileRoute("/superadmin/agencies/$id")({
   ssr: false,
@@ -18,6 +18,8 @@ function AgencyDetailPage() {
   const setPlan = useServerFn(updateAgencyPlan);
   const setStatus = useServerFn(updateAgencyStatus);
   const extend = useServerFn(extendTrial);
+  const saveDetails = useServerFn(updateAgencyDetails);
+  const saveLogin = useServerFn(updateAgencyOwnerLogin);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -27,6 +29,13 @@ function AgencyDetailPage() {
 
   const [plan, setPlanLocal] = useState<"starter" | "professional" | "enterprise">("starter");
   const [mrr, setMrr] = useState(0);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [notes, setNotes] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [showPw, setShowPw] = useState(false);
 
   const agency = data?.agency;
   const members = data?.members ?? [];
@@ -35,6 +44,12 @@ function AgencyDetailPage() {
     if (agency) {
       setPlanLocal(agency.plan);
       setMrr(agency.mrr_cents);
+      setName(agency.name ?? "");
+      setSlug(agency.slug ?? "");
+      setNotes(agency.notes ?? "");
+      setOwnerEmail("");
+      setOwnerPassword("");
+      setOwnerName("");
     }
   }, [agency?.id, agency?.plan, agency?.mrr_cents]);
 
@@ -44,6 +59,31 @@ function AgencyDetailPage() {
     try {
       await setPlan({ data: { id, plan, mrrCents: mrr } });
       toast.success("Plan updated");
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const onSaveDetails = async () => {
+    try {
+      await saveDetails({ data: { id, name, slug, notes: notes || null } });
+      toast.success("Agency details updated");
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const onSaveLogin = async () => {
+    if (!ownerEmail && !ownerPassword && !ownerName) {
+      toast.error("Enter at least one field to update");
+      return;
+    }
+    try {
+      await saveLogin({ data: { id, email: ownerEmail, password: ownerPassword, fullName: ownerName } });
+      toast.success("Owner login updated");
+      setOwnerPassword("");
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -95,6 +135,54 @@ function AgencyDetailPage() {
               <Action label="Suspend" onClick={async () => { await setStatus({ data: { id, status: "suspended" } }); toast.success("Suspended"); refresh(); }} />
               <Action label="Reject" onClick={async () => { await setStatus({ data: { id, status: "rejected" } }); toast.success("Rejected"); refresh(); }} />
               <Action label="+14d trial" onClick={async () => { await extend({ data: { id, days: 14 } }); toast.success("Trial extended"); refresh(); }} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="font-medium">Agency details</div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-xs">
+                <div className="text-muted-foreground mb-1">Name</div>
+                <input value={name} onChange={(e) => setName(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
+              </label>
+              <label className="text-xs">
+                <div className="text-muted-foreground mb-1">Slug</div>
+                <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
+              </label>
+              <label className="text-xs sm:col-span-2">
+                <div className="text-muted-foreground mb-1">Notes</div>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm" />
+              </label>
+            </div>
+            <div>
+              <button onClick={onSaveDetails} className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">Save details</button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="font-medium">Owner login</div>
+            <div className="text-xs text-muted-foreground">
+              Current owner: {(agency as { owner_email?: string | null }).owner_email ?? "—"}. Leave a field blank to keep it unchanged.
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-xs">
+                <div className="text-muted-foreground mb-1">New email</div>
+                <input type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} placeholder="owner@example.com" className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
+              </label>
+              <label className="text-xs">
+                <div className="text-muted-foreground mb-1">Owner full name</div>
+                <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
+              </label>
+              <label className="text-xs sm:col-span-2">
+                <div className="text-muted-foreground mb-1">New password (min 8 chars)</div>
+                <div className="flex gap-2">
+                  <input type={showPw ? "text" : "password"} value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} placeholder="••••••••" className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm" />
+                  <button type="button" onClick={() => setShowPw((v) => !v)} className="h-9 px-3 rounded-md border border-border text-xs hover:bg-secondary">{showPw ? "Hide" : "Show"}</button>
+                </div>
+              </label>
+            </div>
+            <div>
+              <button onClick={onSaveLogin} className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">Save login</button>
             </div>
           </div>
 
