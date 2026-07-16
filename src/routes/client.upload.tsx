@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
 import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import { extractJdWithAi } from "@/lib/jd-extract.functions";
+import { NumberInput } from "@/components/ui/number-input";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({
@@ -359,20 +360,18 @@ function OpeningsField({ value, onChange }: { value: string; onChange: (v: strin
   return (
     <div>
       <label className="text-xs font-medium">No. of openings</label>
-      <input
-        type="number"
+      <NumberInput
         min={1}
         step={1}
-        inputMode="numeric"
         placeholder="1"
         value={value}
-        onChange={(e) => {
-          const raw = e.target.value.replace(/[^\d]/g, "");
-          if (raw === "") return onChange("");
-          const n = Math.max(1, parseInt(raw, 10) || 1);
+        onChange={(raw) => {
+          const cleaned = String(raw).replace(/[^\d]/g, "");
+          if (cleaned === "") return onChange("");
+          const n = Math.max(1, parseInt(cleaned, 10) || 1);
           onChange(String(n));
         }}
-        className="mt-1.5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+        className="mt-1.5 h-10"
       />
     </div>
   );

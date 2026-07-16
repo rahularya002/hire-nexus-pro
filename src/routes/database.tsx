@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -141,22 +142,20 @@ function Page() {
         </div>
         <div className="grid gap-1">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary min (LPA)</Label>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             value={salaryMin}
-            onChange={(e) => setSalaryMin(e.target.value)}
+            onChange={setSalaryMin}
             placeholder="0"
             className="h-9 w-32"
           />
         </div>
         <div className="grid gap-1">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary max (LPA)</Label>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             value={salaryMax}
-            onChange={(e) => setSalaryMax(e.target.value)}
+            onChange={setSalaryMax}
             placeholder="∞"
             className="h-9 w-32"
           />
@@ -606,8 +605,8 @@ function AddCandidateDialog({
           <div className="grid grid-cols-2 gap-3">
             <Field label="LinkedIn URL"><Input value={form.linkedin_url} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/…" /></Field>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Salary min (LPA)"><Input type="number" min={0} value={form.salary_min} onChange={(e) => setForm({ ...form, salary_min: e.target.value })} placeholder="12" /></Field>
-              <Field label="Salary max (LPA)"><Input type="number" min={0} value={form.salary_max} onChange={(e) => setForm({ ...form, salary_max: e.target.value })} placeholder="18" /></Field>
+              <Field label="Salary min (LPA)"><NumberInput min={0} value={form.salary_min} onChange={(v) => setForm({ ...form, salary_min: v })} placeholder="12" /></Field>
+              <Field label="Salary max (LPA)"><NumberInput min={0} value={form.salary_max} onChange={(v) => setForm({ ...form, salary_max: v })} placeholder="18" /></Field>
             </div>
           </div>
           <Field label="Skills">

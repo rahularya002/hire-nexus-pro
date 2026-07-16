@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -116,8 +117,8 @@ export function EditPositionDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="ep-open">Openings</Label>
-              <Input id="ep-open" type="number" min={1} max={999} value={openings}
-                onChange={(e) => setOpenings(Number(e.target.value))} />
+              <NumberInput id="ep-open" min={1} max={999} value={openings}
+                onChange={(v) => setOpenings(Number(v))} />
             </div>
             <div className="grid gap-1.5">
               <Label>Priority</Label>
