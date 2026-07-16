@@ -240,6 +240,66 @@ export const deleteAgency = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const UpdateDetailsSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255).optional(),
+  slug: z.string().min(1).max(64).regex(/^[a-z0-9-]+$/).optional(),
+  notes: z.string().max(5000).nullable().optional(),
+});
+export const updateAgencyDetails = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => UpdateDetailsSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const patch: Record<string, unknown> = {};
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.slug !== undefined) patch.slug = data.slug;
+    if (data.notes !== undefined) patch.notes = data.notes;
+    if (Object.keys(patch).length === 0) return { ok: true };
+    const { error } = await supabaseAdmin.from("agencies").update(patch).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+const UpdateOwnerLoginSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email().max(255).optional().or(z.literal("")),
+  password: z.string().min(8).max(128).optional().or(z.literal("")),
+  fullName: z.string().max(255).optional().or(z.literal("")),
+});
+export const updateAgencyOwnerLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => UpdateOwnerLoginSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { data: agency, error: aErr } = await supabaseAdmin
+      .from("agencies").select("owner_user_id").eq("id", data.id).maybeSingle();
+    if (aErr) throw new Error(aErr.message);
+    if (!agency?.owner_user_id) throw new Error("Agency has no owner account.");
+    const ownerId = agency.owner_user_id;
+
+    const email = data.email && data.email.length > 0 ? data.email : undefined;
+    const password = data.password && data.password.length > 0 ? data.password : undefined;
+    const fullName = data.fullName && data.fullName.length > 0 ? data.fullName : undefined;
+
+    if (email || password || fullName) {
+      const authPatch: Record<string, unknown> = { email_confirm: true };
+      if (email) authPatch.email = email;
+      if (password) authPatch.password = password;
+      if (fullName) authPatch.user_metadata = { full_name: fullName };
+      const { error: uErr } = await supabaseAdmin.auth.admin.updateUserById(ownerId, authPatch);
+      if (uErr) throw new Error(uErr.message);
+    }
+
+    const profilePatch: Record<string, unknown> = {};
+    if (email) profilePatch.email = email;
+    if (fullName) profilePatch.full_name = fullName;
+    if (Object.keys(profilePatch).length > 0) {
+      await supabaseAdmin.from("profiles").update(profilePatch).eq("id", ownerId);
+    }
+    return { ok: true };
+  });
+
 export const getRevenueStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
