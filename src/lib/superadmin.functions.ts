@@ -251,7 +251,7 @@ export const updateAgencyDetails = createServerFn({ method: "POST" })
   .inputValidator((input) => UpdateDetailsSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertSuperAdmin(context.supabase, context.userId);
-    const patch: Record<string, unknown> = {};
+    const patch: { name?: string; slug?: string; notes?: string | null } = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.slug !== undefined) patch.slug = data.slug;
     if (data.notes !== undefined) patch.notes = data.notes;
@@ -291,7 +291,7 @@ export const updateAgencyOwnerLogin = createServerFn({ method: "POST" })
       if (uErr) throw new Error(uErr.message);
     }
 
-    const profilePatch: Record<string, unknown> = {};
+    const profilePatch: { email?: string; full_name?: string } = {};
     if (email) profilePatch.email = email;
     if (fullName) profilePatch.full_name = fullName;
     if (Object.keys(profilePatch).length > 0) {
