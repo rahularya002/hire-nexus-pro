@@ -286,4 +286,3 @@ function PastStatus({ row }: { row: InterviewRow }) {
     </span>
   );
 }
-}
