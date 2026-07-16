@@ -42,6 +42,9 @@ export const Route = createFileRoute("/database")({
 
 function Page() {
   const [q, setQ] = useState("");
+  const [locFilter, setLocFilter] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
@@ -54,7 +57,7 @@ function Page() {
   });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; salary_min?: number | null; salary_max?: number | null; skills?: string[]; resume_url?: string }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
@@ -66,13 +69,29 @@ function Page() {
 
   const filtered = useMemo(() => {
     const needle = q.toLowerCase().trim();
-    if (!needle) return candidates;
-    return candidates.filter((c) =>
-      [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(needle)),
-    );
-  }, [candidates, q]);
+    const loc = locFilter.toLowerCase().trim();
+    const minF = salaryMin.trim() === "" ? null : Number(salaryMin);
+    const maxF = salaryMax.trim() === "" ? null : Number(salaryMax);
+    return candidates.filter((c) => {
+      if (needle) {
+        const hay = [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
+          .filter(Boolean)
+          .some((v) => v!.toLowerCase().includes(needle));
+        if (!hay) return false;
+      }
+      if (loc) {
+        if (!c.location || !c.location.toLowerCase().includes(loc)) return false;
+      }
+      if (minF != null || maxF != null) {
+        const cMin = c.salary_min ?? c.salary_max ?? null;
+        const cMax = c.salary_max ?? c.salary_min ?? null;
+        if (cMin == null && cMax == null) return false;
+        if (minF != null && (cMax ?? -Infinity) < minF) return false;
+        if (maxF != null && (cMin ?? Infinity) > maxF) return false;
+      }
+      return true;
+    });
+  }, [candidates, q, locFilter, salaryMin, salaryMax]);
 
   return (
     <div className="space-y-5">
@@ -105,6 +124,49 @@ function Page() {
           />
         </div>
         <span className="text-xs text-muted-foreground">{filtered.length} candidates</span>
+      </div>
+
+      <div className="flex items-end gap-2 flex-wrap">
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</Label>
+          <div className="relative">
+            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              value={locFilter}
+              onChange={(e) => setLocFilter(e.target.value)}
+              placeholder="e.g. Bengaluru"
+              className="h-9 pl-8 w-52"
+            />
+          </div>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary min (LPA)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={salaryMin}
+            onChange={(e) => setSalaryMin(e.target.value)}
+            placeholder="0"
+            className="h-9 w-32"
+          />
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary max (LPA)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={salaryMax}
+            onChange={(e) => setSalaryMax(e.target.value)}
+            placeholder="∞"
+            className="h-9 w-32"
+          />
+        </div>
+        {(locFilter || salaryMin || salaryMax) && (
+          <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs"
+            onClick={() => { setLocFilter(""); setSalaryMin(""); setSalaryMax(""); }}>
+            <X className="size-3.5" /> Clear filters
+          </Button>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
