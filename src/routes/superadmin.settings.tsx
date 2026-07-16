@@ -217,16 +217,15 @@ function InterviewRoundTemplates() {
             </select>
           </div>
           <div className="col-span-2">
-            <input
-              type="number"
+            <NumberInput
               min={5}
               max={600}
-              defaultValue={t.default_duration_minutes}
-              onBlur={(e) => {
-                const v = Number(e.target.value);
+              value={t.default_duration_minutes}
+              onChange={(val) => {
+                const v = Number(val);
                 if (v && v !== t.default_duration_minutes) updateMut.mutate({ id: t.id, default_duration_minutes: v });
               }}
-              className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs"
+              className="w-28"
             />
             <span className="text-[10px] text-muted-foreground ml-1">min</span>
           </div>
@@ -268,14 +267,15 @@ function InterviewRoundTemplates() {
           <option value="recruiter">Recruiter</option>
           <option value="client">Client</option>
         </select>
-        <input
-          type="number"
-          min={5}
-          max={600}
-          value={duration}
-          onChange={(e) => setDuration(Number(e.target.value) || 60)}
-          className="col-span-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-xs"
-        />
+        <div className="col-span-2">
+          <NumberInput
+            min={5}
+            max={600}
+            value={duration}
+            onChange={(v) => setDuration(Number(v) || 60)}
+            className="w-28"
+          />
+        </div>
         <div className="col-span-2 flex justify-end">
           <button
             onClick={onAdd}

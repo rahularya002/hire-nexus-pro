@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, X } from "lucide-react";
 import { createClientPlacement } from "@/lib/interviews.functions";
+import { NumberInput } from "@/components/ui/number-input";
 
 type Props = {
   open: boolean;
@@ -121,7 +122,7 @@ export function ConfirmJoiningDialog({ open, onClose, applicationId, candidateNa
           </Field>
 
           <Field label="CTC in INR (annual, optional)">
-            <NumberInputInline value={ctcInr} onChange={setCtcInr} />
+            <NumberInput min={0} placeholder="1800000" value={ctcInr} onChange={setCtcInr} />
           </Field>
 
           <Field label="Notes (optional)">

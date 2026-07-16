@@ -90,10 +90,10 @@ function NewAgencyPage() {
               </select>
             </Field>
             <Field label="Trial days">
-              <input type="number" min={0} max={180} value={form.trialDays} onChange={(e) => update("trialDays", Number(e.target.value))} className={inputCls} />
+              <NumberInput min={0} max={180} value={form.trialDays} onChange={(v) => update("trialDays", Number(v))} />
             </Field>
             <Field label="MRR (USD)">
-              <input type="number" min={0} value={form.mrrCents / 100} onChange={(e) => update("mrrCents", Math.round(Number(e.target.value) * 100))} className={inputCls} />
+              <NumberInput min={0} value={form.mrrCents / 100} onChange={(v) => update("mrrCents", Math.round(Number(v) * 100))} />
             </Field>
           </div>
 
