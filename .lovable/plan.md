@@ -1,40 +1,33 @@
-Right now scheduling a virtual interview (Meet / Teams / Zoom) is hard-blocked until the client connects Google, and the join column nags "Connect Google to generate link". We'll drop the hard gate and let clients (and recruiters) either connect Google for auto Meet links **or** just paste a meeting link manually — or leave it blank and add it later.
+## Goal
+Give the agency/recruiter `/interviews` route the same interface clients get at `/client/interviews` — mini calendar, "Next interview" card, Today/Upcoming/Past tabs, and a clean row list with Join + Reschedule actions.
 
 ## Changes
 
-### 1. Schedule dialog — `src/routes/client.positions.$positionId.tsx`
-- Remove the `needsGoogle` block that renders `<GoogleCalendarCard>` inline and disables the submit button.
-- Add a new optional field **"Meeting link (optional)"** visible when provider is `google_meet` / `microsoft_teams` / `zoom`. Placeholder: `https://meet.google.com/... or paste a Teams/Zoom link`.
-- Update the helper text under provider:
-  - `google_meet`: "Paste a Meet link, or leave blank — if you've connected Google Calendar (Settings), we'll auto-generate one. Otherwise you can add the link later."
-  - `teams` / `zoom`: "Paste the meeting link, or add it later after the recruiter confirms."
-- Keep a small "Connect Google Calendar" inline hint (link to `/client/settings`) when virtual + not connected + link field empty — informational only, never blocking.
-- Pass `meeting_link` through to `onSubmit` and to `requestClientInterview`.
+**`src/routes/interviews.tsx`** — replace the current "Today's interviews + Active interview processes" layout with the client-parity layout:
+- Header ("Interviews") + subtitle.
+- Left: mini `Calendar` with dots on days that have interviews; clicking a day filters rows to that date; "Clear date filter" button.
+- Right: "Next interview" card showing next upcoming row, with `Join` and a "View role" link (points to the agency route `/positions/$positionId` instead of `/client/positions/$positionId`).
+- Tab strip: Today / Upcoming / Past with counts.
+- Row list: time block, avatar, candidate name, position link (agency route), round/conductor line, interviewer + provider meta, `Reschedule` + `JoinCell` actions.
+- Reuse `RescheduleInterviewDialog` (invalidate keys: `staff-interviews`, `client-interviews`, `interviews/today`).
+- `JoinCell` identical to client's (on-site chip, phone chip, Join button, "Meeting link pending" fallback).
 
-### 2. Server fn — `src/lib/interviews.functions.ts`
-- Extend `requestClientInterview` input validator with `meeting_link: z.string().url().max(500).optional().nullable()`.
-- On round 1 insert, stamp `meeting_link` if provided.
-- Leave existing `syncGoogleMeet` behavior intact: it only runs when the caller has a Google connection, and it already no-ops if a link is already present (guard added if missing).
+**Past-row behavior (agency read-only)**
+Clients decide select/reject/next-round; the agency shouldn't. For `tab === "past"` on the agency page, show a read-only status pill derived from `application.stage`:
+- `closed` → "Joined"
+- `offered` → "Selected — awaiting join"
+- `client_rejected` → "Rejected"
+- otherwise → "Awaiting client decision"
 
-### 3. Join cells — `src/routes/client.interviews.tsx` and `src/routes/interviews.tsx`
-- Replace the "Connect Google to generate link" warning pill with the neutral "Meeting link pending" chip that both branches already have. Optionally add a subtle "Add link" affordance that opens the existing reschedule/edit dialog so anyone can paste one in.
+No new `PastDecision` buttons for agency. `ConfirmJoiningDialog` stays client-only.
 
-### 4. Settings copy — `src/routes/client.settings.tsx` / `GoogleCalendarCard`
-- Reword the description to make it clear the connection is optional and only powers auto Meet link + auto invites: "Optional — connect Google so interviews you schedule auto-generate a Meet link and email invites. You can also skip this and paste meeting links manually."
+**Keep**
+- The multi-round "Active interview processes" pipeline view is useful — keep it below the new list as a collapsed/secondary section, or drop it entirely to match the client's page exactly.
 
-### 5. (Recruiter side) `ScheduleInterviewDialog` / `RescheduleInterviewDialog`
-- If a `meeting_link` input already exists in the recruiter-side edit dialog, no change. If not, add the same optional field so recruiters can paste a link when they don't use Google.
-
-## Out of scope
-- No DB migration (the `meeting_link` column already exists on `interviews`).
-- No change to the OAuth flow itself or `syncGoogleMeet`; connecting Google remains a one-click convenience.
-- No changes to on-site / phone providers.
+## Question for you
+Do you want the existing "Active interview processes" pipeline cards (which link into `/interviews/$processId`) kept below the new client-style list, or removed so the agency page is a 1:1 match with the client page? Default in the plan: **remove** for a clean 1:1 match; the process detail is still reachable from candidate/position pages.
 
 ## Files touched
-- `src/routes/client.positions.$positionId.tsx`
-- `src/lib/interviews.functions.ts`
-- `src/routes/client.interviews.tsx`
-- `src/routes/interviews.tsx`
-- `src/routes/client.settings.tsx` (copy only)
-- `src/components/google-calendar-card.tsx` (copy only)
-- `src/components/reschedule-interview-dialog.tsx` (add optional link field if missing)
+- `src/routes/interviews.tsx` (rewrite)
+
+No server-fn or schema changes; `listInterviews({ scope: "all" })` already returns everything the agency needs.
