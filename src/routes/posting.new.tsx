@@ -39,6 +39,10 @@ function NewPost() {
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [employment, setEmployment] = useState("Full-time");
+  const [experience, setExperience] = useState("");
+  const [compMin, setCompMin] = useState<string>("");
+  const [compMax, setCompMax] = useState<string>("");
+  const [currency, setCurrency] = useState<string>("INR");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [channels, setChannels] = useState<JobPostChannel[]>(["internal", "linkedin", "naukri", "indeed"]);
@@ -55,6 +59,15 @@ function NewPost() {
     if (!p) return;
     setTitle(p.title);
     setLocation(p.location ?? "");
+    setExperience(p.experience ?? "");
+    // Try to parse "12-18" / "12 to 18" from the position salary string
+    const s = (p.salary ?? "").toString();
+    const m = s.match(/(\d+(?:\.\d+)?)\s*(?:[-–to]+)\s*(\d+(?:\.\d+)?)/i);
+    if (m) { setCompMin(m[1]); setCompMax(m[2]); }
+    else {
+      const one = s.match(/(\d+(?:\.\d+)?)/);
+      if (one) { setCompMin(one[1]); setCompMax(""); }
+    }
     setDescription(p.description ?? "");
     setTags((p.skills ?? []).join(", "));
   }
@@ -81,6 +94,10 @@ function NewPost() {
           description_md: description,
           location: location || null,
           employment_type: employment || null,
+          experience: experience.trim() || null,
+          comp_min: compMin.trim() ? Number(compMin) : null,
+          comp_max: compMax.trim() ? Number(compMax) : null,
+          currency: currency || "INR",
           tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
           is_public: true,
           channels,
@@ -175,6 +192,42 @@ function NewPost() {
               placeholder="Full-time"
               className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
             />
+          </Field>
+          <Field label="Experience">
+            <input
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+              placeholder="3-6 years"
+              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+            />
+          </Field>
+          <Field label="Salary range (LPA)">
+            <div className="flex gap-2">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="h-10 px-2 rounded-md border border-input bg-background text-sm w-20"
+              >
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+              <input
+                value={compMin}
+                onChange={(e) => setCompMin(e.target.value)}
+                placeholder="Min"
+                inputMode="decimal"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              />
+              <input
+                value={compMax}
+                onChange={(e) => setCompMax(e.target.value)}
+                placeholder="Max"
+                inputMode="decimal"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              />
+            </div>
           </Field>
           <Field label="Tags / skills (comma separated)">
             <input

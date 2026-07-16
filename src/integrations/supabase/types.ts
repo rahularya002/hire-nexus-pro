@@ -1215,6 +1215,7 @@ export type Database = {
           currency: string | null
           description_md: string
           employment_type: string | null
+          experience: string | null
           id: string
           is_public: boolean
           location: string | null
@@ -1234,6 +1235,7 @@ export type Database = {
           currency?: string | null
           description_md?: string
           employment_type?: string | null
+          experience?: string | null
           id?: string
           is_public?: boolean
           location?: string | null
@@ -1253,6 +1255,7 @@ export type Database = {
           currency?: string | null
           description_md?: string
           employment_type?: string | null
+          experience?: string | null
           id?: string
           is_public?: boolean
           location?: string | null

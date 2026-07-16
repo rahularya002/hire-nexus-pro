@@ -3,7 +3,7 @@ import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, MapPin, Briefcase } from "lucide-react";
+import { Loader2, MapPin, Briefcase, Clock, IndianRupee } from "lucide-react";
 
 const getPublicPost = createServerFn({ method: "GET" })
   .inputValidator((d: { slug: string }) => z.object({ slug: z.string().min(1).max(120) }).parse(d))
@@ -121,6 +121,16 @@ function PublicJobPage() {
         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
           {post.location && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {post.location}</span>}
           {post.employment_type && <span className="inline-flex items-center gap-1"><Briefcase className="size-3.5" /> {post.employment_type}</span>}
+          {post.experience && <span className="inline-flex items-center gap-1"><Clock className="size-3.5" /> {post.experience}</span>}
+          {(post.comp_min != null || post.comp_max != null) && (
+            <span className="inline-flex items-center gap-1">
+              <IndianRupee className="size-3.5" />
+              {post.comp_min != null && post.comp_max != null
+                ? `${post.comp_min}–${post.comp_max}`
+                : (post.comp_min ?? post.comp_max)}
+              {" "}{(post.currency ?? "INR") === "INR" ? "LPA" : (post.currency ?? "")}
+            </span>
+          )}
         </div>
 
         <article className="mt-8 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{post.description_md}</article>

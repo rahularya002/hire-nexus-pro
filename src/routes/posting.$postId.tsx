@@ -101,7 +101,12 @@ function Page() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{post.title}</h1>
             <div className="text-sm text-muted-foreground mt-1">
-              {post.location ?? "—"} · {post.employment_type ?? "Full-time"} · status <b>{post.status}</b>
+              {post.location ?? "—"} · {post.employment_type ?? "Full-time"}
+              {post.experience ? ` · ${post.experience}` : ""}
+              {(post.comp_min != null || post.comp_max != null)
+                ? ` · ${post.comp_min ?? ""}${post.comp_max != null ? `–${post.comp_max}` : ""} ${(post.currency ?? "INR") === "INR" ? "LPA" : (post.currency ?? "")}`
+                : ""}
+              {" · "}status <b>{post.status}</b>
             </div>
           </div>
           {post.status === "published" && (
