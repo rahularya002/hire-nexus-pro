@@ -221,6 +221,7 @@ function InterviewRoundTemplates() {
             <NumberInput
               min={5}
               max={600}
+              step={5}
               value={t.default_duration_minutes}
               onChange={(val) => {
                 const v = Number(val);
@@ -272,6 +273,7 @@ function InterviewRoundTemplates() {
           <NumberInput
             min={5}
             max={600}
+            step={5}
             value={duration}
             onChange={(v) => setDuration(Number(v) || 60)}
             className="w-28"
