@@ -152,7 +152,7 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
                 {draft.tiers.map((t, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                     <Field label="CTC up to (INR)" small>
-                      <NumberInput min={0} value={t.upToCtcInr}
+                      <NumberInput min={0} step={100000} value={t.upToCtcInr}
                         onChange={(v) => {
                           const next = [...draft.tiers];
                           next[idx] = { ...next[idx], upToCtcInr: Number(v) };
@@ -160,7 +160,7 @@ export function EditTermsDialog({ open, onOpenChange, clientId, initial, onSaved
                         }} />
                     </Field>
                     <Field label="Flat fee (INR)" small>
-                      <NumberInput min={0} value={t.flatFeeInr}
+                      <NumberInput min={0} step={5000} value={t.flatFeeInr}
                         onChange={(v) => {
                           const next = [...draft.tiers];
                           next[idx] = { ...next[idx], flatFeeInr: Number(v) };
