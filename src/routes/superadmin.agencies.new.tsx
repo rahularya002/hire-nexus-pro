@@ -94,7 +94,7 @@ function NewAgencyPage() {
               <NumberInput min={0} max={180} value={form.trialDays} onChange={(v) => update("trialDays", Number(v))} />
             </Field>
             <Field label="MRR (USD)">
-              <NumberInput min={0} value={form.mrrCents / 100} onChange={(v) => update("mrrCents", Math.round(Number(v) * 100))} />
+              <NumberInput min={0} step={1000} value={form.mrrCents / 100} onChange={(v) => update("mrrCents", Math.round(Number(v) * 100))} />
             </Field>
           </div>
 

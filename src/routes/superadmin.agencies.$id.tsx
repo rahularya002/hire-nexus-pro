@@ -124,7 +124,7 @@ function AgencyDetailPage() {
               </label>
               <label className="text-xs">
                 <div className="text-muted-foreground mb-1">MRR (USD)</div>
-                <NumberInput min={0} value={mrr / 100} onChange={(v) => setMrr(Math.round(Number(v) * 100))} />
+                <NumberInput min={0} step={1000} value={mrr / 100} onChange={(v) => setMrr(Math.round(Number(v) * 100))} />
               </label>
               <div className="flex items-end">
                 <button onClick={savePlan} className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">Save plan</button>

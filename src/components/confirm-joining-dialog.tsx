@@ -122,7 +122,7 @@ export function ConfirmJoiningDialog({ open, onClose, applicationId, candidateNa
           </Field>
 
           <Field label="CTC in INR (annual, optional)">
-            <NumberInput min={0} placeholder="1800000" value={ctcInr} onChange={setCtcInr} />
+            <NumberInput min={0} step={100000} placeholder="1800000" value={ctcInr} onChange={setCtcInr} />
           </Field>
 
           <Field label="Notes (optional)">
