@@ -20,6 +20,7 @@ import {
 } from "@/lib/candidates.functions";
 import { createDocument } from "@/lib/documents.functions";
 import { uploadCvFile } from "@/lib/upload-cv";
+import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { initialsOf } from "@/lib/display";
 import {
   Dialog,
@@ -46,19 +47,25 @@ function Page() {
   const [locFilter, setLocFilter] = useState("");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
+  const [clientFilter, setClientFilter] = useState<string>("all"); // "all" | "unassigned" | client_id
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
+  const fetchClients = useServerFn(listClients);
   const qc = useQueryClient();
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ["candidates"],
     queryFn: () => fetchCandidates(),
   });
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => fetchClients(),
+  });
 
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; salary_min?: number | null; salary_max?: number | null; skills?: string[]; resume_url?: string }) =>
+    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; salary_min?: number | null; salary_max?: number | null; skills?: string[]; resume_url?: string; source_client_id?: string | null }) =>
       addCandidate({ data }),
     onSuccess: () => {
       toast.success("Candidate added");
@@ -90,9 +97,14 @@ function Page() {
         if (minF != null && (cMax ?? -Infinity) < minF) return false;
         if (maxF != null && (cMin ?? Infinity) > maxF) return false;
       }
+      if (clientFilter === "unassigned") {
+        if (c.source_client_id) return false;
+      } else if (clientFilter !== "all") {
+        if (c.source_client_id !== clientFilter) return false;
+      }
       return true;
     });
-  }, [candidates, q, locFilter, salaryMin, salaryMax]);
+  }, [candidates, q, locFilter, salaryMin, salaryMax, clientFilter]);
 
   return (
     <div className="space-y-5">
@@ -160,9 +172,23 @@ function Page() {
             className="h-9 w-32"
           />
         </div>
-        {(locFilter || salaryMin || salaryMax) && (
+        <div className="grid gap-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source client</Label>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="h-9 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 w-52"
+          >
+            <option value="all">All clients</option>
+            <option value="unassigned">Unassigned</option>
+            {clients.map((c: ClientRow) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        {(locFilter || salaryMin || salaryMax || clientFilter !== "all") && (
           <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs"
-            onClick={() => { setLocFilter(""); setSalaryMin(""); setSalaryMax(""); }}>
+            onClick={() => { setLocFilter(""); setSalaryMin(""); setSalaryMax(""); setClientFilter("all"); }}>
             <X className="size-3.5" /> Clear filters
           </Button>
         )}
@@ -178,16 +204,17 @@ function Page() {
                 <th className="text-left font-medium px-2 py-2.5">Location</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
                 <th className="text-left font-medium px-2 py-2.5">Salary range</th>
+                <th className="text-left font-medium px-2 py-2.5">Source client</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
                 <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <TableRowsSkeleton rows={6} cols={7} />
+                <TableRowsSkeleton rows={6} cols={8} />
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8">
+                <tr><td colSpan={8} className="px-4 py-8">
                   <EmptyState
                     icon={q ? SearchX : Database}
                     title={q ? "No matches found" : "No candidates yet"}
@@ -234,6 +261,16 @@ function Page() {
                     </span>
                   </td>
                   <td className="px-2 py-3 text-xs">{formatSalaryRange(c.salary_min, c.salary_max, c.salary)}</td>
+                  <td className="px-2 py-3 text-xs">
+                    {c.source_client ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-secondary/60 border border-border">
+                        <span className="size-1.5 rounded-full" style={{ background: c.source_client.color ?? "hsl(var(--muted-foreground))" }} />
+                        <span className="truncate max-w-[140px]">{c.source_client.name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
                   <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <CvCellButton candidate={c} />
@@ -250,10 +287,12 @@ function Page() {
         onOpenChange={setOpen}
         onSubmit={(d) => create.mutate(d)}
         submitting={create.isPending}
+        clients={clients}
       />
       <BulkImportDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
+        clients={clients}
       />
       <CandidateDetailSheet
         candidate={selected}
