@@ -260,9 +260,159 @@ const onboardSchema = upsertSchema.extend({
   full_name: z.string().max(200).optional().nullable(),
 });
 
+const bulkRowSchema = upsertSchema.extend({
+  login_email: z.string().email().max(200).optional().nullable(),
+  login_password: z.string().min(8).max(72).optional().nullable(),
+  full_name: z.string().max(200).optional().nullable(),
+});
+
+function randomPassword(len = 12): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let out = "";
+  const bytes = new Uint8Array(len);
+  (globalThis.crypto ?? require("crypto").webcrypto).getRandomValues(bytes);
+  for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+
 function isAdminLike(roles: string[]) {
   return roles.includes("admin") || roles.includes("lead_recruiter");
 }
+
+export type BulkClientResult = {
+  row: number;
+  status: "ok" | "error";
+  client_name: string;
+  login_email: string | null;
+  login_password: string | null;
+  error?: string;
+};
+
+export const bulkOnboardClients = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ rows: z.array(bulkRowSchema).min(1).max(200) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const roleNames = (roles ?? []).map((r) => r.role as string);
+    if (!isAdminLike(roleNames)) {
+      throw new Error("Only admins or lead recruiters can bulk onboard clients.");
+    }
+
+    const { data: membership } = await supabaseAdmin
+      .from("agency_members")
+      .select("agency_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!membership?.agency_id) {
+      throw new Error("You are not a member of any agency; cannot create clients.");
+    }
+    const agencyId = membership.agency_id;
+
+    const results: BulkClientResult[] = [];
+
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i];
+      const loginEmail = (row.login_email || row.contact_email || "").toString().trim();
+      const loginPassword = row.login_password && row.login_password.length >= 8
+        ? row.login_password
+        : randomPassword(12);
+
+      if (!row.name || !loginEmail) {
+        results.push({
+          row: i + 1,
+          status: "error",
+          client_name: row.name ?? "",
+          login_email: loginEmail || null,
+          login_password: null,
+          error: "Missing company name or login email.",
+        });
+        continue;
+      }
+
+      let newUserId: string | null = null;
+      try {
+        const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email: loginEmail,
+          password: loginPassword,
+          email_confirm: true,
+          user_metadata: {
+            full_name: row.full_name ?? row.contact_name ?? row.name,
+            company_name: row.name,
+          },
+        });
+        if (createErr || !created.user) {
+          throw new Error(createErr?.message ?? "Failed to create login account.");
+        }
+        newUserId = created.user.id;
+
+        const { error: roleErr } = await supabaseAdmin
+          .from("user_roles")
+          .upsert(
+            { user_id: newUserId, role: "client" },
+            { onConflict: "user_id,role", ignoreDuplicates: true },
+          );
+        if (roleErr) throw new Error(roleErr.message);
+
+        const { error: profileErr } = await supabaseAdmin
+          .from("profiles")
+          .update({ status: "active", company_name: row.name })
+          .eq("id", newUserId);
+        if (profileErr) throw new Error(profileErr.message);
+
+        const payload = clean({
+          name: row.name,
+          industry: row.industry,
+          contact_name: row.contact_name ?? row.full_name,
+          contact_email: row.contact_email ?? loginEmail,
+          contact_phone: row.contact_phone,
+          notes: row.notes,
+          color: row.color,
+          pan_number: row.pan_number,
+          gst_number: row.gst_number,
+          registered_address: row.registered_address,
+          website: row.website,
+          created_by: userId,
+          user_id: newUserId,
+          agency_id: agencyId,
+          last_activity_at: new Date().toISOString(),
+        });
+        const { error: insertErr } = await supabaseAdmin
+          .from("clients")
+          .insert(payload as never)
+          .select("id")
+          .single();
+        if (insertErr) throw new Error(insertErr.message);
+
+        results.push({
+          row: i + 1,
+          status: "ok",
+          client_name: row.name,
+          login_email: loginEmail,
+          login_password: loginPassword,
+        });
+      } catch (err: any) {
+        if (newUserId) {
+          await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
+        }
+        results.push({
+          row: i + 1,
+          status: "error",
+          client_name: row.name ?? "",
+          login_email: loginEmail || null,
+          login_password: null,
+          error: err?.message ?? "Failed to onboard client.",
+        });
+      }
+    }
+
+    return { results };
+  });
 
 export const onboardClientWithLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
