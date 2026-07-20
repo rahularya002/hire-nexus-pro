@@ -857,7 +857,7 @@ function mapRow(raw: Record<string, unknown>): BulkRow {
   return out;
 }
 
-function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOpenChange: (o: boolean) => void; clients: ClientRow[] }) {
   const qc = useQueryClient();
   const addCandidate = useServerFn(createCandidate);
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -865,9 +865,10 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; ok: number; failed: number } | null>(null);
+  const [sourceClientId, setSourceClientId] = useState<string>("");
 
   function reset() {
-    setRows([]); setFileName(""); setProgress(null);
+    setRows([]); setFileName(""); setProgress(null); setSourceClientId("");
   }
 
   async function handleFile(f: File | null) {
@@ -919,6 +920,7 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           current_company: r.current_company, linkedin_url: r.linkedin_url,
           salary: r.salary, skills: r.skills,
           salary_min: r.salary_min, salary_max: r.salary_max,
+          source_client_id: sourceClientId || null,
         }});
         ok++;
       } catch (e) {
@@ -962,6 +964,22 @@ function BulkImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               <Download className="size-3.5" /> Download template
             </Button>
             {parsing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Tag all rows with source client (optional)</Label>
+            <select
+              value={sourceClientId}
+              onChange={(e) => setSourceClientId(e.target.value)}
+              disabled={importing}
+              className="h-9 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 max-w-sm"
+            >
+              <option value="">— None —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground">Useful when importing legacy candidates that came from a specific client.</p>
           </div>
 
           {rows.length > 0 && (
