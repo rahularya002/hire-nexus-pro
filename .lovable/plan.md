@@ -1,38 +1,41 @@
 ## Goal
-Let agency admins/leads onboard existing clients in bulk from an Excel file, auto-generate login credentials for each, and download a credentials Excel to share with the clients.
+Tag each candidate with a "source client" so bulk-imported (and manually added) candidates show which client they came from, and let users filter the database by that client.
 
-## UX (in `src/routes/admin.clients.tsx`)
-Add a **"Bulk import"** button next to the existing "Add client" CTA. Opens a `BulkImportClientsDialog` with:
-1. **Download template** button → generates `clients-template.xlsx` with columns:
-   `name*, industry, contact_name, contact_email*, contact_phone, website, pan_number, gst_number, registered_address, notes, login_email (optional — defaults to contact_email), login_password (optional — auto-generated if blank), full_name (optional)`
-   Includes a second `Instructions` sheet describing required fields.
-2. **Upload .xlsx** → parse client-side with `xlsx` (already installed for candidate bulk import).
-3. **Preview grid** showing parsed rows, per-row validation (missing name/email, duplicate email in sheet, invalid email format). Invalid rows are flagged; user can proceed with only valid rows.
-4. **Import** button → calls a new server fn `bulkOnboardClients` that processes rows sequentially (to keep auth-user creation reliable), returning per-row `{ status: "ok" | "skipped" | "error", client_name, login_email, login_password, error? }`.
-5. On completion → success summary + **"Download credentials Excel"** button that builds `client-credentials-<timestamp>.xlsx` from the results (columns: Client, Contact name, Login email, Password, Portal URL, Status/Error). Auto-download is not forced so the admin can inspect first.
+## Schema
+Migration on `public.candidates`:
+- Add `source_client_id uuid null references public.clients(id) on delete set null`.
+- Index on `(source_client_id)` for the filter query.
+- No RLS change needed — existing agency-scoped policies already cover it.
 
-## Server (`src/lib/clients.functions.ts`)
-Add `bulkOnboardClients` server fn:
-- Middleware: `requireSupabaseAuth`; verify caller is `admin` or `lead_recruiter` (same gate as `onboardClientWithLogin`).
-- Input: `z.array(bulkRowSchema).max(200)` — reuses the existing `onboardSchema` fields; `login_password` optional.
-- For each row:
-  - If `login_password` missing → generate a 12-char random password (crypto.randomUUID-based, mixed case + digits).
-  - If `login_email` missing → fall back to `contact_email`.
-  - Reuse the same auth-user creation + role + profile activation + client insert flow that `onboardClientWithLogin` already implements (factor a shared internal helper `onboardOne(row, callerId, agencyId)` to avoid duplication).
-  - Catch per-row errors (e.g. email already registered) and return them instead of aborting the batch.
-- Resolves caller's `agency_id` once before the loop.
-- Returns `{ results: BulkResult[] }`.
+## Server (`src/lib/candidates.functions.ts`)
+- Extend `candidateSchema` with `source_client_id: z.string().uuid().nullable().optional()`.
+- Extend `CandidateRow` type with `source_client_id: string | null` and an optional joined `source_client?: { id, name, color } | null`.
+- Update `listCandidates` select to `*, source_client:clients!candidates_source_client_id_fkey(id,name,color)` and keep the existing order/limit.
+- `createCandidate` / `updateCandidate` already spread `data`, so the new field flows through once the schema accepts it.
 
-## Portal URL for credentials sheet
-Use `window.location.origin + "/client/login"` on the client after import returns — no server config needed.
+## Client-side add/edit
+- `src/components/edit-candidate-dialog.tsx` and the "Add candidate" dialog inside `src/routes/database.tsx`: add a **Source client** select (searchable combobox using existing `listClients`) — optional, defaults to none.
+
+## Bulk import (candidates)
+- In `src/routes/database.tsx` bulk import flow:
+  - Add a **Source client** picker above the file upload → applies to all rows in the sheet (bulk imports are typically per-client legacy data).
+  - Also accept an optional `source_client_name` column in the template; if present and matches an existing client name (case-insensitive, scoped to the agency), it overrides the picker for that row. Unknown names surface as a row warning but don't block import.
+  - Update the downloadable template + Instructions sheet accordingly.
+
+## Bulk import (clients)
+- `src/components/bulk-import-clients-dialog.tsx` / `bulkOnboardClients`: return the created `client_id` per row (already available server-side, just include it in the result). No candidate linkage here — the admin uses the candidate bulk importer next, picking the newly-created client from the dropdown.
+
+## Table + filters (`src/routes/database.tsx`)
+- New **Client** column in the table rendering a themed chip: colored dot (client.color) + client name, or a muted "—" when null. Chip is clickable → navigates to `/clients/$clientId`.
+- New **Source client** filter in the filter bar: multi-select of the agency's clients, plus an "Unassigned" option. Combines with existing filters (location, salary, skills, etc.).
 
 ## Out of scope
-- No changes to candidate bulk import.
-- No email delivery of credentials (admin shares manually via the exported sheet).
-- No update-existing-client mode; import is create-only. Duplicate emails surface as row errors.
-- No schema changes.
+- No backfill of existing candidates (source_client_id starts null; users can edit).
+- No many-to-many tagging — one source client per candidate.
+- No changes to how applications link candidates to clients; this is purely an origin tag.
+- No client-portal exposure — clients don't see this field.
 
 ## Technical notes
-- `xlsx` package already in the project (used by candidate bulk import in `database.tsx`) — reuse the same read/write pattern.
-- Sequential processing avoids Supabase Admin API rate limits and keeps rollback semantics of `onboardClientWithLogin` per row.
-- Passwords are only ever returned in the server-fn response so the admin can export once; not persisted anywhere beyond Supabase Auth's hashed store.
+- FK uses `on delete set null` so deleting a client doesn't cascade-delete candidate history.
+- The `source_client` join uses an explicit constraint name to avoid PostgREST ambiguity with any other clients-referencing FK on candidates.
+- Chip reuses the existing `client.color` convention from `positions.client` joins for visual consistency.
