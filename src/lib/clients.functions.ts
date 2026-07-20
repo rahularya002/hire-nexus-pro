@@ -270,7 +270,7 @@ function randomPassword(len = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let out = "";
   const bytes = new Uint8Array(len);
-  (globalThis.crypto ?? require("crypto").webcrypto).getRandomValues(bytes);
+  globalThis.crypto.getRandomValues(bytes);
   for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
   return out;
 }
