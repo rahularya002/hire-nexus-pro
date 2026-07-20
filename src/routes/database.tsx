@@ -554,14 +554,16 @@ function AddCandidateDialog({
   onOpenChange,
   onSubmit,
   submitting,
+  clients,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string }) => void;
+  onSubmit: (d: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; skills?: string[]; resume_url?: string; source_client_id?: string | null }) => void;
   // salary_min/salary_max are added below in the handler
   submitting: boolean;
+  clients: ClientRow[];
 }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "", source_client_id: "" });
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -576,7 +578,7 @@ function AddCandidateDialog({
   }
 
   function reset() {
-    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "" });
+    setForm({ name: "", email: "", phone: "", role: "", location: "", experience: "", current_company: "", linkedin_url: "", salary_min: "", salary_max: "", source_client_id: "" });
     setSkills([]);
     setSkillInput("");
     setCvFile(null);
@@ -615,6 +617,7 @@ function AddCandidateDialog({
       linkedin_url: form.linkedin_url.trim() || undefined,
       skills: skills.length ? skills : undefined,
       resume_url: resumePath,
+      source_client_id: form.source_client_id || null,
       ...(form.salary_min.trim() !== "" ? { salary_min: Number(form.salary_min) } : {}),
       ...(form.salary_max.trim() !== "" ? { salary_max: Number(form.salary_max) } : {}),
     } as Parameters<typeof onSubmit>[0]);
@@ -648,6 +651,18 @@ function AddCandidateDialog({
               <Field label="Salary max (LPA)"><NumberInput min={0} value={form.salary_max} onChange={(v) => setForm({ ...form, salary_max: v })} placeholder="18" /></Field>
             </div>
           </div>
+          <Field label="Source client (optional)">
+            <select
+              value={form.source_client_id}
+              onChange={(e) => setForm({ ...form, source_client_id: e.target.value })}
+              className="h-9 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            >
+              <option value="">— None —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Skills">
             <div className="flex gap-2">
               <Input
