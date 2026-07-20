@@ -59,6 +59,8 @@ export type CandidateRow = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  source_client_id: string | null;
+  source_client?: { id: string; name: string; color: string | null } | null;
 };
 
 export type ApplicationRow = {
@@ -98,6 +100,7 @@ const candidateSchema = z.object({
   salary_max: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
   notes: z.string().max(10_000).optional().nullable(),
+  source_client_id: z.string().uuid().nullable().optional(),
 });
 
 function clean<T extends Record<string, any>>(o: T): T {
@@ -145,7 +148,7 @@ export const listCandidates = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("candidates")
-      .select("*")
+      .select("*, source_client:clients!candidates_source_client_id_fkey(id,name,color)")
       .order("created_at", { ascending: false })
       .limit(500);
     if (error) throw new Error(error.message);

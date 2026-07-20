@@ -312,6 +312,7 @@ export type Database = {
           salary_min: number | null
           skills: string[]
           source: Database["public"]["Enums"]["candidate_source"]
+          source_client_id: string | null
           updated_at: string
         }
         Insert: {
@@ -334,6 +335,7 @@ export type Database = {
           salary_min?: number | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
+          source_client_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -356,6 +358,7 @@ export type Database = {
           salary_min?: number | null
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
+          source_client_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -364,6 +367,13 @@ export type Database = {
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidates_source_client_id_fkey"
+            columns: ["source_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]

@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateCandidate, getResumeSignedUrl, type CandidateRow } from "@/lib/candidates.functions";
 import { createDocument } from "@/lib/documents.functions";
 import { uploadCvFile } from "@/lib/upload-cv";
+import { listClients, type ClientRow } from "@/lib/clients.functions";
+import { useQuery } from "@tanstack/react-query";
 
 export function EditCandidateDialog({
   open,
@@ -28,6 +30,11 @@ export function EditCandidateDialog({
   const updateFn = useServerFn(updateCandidate);
   const signFn = useServerFn(getResumeSignedUrl);
   const createDocFn = useServerFn(createDocument);
+  const fetchClients = useServerFn(listClients);
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => fetchClients(),
+  });
 
   const [name, setName] = useState(candidate.name);
   const [role, setRole] = useState(candidate.role ?? "");
@@ -41,6 +48,7 @@ export function EditCandidateDialog({
   const [salaryMin, setSalaryMin] = useState<string>(candidate.salary_min != null ? String(candidate.salary_min) : "");
   const [salaryMax, setSalaryMax] = useState<string>(candidate.salary_max != null ? String(candidate.salary_max) : "");
   const [notes, setNotes] = useState(candidate.notes ?? "");
+  const [sourceClientId, setSourceClientId] = useState<string>(candidate.source_client_id ?? "");
   const [skills, setSkills] = useState<string[]>(candidate.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
   const [resumePath, setResumePath] = useState<string | null>(candidate.resume_url);
@@ -62,6 +70,7 @@ export function EditCandidateDialog({
     setSalaryMin(candidate.salary_min != null ? String(candidate.salary_min) : "");
     setSalaryMax(candidate.salary_max != null ? String(candidate.salary_max) : "");
     setNotes(candidate.notes ?? "");
+    setSourceClientId(candidate.source_client_id ?? "");
     setSkills(candidate.skills ?? []);
     setSkillInput("");
     setResumePath(candidate.resume_url);
@@ -84,6 +93,7 @@ export function EditCandidateDialog({
           salary_min: salaryMin.trim() === "" ? null : Number(salaryMin),
           salary_max: salaryMax.trim() === "" ? null : Number(salaryMax),
           notes: notes.trim() || null,
+          source_client_id: sourceClientId || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
           resume_url: resumePath,
         },
@@ -196,6 +206,20 @@ export function EditCandidateDialog({
             <div className="grid gap-1.5">
               <Label htmlFor="ec-salary-max">Salary max (LPA)</Label>
               <NumberInput id="ec-salary-max" min={0} value={salaryMax} onChange={setSalaryMax} placeholder="18" />
+            </div>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor="ec-source-client">Source client</Label>
+              <select
+                id="ec-source-client"
+                value={sourceClientId}
+                onChange={(e) => setSourceClientId(e.target.value)}
+                className="h-10 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                <option value="">— None —</option>
+                {clients.map((c: ClientRow) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
