@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Building2, AlertCircle, Loader2, Check, Trash2, Copy, KeyRound, Eye, EyeOff, RefreshCw, CalendarDays, CheckCircle2, Receipt, Snowflake } from "lucide-react";
+import { Plus, Building2, AlertCircle, Loader2, Check, Trash2, Copy, KeyRound, Eye, EyeOff, RefreshCw, CalendarDays, CheckCircle2, Receipt, Snowflake, FileSpreadsheet } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth/auth-context";
 import { listClients, onboardClientWithLogin, deleteClient, type ClientRow } from "@/lib/clients.functions";
+import { BulkImportClientsDialog } from "@/components/bulk-import-clients-dialog";
 import { colorFor, initialsOf, daysSince } from "@/lib/display";
 
 export const Route = createFileRoute("/admin/clients")({
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/admin/clients")({
 
 function Page() {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { roles } = useAuth();
   const isAdmin = roles.includes("admin") || roles.includes("lead_recruiter");
   const fetchClients = useServerFn(listClients);
@@ -44,9 +46,14 @@ function Page() {
             ))}
           </div>
           {isAdmin && (
-            <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
-              <Plus className="size-4" /> New client
-            </button>
+            <>
+              <button onClick={() => setBulkOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-secondary/60">
+                <FileSpreadsheet className="size-4" /> Bulk import
+              </button>
+              <button onClick={() => setOpen(true)} className="h-9 inline-flex items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+                <Plus className="size-4" /> New client
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -68,6 +75,7 @@ function Page() {
       </div>
 
       {open && <OnboardModal onClose={() => setOpen(false)} />}
+      {bulkOpen && <BulkImportClientsDialog onClose={() => setBulkOpen(false)} />}
     </div>
   );
 }

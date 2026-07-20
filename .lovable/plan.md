@@ -1,39 +1,38 @@
 ## Goal
-Make `NumberInput` step increments context-aware so salary fields jump by meaningful amounts (e.g. 1 LPA) instead of 1 rupee, while other fields keep sensible defaults.
+Let agency admins/leads onboard existing clients in bulk from an Excel file, auto-generate login credentials for each, and download a credentials Excel to share with the clients.
 
-## Approach
+## UX (in `src/routes/admin.clients.tsx`)
+Add a **"Bulk import"** button next to the existing "Add client" CTA. Opens a `BulkImportClientsDialog` with:
+1. **Download template** button → generates `clients-template.xlsx` with columns:
+   `name*, industry, contact_name, contact_email*, contact_phone, website, pan_number, gst_number, registered_address, notes, login_email (optional — defaults to contact_email), login_password (optional — auto-generated if blank), full_name (optional)`
+   Includes a second `Instructions` sheet describing required fields.
+2. **Upload .xlsx** → parse client-side with `xlsx` (already installed for candidate bulk import).
+3. **Preview grid** showing parsed rows, per-row validation (missing name/email, duplicate email in sheet, invalid email format). Invalid rows are flagged; user can proceed with only valid rows.
+4. **Import** button → calls a new server fn `bulkOnboardClients` that processes rows sequentially (to keep auth-user creation reliable), returning per-row `{ status: "ok" | "skipped" | "error", client_name, login_email, login_password, error? }`.
+5. On completion → success summary + **"Download credentials Excel"** button that builds `client-credentials-<timestamp>.xlsx` from the results (columns: Client, Contact name, Login email, Password, Portal URL, Status/Error). Auto-download is not forced so the admin can inspect first.
 
-### 1. Smarter default step in `NumberInput`
-Add an optional `step` prop behavior:
-- If `step` is explicitly passed → use it.
-- Else infer from the current value magnitude:
-  - `>= 1_00_000` → step `1_00_000` (1 LPA)
-  - `>= 10_000` → step `10_000`
-  - `>= 1_000` → step `1_000`
-  - `>= 100` → step `10`
-  - else → step `1`
-- Keep clamping to `min`/`max` and empty-string handling intact.
+## Server (`src/lib/clients.functions.ts`)
+Add `bulkOnboardClients` server fn:
+- Middleware: `requireSupabaseAuth`; verify caller is `admin` or `lead_recruiter` (same gate as `onboardClientWithLogin`).
+- Input: `z.array(bulkRowSchema).max(200)` — reuses the existing `onboardSchema` fields; `login_password` optional.
+- For each row:
+  - If `login_password` missing → generate a 12-char random password (crypto.randomUUID-based, mixed case + digits).
+  - If `login_email` missing → fall back to `contact_email`.
+  - Reuse the same auth-user creation + role + profile activation + client insert flow that `onboardClientWithLogin` already implements (factor a shared internal helper `onboardOne(row, callerId, agencyId)` to avoid duplication).
+  - Catch per-row errors (e.g. email already registered) and return them instead of aborting the batch.
+- Resolves caller's `agency_id` once before the loop.
+- Returns `{ results: BulkResult[] }`.
 
-Also add an optional `largeStep` (Shift+click) that multiplies step ×10 for power users.
-
-### 2. Explicit steps at call sites where units are known
-Pass explicit `step` so behavior is predictable, not just magnitude-based:
-- `src/routes/database.tsx` salary min/max filters + form → `step={1}` (values are in LPA already, so 1 = 1 LPA)
-- `src/components/edit-candidate-dialog.tsx` salary min/max → `step={1}` (LPA)
-- `src/components/confirm-joining-dialog.tsx` CTC in INR → `step={100000}` (1 LPA)
-- `src/components/edit-terms-dialog.tsx`:
-  - fee percentage fields → `step={0.5}`
-  - fee flat amount (INR) → `step={5000}`
-  - days/cycle fields → `step={1}`
-  - tax % → `step={0.5}`
-- `src/routes/billing.clients.$clientId.tsx` billing days → `step={1}`
-- `src/routes/superadmin.settings.tsx` interview duration (minutes) → `step={5}`
-- `src/routes/superadmin.agencies.new.tsx` trial days → `step={1}`, MRR (INR) → `step={1000}`
-- `src/routes/superadmin.agencies.$id.tsx` MRR (INR) → `step={1000}`
-- Openings fields (`positions.tsx`, `client.upload.tsx`, `edit-position-dialog.tsx`) → `step={1}` (already default)
-
-Behavior, validation, min/max unchanged — only the increment amount per click changes.
+## Portal URL for credentials sheet
+Use `window.location.origin + "/client/login"` on the client after import returns — no server config needed.
 
 ## Out of scope
-- No schema/server changes.
-- No visual redesign of the control itself.
+- No changes to candidate bulk import.
+- No email delivery of credentials (admin shares manually via the exported sheet).
+- No update-existing-client mode; import is create-only. Duplicate emails surface as row errors.
+- No schema changes.
+
+## Technical notes
+- `xlsx` package already in the project (used by candidate bulk import in `database.tsx`) — reuse the same read/write pattern.
+- Sequential processing avoids Supabase Admin API rate limits and keeps rollback semantics of `onboardClientWithLogin` per row.
+- Passwords are only ever returned in the server-fn response so the admin can export once; not persisted anywhere beyond Supabase Auth's hashed store.
