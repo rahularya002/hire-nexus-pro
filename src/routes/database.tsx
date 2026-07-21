@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
+import { SalaryRange, type SalaryRangeValue } from "@/components/ui/salary-range";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -45,8 +46,9 @@ export const Route = createFileRoute("/database")({
 function Page() {
   const [q, setQ] = useState("");
   const [locFilter, setLocFilter] = useState("");
-  const [salaryMin, setSalaryMin] = useState("");
-  const [salaryMax, setSalaryMax] = useState("");
+  const [salaryRange, setSalaryRange] = useState<SalaryRangeValue>({ min: null, max: null });
+  const salaryMin = salaryRange.min == null ? "" : String(salaryRange.min);
+  const salaryMax = salaryRange.max == null ? "" : String(salaryRange.max);
   const [clientFilter, setClientFilter] = useState<string>("all"); // "all" | "unassigned" | client_id
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -152,26 +154,7 @@ function Page() {
             />
           </div>
         </div>
-        <div className="grid gap-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary min (LPA)</Label>
-          <NumberInput
-            min={0}
-            value={salaryMin}
-            onChange={setSalaryMin}
-            placeholder="0"
-            className="h-9 w-32"
-          />
-        </div>
-        <div className="grid gap-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Salary max (LPA)</Label>
-          <NumberInput
-            min={0}
-            value={salaryMax}
-            onChange={setSalaryMax}
-            placeholder="∞"
-            className="h-9 w-32"
-          />
-        </div>
+        <SalaryRange value={salaryRange} onChange={setSalaryRange} />
         <div className="grid gap-1">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source client</Label>
           <select
@@ -188,7 +171,7 @@ function Page() {
         </div>
         {(locFilter || salaryMin || salaryMax || clientFilter !== "all") && (
           <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs"
-            onClick={() => { setLocFilter(""); setSalaryMin(""); setSalaryMax(""); setClientFilter("all"); }}>
+            onClick={() => { setLocFilter(""); setSalaryRange({ min: null, max: null }); setClientFilter("all"); }}>
             <X className="size-3.5" /> Clear filters
           </Button>
         )}
