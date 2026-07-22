@@ -111,7 +111,7 @@ function Page() {
   }, [candidates, q, locFilter, salaryMin, salaryMax, clientFilter]);
 
   return (
-    <div className="space-y-5">
+    <CvDropImport ref={dropRef} className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Talent intelligence</div>
@@ -123,6 +123,9 @@ function Page() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => dropRef.current?.openPicker()} className="gap-2">
+            <UploadCloud className="size-4" /> Upload CVs
+          </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
             <FileSpreadsheet className="size-4" /> Bulk import
           </Button>
