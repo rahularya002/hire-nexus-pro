@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download, UploadCloud } from "lucide-react";
+import { CvDropImport, type CvDropImportHandle } from "@/components/cv-drop-import";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ function Page() {
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
+  const dropRef = useRef<CvDropImportHandle | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
   const fetchClients = useServerFn(listClients);
