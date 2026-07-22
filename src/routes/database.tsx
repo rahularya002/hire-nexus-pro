@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download, UploadCloud } from "lucide-react";
+import { CvDropImport, type CvDropImportHandle } from "@/components/cv-drop-import";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ function Page() {
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<CandidateRow | null>(null);
+  const dropRef = useRef<CvDropImportHandle | null>(null);
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
   const fetchClients = useServerFn(listClients);
@@ -109,7 +111,7 @@ function Page() {
   }, [candidates, q, locFilter, salaryMin, salaryMax, clientFilter]);
 
   return (
-    <div className="space-y-5">
+    <CvDropImport ref={dropRef} className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Talent intelligence</div>
@@ -121,6 +123,9 @@ function Page() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => dropRef.current?.openPicker()} className="gap-2">
+            <UploadCloud className="size-4" /> Upload CVs
+          </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
             <FileSpreadsheet className="size-4" /> Bulk import
           </Button>
@@ -281,7 +286,7 @@ function Page() {
         candidate={selected}
         onClose={() => setSelected(null)}
       />
-    </div>
+   </CvDropImport>
   );
 }
 
