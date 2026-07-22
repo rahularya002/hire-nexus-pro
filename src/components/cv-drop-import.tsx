@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, Loader2, CheckCircle2, XCircle, FileText, AlertTriangle, X } from "lucide-react";
@@ -31,15 +31,13 @@ function statusMeta(s: RowStatus) {
   }
 }
 
-export function CvDropImport({
-  children,
-  sourceClientId,
-  className,
-}: {
+export type CvDropImportHandle = { openPicker: () => void };
+
+export const CvDropImport = forwardRef<CvDropImportHandle, {
   children: React.ReactNode;
   sourceClientId?: string | null;
   className?: string;
-}) {
+}>(function CvDropImport({ children, sourceClientId, className }, ref) {
   const qc = useQueryClient();
   const importFn = useServerFn(importCandidateFromCv);
   const [dragging, setDragging] = useState(false);
@@ -47,6 +45,7 @@ export function CvDropImport({
   const [rows, setRows] = useState<Row[]>([]);
   const depthRef = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  useImperativeHandle(ref, () => ({ openPicker: () => inputRef.current?.click() }), []);
 
   const running = rows.some((r) => r.status === "uploading" || r.status === "extracting" || r.status === "queued");
 
@@ -206,13 +205,4 @@ export function CvDropImport({
       </Dialog>
     </div>
   );
-}
-
-/** Standalone button that opens the file picker for CV drop import. Uses the same underlying flow via a ref. */
-export function CvUploadButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Button variant="outline" onClick={onClick} className="gap-2">
-      <UploadCloud className="size-4" /> Upload CVs
-    </Button>
-  );
-}
+});
