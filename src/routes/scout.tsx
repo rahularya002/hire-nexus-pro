@@ -253,7 +253,7 @@ function Scout() {
           maxResults: 15,
         },
       });
-      if (run.errors.length && !run.resultCount) {
+      if (run?.errors?.length && !run?.resultCount) {
         setMatchError(run.errors.join(" | "));
       }
 
