@@ -127,7 +127,12 @@ async function logActivity(
   },
 ) {
   try {
-    await supabase.from("activities").insert(clean({ ...payload, actor_id: userId }));
+    const { getUserAgencyId } = await import("@/lib/auth/agency");
+    const agencyId = await getUserAgencyId(supabase, userId);
+    if (!agencyId) return;
+    await supabase
+      .from("activities")
+      .insert(clean({ ...payload, actor_id: userId, agency_id: agencyId }));
   } catch {
     // swallow — logging must never break primary mutation
   }
