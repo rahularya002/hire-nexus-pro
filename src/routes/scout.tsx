@@ -253,12 +253,12 @@ function Scout() {
           maxResults: 15,
         },
       });
-      if (run.errors.length && !run.resultCount) {
+      if (run?.errors?.length && !run?.resultCount) {
         setMatchError(run.errors.join(" | "));
       }
 
       // AI rank if we have a position + JD + results
-      if (activePositionId && briefText.length > 20 && run.sourcedIds.length) {
+      if (activePositionId && briefText.length > 20 && run?.sourcedIds?.length) {
         setMatchLabel("Ranking candidates against the JD...");
         try {
           await rankMatches({
@@ -285,7 +285,7 @@ function Scout() {
       });
       setMatches(refreshed.matches);
       setMatchLabel(
-        `${refreshed.matches.length} candidates · ${run.resultCount} newly sourced`,
+        `${refreshed.matches.length} candidates · ${run?.resultCount ?? 0} newly sourced`,
       );
     } catch (e) {
       setMatchError(e instanceof Error ? e.message : "Apify sourcing failed.");

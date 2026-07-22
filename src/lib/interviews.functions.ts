@@ -148,7 +148,10 @@ async function logActivity(
   },
 ) {
   try {
-    const clean_payload: any = { ...payload, actor_id: userId };
+    const { getUserAgencyId } = await import("@/lib/auth/agency");
+    const agencyId = await getUserAgencyId(supabase, userId);
+    if (!agencyId) return;
+    const clean_payload: any = { ...payload, actor_id: userId, agency_id: agencyId };
     for (const k of Object.keys(clean_payload)) {
       if (clean_payload[k] === "" || clean_payload[k] === undefined) delete clean_payload[k];
     }

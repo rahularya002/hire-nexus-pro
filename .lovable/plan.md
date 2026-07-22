@@ -1,39 +1,34 @@
-## End-to-end verification of recently shipped features
+## Fix RLS failures on sourcing + activities, and scout UI crash
 
-Run a Playwright script against `http://localhost:8080` (using the injected Supabase session) that walks through every feature added across the recent turns, capturing a labelled screenshot at each stop. Save all shots under `/mnt/documents/qa/` and include them in the final reply as a gallery.
+The user is hitting two Project monitoring RLS findings plus a related UI crash:
 
-### Coverage checklist (one screenshot per item, minimum)
+1. **Sourcing run insert blocked by RLS** — `position_sourcing_runs` INSERT policy is `WITH CHECK (is_agency_member(agency_id))`, but `runApify` inserts without `agency_id`. Insert fails → server fn throws → client sees "can't access property 'errors', n is undefined" because `scout.tsx` reads `run.errors` on an undefined result. (finding `error_log_finding_c42190238d84be811a861dadbd0cc5c0`)
+2. **Activities inserts blocked by RLS** — `activities.agency_id` is NOT NULL and RLS requires the caller's agency. `createActivity` and both `logActivity` helpers (candidates, interviews) insert without it, so audit rows silently drop and `createActivity` throws to the caller. (finding `error_log_finding_68d74bbff2a7864cf89f81b344e61f80`)
 
-1. **Closed positions grouped by client** — `/closed`
-2. **Candidate database**
-   - CV icon column visible in table
-   - Salary min/max and Location columns visible
-   - Filters panel: Source client (All / Unassigned / specific), Salary, Location
-   - Source-client chip rendered on a tagged candidate row
-   - Add candidate dialog with Source client picker + CV upload + salary/location
-   - Bulk import dialog (Excel) with Source client field + template download
-   - Candidate profile sheet showing "Source client" row
-3. **Client dashboard revamp** — 2-column layout, "Create a new position" card with Rocket icon
-4. **Interview workflow**
-   - Client `/interviews` view (mini-calendar, Next interview, tabs)
-   - Agency `/interviews` mirroring the same layout with read-only status pills
-   - Schedule Interview dialog showing optional manual meeting link + Google-optional warning
-   - Confirm Joining dialog (CTC + dates) from a past interview
-5. **Placements** — "Awaiting confirmation" section
-6. **Messages** — Recruiter badge on a client_recruiter thread (admin view)
-7. **AI Screener**
-   - Position detail: Edit (top-right) + AI Screen button (bottom-left) with tooltip "Automated AI call"
-   - AI Screener card with script editor + Rehearse/Call candidate modes
-8. **Bulk client import** — dialog + generated credentials export
-9. **Superadmin** — agency detail page with editable details and owner login/credentials
-10. **Job posting form** — Experience + Salary range + Currency fields
-11. **NumberInput** — themed +/− control in a salary field, showing INR step (1L)
-12. **Pending-approval flow removed** — sign in as an unapproved-style account (or just confirm no `/pending` route redirect) and land straight in the app
+Both stem from the same missing step: server functions never resolve the caller's `agency_id` before insert.
 
-### Technical notes
+### Plan
 
-- Restore `LOVABLE_BROWSER_SUPABASE_*` session before navigating to any authed route.
-- Viewport `1280x1800`, `headless=True`, no `full_page` screenshots.
-- Use `get_by_role` / `aria-label` selectors; element screenshots for tooltips and chips.
-- If any screen shows missing data (e.g. no closed positions, no interviews, no messages), note it in the reply — do not seed data in this pass.
-- Deliverable: reply with a short per-feature status line plus the screenshot gallery via `<presentation-artifact>` tags for each PNG under `/mnt/documents/qa/`.
+**1. Add a shared helper to resolve the caller's agency**
+- New helper `getUserAgencyId(supabase, userId)` in a small server-safe module (e.g. `src/lib/auth/agency.ts`), reading `agency_members.agency_id` for the caller. Cache-free, one-shot query.
+
+**2. `src/lib/apify.functions.ts` — stamp `agency_id` on `position_sourcing_runs`**
+- Before the insert (line ~470), resolve the caller's agency and include `agency_id` in the payload.
+- If the caller has no agency membership, return early with a clear error instead of throwing at the DB.
+
+**3. `src/lib/activities.functions.ts` — stamp `agency_id` on inserts**
+- In `createActivity`, resolve caller agency and include it in the insert (throw a clean error if missing).
+- Export the internal helper or use the shared one from step 1.
+
+**4. `src/lib/candidates.functions.ts` and `src/lib/interviews.functions.ts` — same fix in `logActivity`**
+- Update the local `logActivity(supabase, userId, ...)` helpers to look up the caller's agency once (or accept it from the call site where the row already has an agency) and set `agency_id` on the insert. Keep the "swallow errors" behavior for these background writes.
+
+**5. `src/routes/scout.tsx` — defensive read**
+- Change `if (run.errors.length && !run.resultCount)` to guard against an undefined result (`run?.errors?.length`), so an upstream failure surfaces as a real error message instead of the confusing "n is undefined" crash. Root cause is fixed in #2, but the guard prevents future regressions.
+
+### Out of scope
+- The other three findings (reschedule Google Meet sync, salary filter clamp, bulk import password validation) — not part of this request.
+
+### Verification
+- Trigger a "Source more from LinkedIn / GitHub" run on a position; confirm no RLS error, run row is created with `agency_id`, and results (or a proper error message) render.
+- Create a candidate / schedule an interview; confirm activity rows appear in the Activity feed without RLS errors in Postgres logs.

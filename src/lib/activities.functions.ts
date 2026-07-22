@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getUserAgencyId } from "@/lib/auth/agency";
 
 export const ACTIVITY_KINDS = [
   "call",
@@ -86,9 +87,11 @@ export const createActivity = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const agencyId = await getUserAgencyId(supabase, userId);
+    if (!agencyId) throw new Error("You must belong to an agency to log activity.");
     const { data: row, error } = await supabase
       .from("activities")
-      .insert(clean({ ...data, actor_id: userId }) as never)
+      .insert(clean({ ...data, actor_id: userId, agency_id: agencyId }) as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);

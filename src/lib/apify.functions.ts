@@ -468,6 +468,11 @@ export const runApifyScout = createServerFn({ method: "POST" })
     // create run row
     let runId: string | null = null;
     if (data.positionId) {
+      const { getUserAgencyId } = await import("@/lib/auth/agency");
+      const agencyId = await getUserAgencyId(supabase, userId);
+      if (!agencyId) {
+        throw new Error("You must belong to an agency to source candidates.");
+      }
       const { data: run, error: runErr } = await supabase
         .from("position_sourcing_runs")
         .insert({
@@ -475,6 +480,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
           triggered_by: userId,
           sources: data.sources,
           status: "running",
+          agency_id: agencyId,
         } as never)
         .select("id")
         .single();
