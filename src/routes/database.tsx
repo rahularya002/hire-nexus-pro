@@ -286,7 +286,7 @@ function Page() {
         candidate={selected}
         onClose={() => setSelected(null)}
       />
-    </div>
+   </CvDropImport>
   );
 }
 
