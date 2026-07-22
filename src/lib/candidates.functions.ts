@@ -397,3 +397,215 @@ export const getResumeSignedUrl = createServerFn({ method: "GET" })
     if (sErr) throw new Error(sErr.message);
     return { url: signed?.signedUrl ?? null };
   });
+
+/**
+ * Import a candidate from a CV that was already uploaded to the `documents` bucket.
+ * Downloads the file, extracts text (PDF/DOCX/TXT), asks Lovable AI to structure it,
+ * and inserts the candidate + a linked documents row. Duplicates on email/phone are skipped.
+ */
+export const importCandidateFromCv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        storagePath: z.string().min(1).max(500),
+        fileName: z.string().min(1).max(255),
+        mime: z.string().max(200).nullable().optional(),
+        sizeBytes: z.number().int().min(0).nullable().optional(),
+        sourceClientId: z.string().uuid().nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // 1) Download the file from private storage.
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from("documents")
+      .download(data.storagePath);
+    if (dlErr || !blob) throw new Error(dlErr?.message ?? "Could not download uploaded CV");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+
+    // 2) Extract raw text.
+    const { extractCvText } = await import("@/lib/cv-parse.server");
+    let rawText = "";
+    try {
+      rawText = await extractCvText(bytes, data.fileName, data.mime ?? null);
+    } catch (e) {
+      throw new Error(e instanceof Error ? e.message : "Could not read CV file");
+    }
+
+    const nameFromFile = data.fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Untitled candidate";
+    type Extracted = {
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      role?: string | null;
+      current_company?: string | null;
+      experience?: string | null;
+      location?: string | null;
+      linkedin_url?: string | null;
+      salary?: string | null;
+      salary_min?: number | null;
+      salary_max?: number | null;
+      skills?: string[] | null;
+      notes?: string | null;
+    };
+    let extracted: Extracted = {};
+    let partial = false;
+
+    if (rawText.trim().length < 40) {
+      partial = true;
+    } else {
+      // 3) Ask Lovable AI to structure the fields.
+      const apiKey = process.env.LOVABLE_API_KEY;
+      if (apiKey) {
+        try {
+          const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You extract recruiter-facing candidate fields from a resume/CV. Return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years' or '3-5 years'. Salary min/max in LPA (lakhs per annum) as numbers when the CV states an Indian salary; leave null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
+                },
+                { role: "user", content: rawText.slice(0, 15_000) },
+              ],
+              tools: [
+                {
+                  type: "function",
+                  function: {
+                    name: "extract_candidate",
+                    description: "Return structured candidate fields.",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        name: { type: ["string", "null"] },
+                        email: { type: ["string", "null"] },
+                        phone: { type: ["string", "null"] },
+                        role: { type: ["string", "null"] },
+                        current_company: { type: ["string", "null"] },
+                        experience: { type: ["string", "null"] },
+                        location: { type: ["string", "null"] },
+                        linkedin_url: { type: ["string", "null"] },
+                        salary: { type: ["string", "null"] },
+                        salary_min: { type: ["number", "null"] },
+                        salary_max: { type: ["number", "null"] },
+                        skills: { type: ["array", "null"], items: { type: "string" } },
+                        notes: { type: ["string", "null"] },
+                      },
+                      required: [
+                        "name","email","phone","role","current_company","experience","location",
+                        "linkedin_url","salary","salary_min","salary_max","skills","notes",
+                      ],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              ],
+              tool_choice: { type: "function", function: { name: "extract_candidate" } },
+            }),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as {
+              choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
+            };
+            const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+            if (args) {
+              try { extracted = JSON.parse(args) as Extracted; } catch { /* ignore */ }
+            }
+          } else {
+            partial = true;
+          }
+        } catch {
+          partial = true;
+        }
+      } else {
+        partial = true;
+      }
+    }
+
+    // 4) Duplicate check on email/phone.
+    const normEmail = extracted.email?.trim().toLowerCase() || null;
+    const normPhone = extracted.phone?.replace(/\D+/g, "") || null;
+    if (normEmail || (normPhone && normPhone.length >= 7)) {
+      const orParts: string[] = [];
+      if (normEmail) orParts.push(`email.ilike.${normEmail}`);
+      if (normPhone && normPhone.length >= 7) orParts.push(`phone.ilike.%${normPhone.slice(-10)}%`);
+      const { data: existing } = await supabase
+        .from("candidates")
+        .select("id,name,email,phone")
+        .or(orParts.join(","))
+        .limit(1);
+      if (existing && existing.length > 0) {
+        // Best-effort: clean up the freshly uploaded file so we don't leak storage.
+        try { await supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
+        return {
+          status: "duplicate" as const,
+          candidateId: existing[0].id as string,
+          name: (existing[0].name as string) ?? nameFromFile,
+        };
+      }
+    }
+
+    // 5) Insert candidate.
+    const insertRow = clean({
+      name: (extracted.name?.trim() || nameFromFile).slice(0, 200),
+      email: extracted.email?.trim().slice(0, 200) || null,
+      phone: extracted.phone?.trim().slice(0, 50) || null,
+      role: extracted.role?.trim().slice(0, 200) || null,
+      current_company: extracted.current_company?.trim().slice(0, 200) || null,
+      experience: extracted.experience?.trim().slice(0, 100) || null,
+      location: extracted.location?.trim().slice(0, 200) || null,
+      linkedin_url: extracted.linkedin_url?.trim().slice(0, 500) || null,
+      salary: extracted.salary?.trim().slice(0, 200) || null,
+      salary_min: typeof extracted.salary_min === "number" ? extracted.salary_min : null,
+      salary_max: typeof extracted.salary_max === "number" ? extracted.salary_max : null,
+      skills: Array.isArray(extracted.skills)
+        ? extracted.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 40)
+        : [],
+      notes: extracted.notes?.trim().slice(0, 10_000) || null,
+      source: "database" as const,
+      resume_url: data.storagePath,
+      source_client_id: data.sourceClientId ?? null,
+      created_by: userId,
+    });
+
+    const { data: row, error } = await supabase
+      .from("candidates")
+      .insert(insertRow as never)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+
+    // 6) Link documents row (best-effort).
+    try {
+      await supabase.from("documents").insert(
+        clean({
+          name: data.fileName,
+          kind: "resume",
+          candidate_id: row.id,
+          storage_bucket: "documents",
+          storage_path: data.storagePath,
+          mime: data.mime ?? null,
+          size_bytes: data.sizeBytes ?? null,
+          uploaded_by: userId,
+        }) as never,
+      );
+    } catch { /* non-fatal */ }
+
+    await logActivity(supabase, userId, {
+      kind: "submission",
+      title: `Candidate imported from CV: ${row.name}`,
+      detail: row.role ?? null,
+      candidate_id: row.id,
+    });
+
+    return {
+      status: partial ? ("partial" as const) : ("created" as const),
+      candidate: row as CandidateRow,
+    };
+  });
