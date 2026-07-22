@@ -93,9 +93,18 @@ export const CvDropImport = forwardRef<CvDropImportHandle, {
     }
 
     qc.invalidateQueries({ queryKey: ["candidates"] });
-    const created = rows.filter((r) => r.status === "created" || r.status === "partial").length;
-    if (created > 0) toast.success(`Imported ${created} candidate${created === 1 ? "" : "s"}`);
-  }, [importFn, qc, sourceClientId, rows]);
+    setRows((current) => {
+      const ids = new Set(initial.map((r) => r.id));
+      const done = current.filter((r) => ids.has(r.id));
+      const ok = done.filter((r) => r.status === "created" || r.status === "partial").length;
+      const dup = done.filter((r) => r.status === "duplicate").length;
+      const fail = done.filter((r) => r.status === "failed").length;
+      if (ok > 0) toast.success(`Imported ${ok} candidate${ok === 1 ? "" : "s"}${dup ? ` · ${dup} duplicate${dup === 1 ? "" : "s"} skipped` : ""}${fail ? ` · ${fail} failed` : ""}`);
+      else if (fail > 0) toast.error(`${fail} file${fail === 1 ? "" : "s"} failed to import`);
+      else if (dup > 0) toast.message(`${dup} duplicate${dup === 1 ? "" : "s"} skipped`);
+      return current;
+    });
+  }, [importFn, qc, sourceClientId]);
 
   useEffect(() => {
     function onDragEnter(e: DragEvent) {
