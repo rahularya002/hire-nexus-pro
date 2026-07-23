@@ -801,6 +801,7 @@ type BulkRow = {
   salary_min?: number;
   salary_max?: number;
   skills?: string[];
+  cv_filename?: string;
   _error?: string;
 };
 
@@ -817,6 +818,7 @@ const BULK_COLUMNS: { key: keyof BulkRow; aliases: string[] }[] = [
   { key: "salary_min", aliases: ["salary min", "salary minimum", "min salary", "ctc min", "min ctc", "salary min lpa"] },
   { key: "salary_max", aliases: ["salary max", "salary maximum", "max salary", "ctc max", "max ctc", "salary max lpa"] },
   { key: "skills", aliases: ["skills", "key skills", "tech stack"] },
+  { key: "cv_filename", aliases: ["cv", "cv file", "cv filename", "resume", "resume file", "resume filename", "cv name"] },
 ];
 
 function normHeader(h: string) {
