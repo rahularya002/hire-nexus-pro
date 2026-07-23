@@ -248,33 +248,33 @@ function PositionRow({
 
 function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare: () => void; sharing: boolean }) {
   const c = app.candidate;
-  if (!c) return null;
   const [skillsExpanded, setSkillsExpanded] = useState(false);
+  if (!c) return null;
   const initials = (c.name.match(/\b\w/g) ?? ["?"]).slice(0, 2).join("").toUpperCase();
   const alreadyShared = app.stage !== "sourcing" && app.stage !== "recruiter_shortlist";
   const isRejected = app.stage === "client_rejected";
   return (
     <div className={cn(
-      "rounded-lg border bg-card p-3 flex items-start gap-3",
+      "rounded-lg border bg-card p-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(120px,132px)] sm:items-start",
       isRejected ? "border-destructive/40 bg-destructive/5" : "border-border",
     )}>
       <div className="size-9 shrink-0 rounded-full bg-gradient-to-br from-primary to-purple text-primary-foreground grid place-items-center text-xs font-semibold">
         {initials}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="font-medium text-sm truncate">{c.name}</div>
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2 flex-wrap">
+          <div className="min-w-0 max-w-full truncate font-medium text-sm">{c.name}</div>
           {isRejected && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold uppercase tracking-wide">
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold uppercase tracking-wide">
               Rejected
             </span>
           )}
           {app.match_score != null && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold tabular-nums">
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold tabular-nums">
               {app.match_score}% match
             </span>
           )}
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground uppercase tracking-wide">
+          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground uppercase tracking-wide">
             {c.source}
           </span>
         </div>
@@ -282,9 +282,9 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
           {[c.role, c.current_company, c.location, c.experience].filter(Boolean).join(" · ") || "—"}
         </div>
         {c.skills && c.skills.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex min-w-0 flex-wrap gap-1 mt-2 overflow-hidden">
             {(skillsExpanded ? c.skills : c.skills.slice(0, 6)).map((s) => (
-              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-foreground/80">{s}</span>
+              <span key={s} className="max-w-full truncate text-[10px] px-1.5 py-0.5 rounded bg-secondary text-foreground/80">{s}</span>
             ))}
             {c.skills.length > 6 && (
               <button
@@ -298,18 +298,18 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-1.5 shrink-0 w-[132px] pr-0.5">
+      <div className="col-span-2 flex min-w-0 flex-wrap gap-1.5 sm:col-span-1 sm:w-[132px] sm:min-w-[132px] sm:flex-col sm:pr-0.5">
         {c.resume_url ? (
           <a
             href={c.resume_url}
             target="_blank"
             rel="noreferrer"
-            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary whitespace-nowrap"
+            className="min-w-[92px] flex-1 sm:w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary whitespace-nowrap"
           >
             <Eye className="size-3.5" /> CV
           </a>
         ) : (
-          <span className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground whitespace-nowrap">
+          <span className="min-w-[92px] flex-1 sm:w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground whitespace-nowrap">
             No CV
           </span>
         )}
@@ -318,7 +318,7 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             href={c.linkedin_url}
             target="_blank"
             rel="noreferrer"
-            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-xs font-medium hover:bg-[#0A66C2]/20 whitespace-nowrap"
+            className="min-w-[108px] flex-1 sm:w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-linkedin/30 bg-linkedin/10 text-linkedin text-xs font-medium hover:bg-linkedin/20 whitespace-nowrap"
           >
             <Linkedin className="size-3.5" /> LinkedIn
           </a>
@@ -328,7 +328,7 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             type="button"
             onClick={onShare}
             disabled={sharing || alreadyShared}
-            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+            className="min-w-[92px] flex-1 sm:w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
           >
             <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share"}
           </button>
