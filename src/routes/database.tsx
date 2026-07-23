@@ -852,15 +852,20 @@ function mapRow(raw: Record<string, unknown>): BulkRow {
 function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOpenChange: (o: boolean) => void; clients: ClientRow[] }) {
   const qc = useQueryClient();
   const addCandidate = useServerFn(createCandidate);
+  const attachCv = useServerFn(attachCvToCandidate);
   const [rows, setRows] = useState<BulkRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; ok: number; failed: number } | null>(null);
   const [sourceClientId, setSourceClientId] = useState<string>("");
+  const [imported, setImported] = useState<{ id: string; name: string; cvFilename?: string }[]>([]);
+  const [cvStatuses, setCvStatuses] = useState<Record<string, { status: "queued" | "uploading" | "attached" | "already" | "failed"; candidateName?: string; error?: string }>>({});
+  const cvInputRef = useRef<HTMLInputElement | null>(null);
 
   function reset() {
     setRows([]); setFileName(""); setProgress(null); setSourceClientId("");
+    setImported([]); setCvStatuses({});
   }
 
   async function handleFile(f: File | null) {
@@ -886,8 +891,8 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
 
   function downloadTemplate() {
     // Simple CSV template — Excel opens it natively.
-    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills"];
-    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript"];
+    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills", "cv_filename"];
+    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript", "jane_doe.pdf"];
     const csv = headers.join(",") + "\n" + sample.map((v) => `"${v.replace(/"/g, '""')}"`).join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -902,10 +907,11 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
     setImporting(true);
     let ok = 0, failed = 0;
     setProgress({ done: 0, ok: 0, failed: 0 });
+    const importedRows: { id: string; name: string; cvFilename?: string }[] = [];
     for (let i = 0; i < valid.length; i++) {
       const r = valid[i];
       try {
-        await addCandidate({ data: {
+        const created = await addCandidate({ data: {
           name: r.name,
           email: r.email, phone: r.phone, role: r.role,
           location: r.location, experience: r.experience,
@@ -914,6 +920,7 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
           salary_min: r.salary_min, salary_max: r.salary_max,
           source_client_id: sourceClientId || null,
         }});
+        importedRows.push({ id: created.id, name: created.name, cvFilename: r.cv_filename });
         ok++;
       } catch (e) {
         failed++;
@@ -924,15 +931,107 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
     }
     setImporting(false);
     qc.invalidateQueries({ queryKey: ["candidates"] });
+    setImported(importedRows);
     toast.success(`Imported ${ok} · ${failed} failed`);
-    if (failed === 0) {
-      reset();
-      onOpenChange(false);
+    // Keep dialog open so the user can attach CVs in step 2.
+  }
+
+  function normalizeFilename(s: string) {
+    return s.toLowerCase().replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+  }
+  function normalizeName(s: string) {
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function matchCandidateForFile(f: File): { id: string; name: string } | null {
+    const fn = normalizeFilename(f.name);
+    if (!fn) return null;
+    // 1) exact cv_filename match (case-insensitive)
+    for (const c of imported) {
+      if (c.cvFilename && c.cvFilename.trim().toLowerCase() === f.name.trim().toLowerCase()) {
+        return { id: c.id, name: c.name };
+      }
+    }
+    // 2) normalized cv_filename equality
+    for (const c of imported) {
+      if (c.cvFilename && normalizeFilename(c.cvFilename) === fn) return { id: c.id, name: c.name };
+    }
+    // 3) filename contains normalized name (or vice versa) — must be unique to be trusted
+    const candidates = imported.filter((c) => {
+      const n = normalizeName(c.name);
+      if (!n) return false;
+      return fn.includes(n) || n.includes(fn);
+    });
+    if (candidates.length === 1) return { id: candidates[0].id, name: candidates[0].name };
+    return null;
+  }
+
+  async function handleCvPicked(files: File[]) {
+    if (!files.length) return;
+    // Seed statuses
+    setCvStatuses((prev) => {
+      const next = { ...prev };
+      for (const f of files) next[f.name] = { status: "queued" };
+      return next;
+    });
+    for (const f of files) {
+      const match = matchCandidateForFile(f);
+      if (!match) {
+        setCvStatuses((p) => ({ ...p, [f.name]: { status: "failed", error: "No match — rename file to match candidate name" } }));
+        continue;
+      }
+      setCvStatuses((p) => ({ ...p, [f.name]: { status: "uploading", candidateName: match.name } }));
+      try {
+        const up = await uploadCvFile(f);
+        const res = await attachCv({ data: {
+          candidateId: match.id,
+          storagePath: up.path,
+          fileName: up.name,
+          mime: up.mime,
+          sizeBytes: up.size,
+        }});
+        setCvStatuses((p) => ({
+          ...p,
+          [f.name]: {
+            status: res.status === "already_has_cv" ? "already" : "attached",
+            candidateName: res.name,
+          },
+        }));
+      } catch (e) {
+        setCvStatuses((p) => ({ ...p, [f.name]: { status: "failed", candidateName: match.name, error: e instanceof Error ? e.message : "Failed" } }));
+      }
+    }
+    qc.invalidateQueries({ queryKey: ["candidates"] });
+  }
+
+  async function manualAttach(fileName: string, candidateId: string, file: File) {
+    const target = imported.find((c) => c.id === candidateId);
+    setCvStatuses((p) => ({ ...p, [fileName]: { status: "uploading", candidateName: target?.name } }));
+    try {
+      const up = await uploadCvFile(file);
+      const res = await attachCv({ data: {
+        candidateId,
+        storagePath: up.path,
+        fileName: up.name,
+        mime: up.mime,
+        sizeBytes: up.size,
+      }});
+      setCvStatuses((p) => ({
+        ...p,
+        [fileName]: {
+          status: res.status === "already_has_cv" ? "already" : "attached",
+          candidateName: res.name,
+        },
+      }));
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    } catch (e) {
+      setCvStatuses((p) => ({ ...p, [fileName]: { status: "failed", candidateName: target?.name, error: e instanceof Error ? e.message : "Failed" } }));
     }
   }
 
   const validCount = rows.filter((r) => !r._error).length;
   const errorCount = rows.length - validCount;
+  const attachingBusy = Object.values(cvStatuses).some((s) => s.status === "uploading" || s.status === "queued");
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
