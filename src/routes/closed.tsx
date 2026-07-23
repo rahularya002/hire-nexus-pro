@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Trophy, ChevronRight } from "lucide-react";
+import { Trophy, ChevronRight, MapPin } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { CardListSkeleton } from "@/components/skeletons";
 import { listPositions } from "@/lib/positions.functions";
@@ -73,42 +73,26 @@ function Page() {
   const visible = clientFilter === "all" ? groups : groups.filter((g) => g.id === clientFilter);
   const totalClosed = groups.reduce((s, g) => s + g.positions.length, 0);
   const totalPlacements = groups.reduce((s, g) => s + g.placements, 0);
-  const topClient = groups[0]?.name ?? "—";
 
   return (
-    <div className="space-y-10">
-      {/* Header + stat strip */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border pb-8">
+    <div className="space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1.5 w-8 bg-primary rounded-full" />
-            <span className="text-primary text-[10px] font-bold uppercase tracking-[0.2em]">Historical Archive</span>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">Closed positions</h1>
-          <p className="text-muted-foreground mt-2 max-w-md text-sm">
-            Successful placements and historical mandates across every client you've delivered for.
+          <h1 className="text-2xl font-semibold tracking-tight">Closed positions</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {totalClosed} closed role{totalClosed === 1 ? "" : "s"} · {totalPlacements} placement{totalPlacements === 1 ? "" : "s"} · across {groups.length} client{groups.length === 1 ? "" : "s"}
           </p>
-        </div>
-        <div className="flex gap-10">
-          <StatBlock label="Closed roles" value={totalClosed.toString()} muted />
-          <StatBlock label="Placements" value={totalPlacements.toString()} />
-          <StatBlock label="Top client" value={topClient} muted title />
         </div>
       </div>
 
-      {/* Filter chips */}
       {groups.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-secondary/60 w-fit">
           <FilterChip active={clientFilter === "all"} onClick={() => setClientFilter("all")}>
-            All clients <span className="ml-1.5 opacity-60 text-xs">{totalClosed}</span>
+            All ({totalClosed})
           </FilterChip>
           {groups.map((g) => (
             <FilterChip key={g.id} active={clientFilter === g.id} onClick={() => setClientFilter(g.id)}>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 rounded-full" style={{ background: g.color ?? "hsl(var(--muted-foreground))" }} />
-                {g.name}
-                <span className="ml-1 opacity-60 text-xs">{g.positions.length}</span>
-              </span>
+              {g.name} ({g.positions.length})
             </FilterChip>
           ))}
         </div>
@@ -116,43 +100,35 @@ function Page() {
 
       {isLoading && <CardListSkeleton rows={4} className="sm:grid-cols-2" />}
       {!isLoading && groups.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border bg-card/40 px-4 py-16 text-center">
-          <div className="mx-auto size-12 rounded-2xl bg-primary/10 border border-primary/20 grid place-items-center text-primary">
-            <Trophy className="size-6" />
+        <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-14 text-center">
+          <div className="mx-auto size-10 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center text-primary">
+            <Trophy className="size-5" />
           </div>
-          <div className="mt-4 font-medium">No wins yet</div>
-          <div className="text-sm text-muted-foreground mt-1">Closed positions will appear here once a candidate joins.</div>
+          <div className="mt-3 font-medium text-sm">No closed positions yet</div>
+          <div className="text-xs text-muted-foreground mt-1">They'll appear here once a candidate joins.</div>
         </div>
       )}
 
-      {/* Client sections */}
-      <div className="space-y-10">
+      <div className="space-y-8">
         {visible.map((g) => {
-          const featured = g.positions[0];
-          const rest = g.positions.slice(1);
           return (
-            <section key={g.id} className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="size-8 rounded-lg grid place-items-center text-xs font-semibold text-white shrink-0 shadow-lg"
+            <section key={g.id} className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="size-7 rounded-md grid place-items-center text-[11px] font-semibold text-white shrink-0"
                   style={{ background: g.color ?? "hsl(var(--muted-foreground))" }}>
                   {initialsOf(g.name)}
                 </div>
-                <h2 className="font-bold text-xl tracking-tight truncate">{g.name}</h2>
+                <h2 className="font-semibold text-base tracking-tight truncate">{g.name}</h2>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {g.positions.length} closed · {g.placements} placement{g.placements === 1 ? "" : "s"}
+                  · {g.positions.length} closed · {g.placements} placement{g.placements === 1 ? "" : "s"}
                 </span>
-                <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
               </div>
 
-              {featured && <FeaturedCard position={featured} placementRows={placementRowsFor(featured.id)} />}
-
-              {rest.length > 0 && (
-                <div className="space-y-3">
-                  {rest.map((p) => (
-                    <CompactRow key={p.id} position={p} placements={placementsFor(p.id)} />
-                  ))}
-                </div>
-              )}
+              <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                {g.positions.map((p) => (
+                  <PositionRow key={p.id} position={p} placementRows={placementRowsFor(p.id)} placementCount={placementsFor(p.id)} />
+                ))}
+              </div>
             </section>
           );
         })}
@@ -161,87 +137,62 @@ function Page() {
   );
 }
 
-function StatBlock({ label, value, muted = false, title = false }: { label: string; value: string; muted?: boolean; title?: boolean }) {
-  return (
-    <div className="text-right">
-      <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground mb-1.5">{label}</div>
-      <div className={cn(
-        "font-bold tracking-tighter",
-        title ? "text-lg truncate max-w-[140px]" : "text-3xl",
-        muted ? "text-foreground" : "text-primary",
-      )}>{value}</div>
-    </div>
-  );
-}
-
-function FeaturedCard({
+function PositionRow({
   position,
   placementRows,
+  placementCount,
 }: {
   position: { id: string; title: string; location: string | null; openings: number; salary: string | null; updated_at?: string | null };
   placementRows: Array<{ id: string; candidate?: { id: string; name: string } | null; joining_date: string | null; ctc_display: string | null }>;
+  placementCount: number;
 }) {
   const seats = position.openings ?? 0;
-  const filled = Math.max(placementRows.length, 0);
+  const filled = placementRows.length > 0 ? placementRows.length : placementCount;
   return (
-    <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-border">
-        <div className="space-y-2 min-w-0">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Link to="/positions/$positionId" params={{ positionId: position.id }} className="text-xl font-bold tracking-tight hover:text-primary transition-colors truncate">
+    <div className="p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to="/positions/$positionId" params={{ positionId: position.id }} className="text-sm font-semibold tracking-tight hover:text-primary transition-colors truncate">
               {position.title}
             </Link>
-            <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-bold uppercase tracking-widest border border-success/20">Completed</span>
+            <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-medium uppercase tracking-wider border border-success/20">Closed</span>
           </div>
-          <div className="flex items-center gap-4 text-muted-foreground text-sm flex-wrap">
-            <span className="inline-flex items-center gap-2">
-              <span className="size-1 rounded-full bg-primary" />
-              {position.location ?? "Location not set"}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-3" />
+              {position.location ?? "—"}
             </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="size-1 rounded-full bg-primary" />
-              Closed {fmtShortDate(position.updated_at ?? null)}
-            </span>
+            <span>Closed {fmtShortDate(position.updated_at ?? null)}</span>
+            <span>{filled || seats}/{seats} seat{seats === 1 ? "" : "s"} filled</span>
+            {position.salary && <span className="text-foreground/80">{position.salary}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-10 shrink-0">
-          <div className="text-left lg:text-right">
-            <div className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mb-1">Seats filled</div>
-            <div className="font-bold text-2xl tracking-tighter">
-              {filled || seats} <span className="text-muted-foreground font-medium text-lg">/ {seats}</span>
-            </div>
-          </div>
-          {position.salary && (
-            <div className="text-left lg:text-right">
-              <div className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mb-1">CTC band</div>
-              <div className="font-bold text-lg tracking-tight text-primary">{position.salary}</div>
-            </div>
-          )}
-        </div>
+        <Link to="/positions/$positionId" params={{ positionId: position.id }}
+          className="size-8 grid place-items-center rounded-md border border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors shrink-0">
+          <ChevronRight className="size-4" />
+        </Link>
       </div>
 
       {placementRows.length > 0 && (
-        <div className="p-6">
-          <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground mb-4">Retained talent</div>
-          <div className="grid md:grid-cols-2 gap-3">
-            {placementRows.map((pl, i) => {
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Placed candidates</div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {placementRows.map((pl) => {
               const name = pl.candidate?.name ?? "Candidate";
               const chip = (
-                <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-muted/20 border border-border hover:bg-muted/40 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn(
-                      "size-11 rounded-lg grid place-items-center font-bold text-sm shrink-0 border",
-                      i === 0 ? "bg-primary text-primary-foreground border-primary/40" : "bg-muted text-foreground border-border",
-                    )}>
+                <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border hover:bg-secondary/70 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={cn("size-8 rounded-full grid place-items-center font-semibold text-[11px] shrink-0 bg-muted text-foreground border border-border")}>
                       {initialsOf(name)}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold truncate">{name}</div>
-                      <div className="text-xs text-muted-foreground truncate">Joined {fmtMonthYear(pl.joining_date)}</div>
+                      <div className="font-medium text-sm truncate">{name}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">Joined {fmtMonthYear(pl.joining_date)}</div>
                     </div>
                   </div>
                   {pl.ctc_display && (
-                    <div className="text-sm font-semibold text-primary shrink-0">{pl.ctc_display}</div>
+                    <div className="text-xs font-medium text-primary shrink-0">{pl.ctc_display}</div>
                   )}
                 </div>
               );
@@ -260,38 +211,14 @@ function FeaturedCard({
   );
 }
 
-function CompactRow({
-  position,
-  placements,
-}: {
-  position: { id: string; title: string; location: string | null; updated_at?: string | null };
-  placements: number;
-}) {
-  return (
-    <Link to="/positions/$positionId" params={{ positionId: position.id }}
-      className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-border bg-card hover:bg-muted/30 transition-colors">
-      <div className="min-w-0">
-        <div className="font-bold tracking-tight group-hover:text-primary transition-colors truncate">{position.title}</div>
-        <div className="text-sm text-muted-foreground truncate">
-          {placements} placement{placements === 1 ? "" : "s"} · Closed {fmtShortDate(position.updated_at ?? null)}
-          {position.location ? <> · {position.location}</> : null}
-        </div>
-      </div>
-      <div className="size-11 grid place-items-center rounded-xl border border-border text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors shrink-0">
-        <ChevronRight className="size-5" />
-      </div>
-    </Link>
-  );
-}
-
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick}
       className={cn(
-        "text-xs px-4 py-1.5 rounded-lg border transition",
+        "px-3 py-1.5 rounded-md text-xs font-medium transition",
         active
-          ? "bg-primary/15 text-primary border-primary/30"
-          : "bg-transparent border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          ? "bg-card shadow-sm text-foreground"
+          : "text-muted-foreground hover:text-foreground",
       )}>
       {children}
     </button>
