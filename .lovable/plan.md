@@ -1,41 +1,41 @@
-## Problem
+## Verification plan: today's features
 
-Bulk Excel import creates candidates with no CV attached. Excel can't carry files, so we need a second step: drop many CVs at once and attach each to the right candidate.
+Drive the running preview with Playwright (headless Chromium), restore the managed Supabase session, and walk through each feature added today. Capture a screenshot at every meaningful step and drop them into `/mnt/documents/` so they render inline in the reply.
 
-## Approach
+### Features to verify
 
-Extend the existing drag-and-drop CV importer (`src/components/cv-drop-import.tsx`) with a new **"Attach mode"** that matches each dropped CV to an existing candidate instead of creating a new one. Trigger it from the Bulk Import dialog and from a new "Attach CVs" button next to "Upload CVs" on the Candidate Database.
+1. **Drag-and-drop CV import (single + multiple)** on `/database`
+   - Trigger the "Upload CVs" button → file picker path
+   - Simulate drag-and-drop of a sample PDF + DOCX
+   - Confirm progress modal shows Uploading → Extracting → Review
+2. **Pre-save review step** for CV import
+   - Open the Review dialog for an extracted candidate
+   - Verify editable fields: name, email, phone, location, salary range (LPA), skills chips
+   - Verify "More fields" collapsible (role, company, experience, LinkedIn, notes)
+   - Verify duplicate warning + "low-confidence extraction" badges render
+3. **Save individual + Save all** flow
+   - Save one from the review modal → toast + row status → Saved
+   - Save all remaining → check `candidates` list refreshes
+4. **Skip / discard** flow
+   - Skip a row → status Skipped, uploaded file discarded
+5. **Bulk CV attach (Step 2 of Excel import)**
+   - Open Bulk Import dialog on `/database`
+   - Screenshot the Step 2 attach panel with auto-match + `ManualAttachSelect`
+6. **Recent fixes**
+   - Salary filter accepts values below 2 and above 100 LPA (e.g. 0.5 and 120)
+   - (Sanity-only) Reschedule dialog still opens on an existing interview — no live Google Meet needed
+   - (Sanity-only) Bulk client import dialog opens and shows password-optional hint
 
-### Matching strategy (per file)
+### Steps
 
-For each CV, extract text once (reuse `extractCvText` + Gemini extraction already in `importCandidateFromCv`), then match against existing candidates in this order:
+1. Prepare fixtures under `/tmp/browser/cv-test/`: a tiny sample PDF and DOCX with fake CV text (name/email/phone/skills) so extraction has something to work with.
+2. Write one Playwright script per feature block under `/tmp/browser/<slug>/run.py`, each launching a fresh browser, restoring the Supabase session from env, navigating to `http://localhost:8080/...`, performing the interaction, and saving PNGs to `./screenshots/`.
+3. Run scripts sequentially; after each, `code--view` the PNGs to confirm the UI actually shows the expected state (not just that the script didn't crash).
+4. Copy the confirmed screenshots into `/mnt/documents/today-tests/` with descriptive names.
+5. Reply with a short pass/fail summary and inline `<presentation-artifact>` tags for each screenshot.
 
-1. **Filename match** — normalized filename contains candidate's full name (or vice versa).
-2. **Email match** — email parsed from CV equals candidate email.
-3. **Phone match** — last 10 digits of parsed phone equal candidate phone.
-4. **No match** → fall back to "create new candidate" (current behavior), tagged with the same `source_client_id` if set.
+### Notes / risks
 
-Ambiguous matches (2+ candidates hit) are skipped and surfaced in the results panel for manual resolution.
-
-### Excel template change
-
-Add an optional `cv_filename` column to the bulk-import template. If present, the matcher prefers exact filename match over heuristic name match — lets users guarantee correct pairing by naming files `john_doe.pdf` and putting `john_doe.pdf` in the row.
-
-### UI
-
-- New **"Attach CVs"** button on `src/routes/database.tsx` header, opens the same drop overlay in attach mode.
-- Bulk Import dialog (`src/components/bulk-import-clients-dialog.tsx` sibling — create `src/components/bulk-import-candidates-dialog.tsx` or extend existing candidate bulk import in `database.tsx`) shows a **Step 2: Attach CVs** panel after the Excel import completes, pre-scoped to the just-imported candidate IDs.
-- Progress modal shows per-file status: `Matched → {name}`, `Created new`, `Ambiguous — skipped`, `Duplicate`, `Failed`.
-
-## Technical details
-
-- New server fn `attachCvToCandidate(candidateId, storagePath, fileName, mime, sizeBytes)` in `src/lib/candidates.functions.ts`: uploads path already exists in `documents` bucket, updates `candidates.resume_url` (only if empty, else prompt overwrite), inserts a `documents` row with `kind: "resume"`.
-- New server fn `matchCvToCandidates({ fileName, parsedEmail, parsedPhone, parsedName, scopeIds? })` returns `{ candidateId } | { ambiguous: string[] } | { none: true }`. Scoped to caller's agency via existing RLS.
-- Client component change: `CvDropImport` gains a `mode: "create" | "attach" | "auto"` prop. In `auto` (default for the DB page), it tries attach-match first and falls back to create.
-- Reuse existing upload flow (`src/lib/upload-cv.ts`) so files land in the `documents` bucket before the server call.
-- No schema change required; `candidates.resume_url` and `documents` table already exist.
-
-## Out of scope
-
-- OCR for scanned PDFs (already limited by current parser).
-- Bulk re-parse of CVs already attached.
+- If `LOVABLE_BROWSER_AUTH_STATUS` is `signed_out` or `external_unmanaged`, I can't reach `/database` — I'll stop and tell you to sign in via the preview, then re-run.
+- Real AI extraction hits the Lovable AI gateway and may take a few seconds per file; scripts will wait for the "Review" status before screenshotting.
+- No code changes will be made — this is verification only.
