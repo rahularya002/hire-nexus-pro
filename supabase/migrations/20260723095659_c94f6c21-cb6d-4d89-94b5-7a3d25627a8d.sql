@@ -1,0 +1,1 @@
+CREATE POLICY "members read own agency membership" ON public.agency_members FOR SELECT TO authenticated USING (user_id = auth.uid());
