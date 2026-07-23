@@ -800,6 +800,12 @@ export const createClientPlacement = createServerFn({ method: "POST" })
       .update({ stage: "closed" })
       .eq("id", app.id);
 
+    // Close the position as well — a candidate joining fills the mandate.
+    await supabaseAdmin
+      .from("positions")
+      .update({ status: "closed" })
+      .eq("id", app.position_id);
+
     await logActivity(supabaseAdmin, userId, {
       kind: "offer",
       title: `Candidate joined${row.candidate?.name ? ` · ${row.candidate.name}` : ""}`,
