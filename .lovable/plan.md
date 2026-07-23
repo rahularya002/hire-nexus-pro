@@ -1,54 +1,41 @@
-## Goal
+## Problem
 
-On the Candidate Database page, let users drag one or many CV files (PDF / DOC / DOCX / TXT) anywhere on the page. Each file is uploaded to storage, parsed, sent through the Lovable AI gateway to extract structured fields, and inserted as a new candidate with the CV attached.
+Bulk Excel import creates candidates with no CV attached. Excel can't carry files, so we need a second step: drop many CVs at once and attach each to the right candidate.
 
-## UX
+## Approach
 
-- Wrap the page in a drop zone. On dragenter, show a full-page overlay: "Drop CVs to import — we'll extract details automatically". Also add a visible "Upload CVs" button (multi-file picker) next to "Bulk import" as a discoverable entry point.
-- On drop, open a modal "Importing CVs" showing a row per file with status: Uploading → Parsing → Extracting → Saved / Failed (with error text). Each row shows the extracted name once known.
-- On close, refresh the candidate list. Successful count + failed count toast.
-- Duplicates (matching email/phone) are surfaced as "Skipped — duplicate of X".
+Extend the existing drag-and-drop CV importer (`src/components/cv-drop-import.tsx`) with a new **"Attach mode"** that matches each dropped CV to an existing candidate instead of creating a new one. Trigger it from the Bulk Import dialog and from a new "Attach CVs" button next to "Upload CVs" on the Candidate Database.
 
-## Backend
+### Matching strategy (per file)
 
-New server function `importCandidateFromCv` in `src/lib/candidates.functions.ts`:
+For each CV, extract text once (reuse `extractCvText` + Gemini extraction already in `importCandidateFromCv`), then match against existing candidates in this order:
 
-1. Accept `{ storagePath, fileName, mime, sizeBytes }` (client uploads first via existing `uploadCvFile`).
-2. Download the file from the `documents` bucket using the authenticated supabase client.
-3. Extract raw text:
-   - PDF → use `unpdf` (`extractText`) — Worker-compatible, pure JS.
-   - DOCX → use `mammoth` (`extractRawText`) — pure JS.
-   - DOC (legacy) → not reliably parseable in Workers; return a friendly error asking the user to convert to DOCX/PDF.
-   - TXT → decode UTF-8.
-4. Send the first ~15k chars to Lovable AI gateway (`google/gemini-2.5-flash`) with a tool-call schema mirroring `candidateSchema` fields: `name, email, phone, role, current_company, experience, location, linkedin_url, skills[], salary, salary_min, salary_max, notes` (summary).
-5. Duplicate check on normalized email/phone — if hit, return `{ status: "duplicate", candidateId, name }` without inserting.
-6. Insert candidate with `source: "database"`, `resume_url: storagePath`, extracted fields.
-7. Also insert a `documents` row (`kind: "resume"`, linked to candidate) so the CV shows up in the docs listing (mirrors the pattern already in `EditCandidateDialog`).
-8. Return `{ status: "created", candidate }`.
+1. **Filename match** — normalized filename contains candidate's full name (or vice versa).
+2. **Email match** — email parsed from CV equals candidate email.
+3. **Phone match** — last 10 digits of parsed phone equal candidate phone.
+4. **No match** → fall back to "create new candidate" (current behavior), tagged with the same `source_client_id` if set.
 
-Reuse the extraction pattern from `src/lib/jd-extract.functions.ts` (tool-call with strict schema, null fallback).
+Ambiguous matches (2+ candidates hit) are skipped and surfaced in the results panel for manual resolution.
 
-## Frontend
+### Excel template change
 
-- New component `src/components/cv-drop-import.tsx` that renders the overlay + progress modal and exposes `<CvDropImport onDone={refresh}>{children}</CvDropImport>` wrapping the page content.
-- Client flow per file: `uploadCvFile(f)` → `importCandidateFromCv({ storagePath, fileName, mime, size })` → update row state.
-- Integrate into `src/routes/database.tsx`: wrap the page, add "Upload CVs" button that opens a hidden multi-file input which feeds the same handler.
+Add an optional `cv_filename` column to the bulk-import template. If present, the matcher prefers exact filename match over heuristic name match — lets users guarantee correct pairing by naming files `john_doe.pdf` and putting `john_doe.pdf` in the row.
 
-## Dependencies
+### UI
 
-Install: `unpdf`, `mammoth` (both Worker-compatible ESM libraries).
+- New **"Attach CVs"** button on `src/routes/database.tsx` header, opens the same drop overlay in attach mode.
+- Bulk Import dialog (`src/components/bulk-import-clients-dialog.tsx` sibling — create `src/components/bulk-import-candidates-dialog.tsx` or extend existing candidate bulk import in `database.tsx`) shows a **Step 2: Attach CVs** panel after the Excel import completes, pre-scoped to the just-imported candidate IDs.
+- Progress modal shows per-file status: `Matched → {name}`, `Created new`, `Ambiguous — skipped`, `Duplicate`, `Failed`.
 
-## Files
+## Technical details
 
-- Modify: `src/lib/candidates.functions.ts` (add `importCandidateFromCv` + helper `parseCvText` in a new `src/lib/cv-parse.server.ts` to keep the server function module lean).
-- Add: `src/lib/cv-parse.server.ts` (PDF/DOCX/TXT text extraction).
-- Add: `src/components/cv-drop-import.tsx`.
-- Modify: `src/routes/database.tsx` (wrap in drop zone, add "Upload CVs" button, invalidate `["candidates"]` on done).
-- `package.json` via `bun add unpdf mammoth`.
+- New server fn `attachCvToCandidate(candidateId, storagePath, fileName, mime, sizeBytes)` in `src/lib/candidates.functions.ts`: uploads path already exists in `documents` bucket, updates `candidates.resume_url` (only if empty, else prompt overwrite), inserts a `documents` row with `kind: "resume"`.
+- New server fn `matchCvToCandidates({ fileName, parsedEmail, parsedPhone, parsedName, scopeIds? })` returns `{ candidateId } | { ambiguous: string[] } | { none: true }`. Scoped to caller's agency via existing RLS.
+- Client component change: `CvDropImport` gains a `mode: "create" | "attach" | "auto"` prop. In `auto` (default for the DB page), it tries attach-match first and falls back to create.
+- Reuse existing upload flow (`src/lib/upload-cv.ts`) so files land in the `documents` bucket before the server call.
+- No schema change required; `candidates.resume_url` and `documents` table already exist.
 
-## Edge cases
+## Out of scope
 
-- File > 10 MB or unsupported extension → reject before upload (reuse `uploadCvFile` guards).
-- Empty/garbled text extraction (<40 chars) → skip AI call, insert candidate with only `name = fileName` and CV attached, status "Partial".
-- AI returns no name → fall back to filename stem.
-- All storage uploads use existing private `documents` bucket; access via `getResumeSignedUrl`.
+- OCR for scanned PDFs (already limited by current parser).
+- Bulk re-parse of CVs already attached.
