@@ -491,7 +491,6 @@ export const extractCandidateFromCv = createServerFn({ method: "POST" })
       .from("documents")
       .download(data.storagePath);
     if (dlErr || !blob) throw new Error(dlErr?.message ?? "Could not download uploaded CV");
-    void supabase; // reserved for later user-scoped writes below
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // 2) Extract raw text.
