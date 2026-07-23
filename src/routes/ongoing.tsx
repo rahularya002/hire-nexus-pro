@@ -298,18 +298,18 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-1.5 shrink-0 w-28">
+      <div className="flex flex-col gap-1.5 shrink-0 w-[132px] pr-0.5">
         {c.resume_url ? (
           <a
             href={c.resume_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary"
+            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border bg-card text-xs font-medium hover:bg-secondary whitespace-nowrap"
           >
             <Eye className="size-3.5" /> CV
           </a>
         ) : (
-          <span className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground">
+          <span className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-dashed border-border text-xs text-muted-foreground whitespace-nowrap">
             No CV
           </span>
         )}
@@ -318,7 +318,7 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             href={c.linkedin_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-xs font-medium hover:bg-[#0A66C2]/20"
+            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] text-xs font-medium hover:bg-[#0A66C2]/20 whitespace-nowrap"
           >
             <Linkedin className="size-3.5" /> LinkedIn
           </a>
@@ -328,7 +328,7 @@ function CandidateRow({ app, onShare, sharing }: { app: ApplicationRow; onShare:
             type="button"
             onClick={onShare}
             disabled={sharing || alreadyShared}
-            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+            className="w-full inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
           >
             <Send className="size-3.5" /> {alreadyShared ? "Shared" : "Share"}
           </button>
