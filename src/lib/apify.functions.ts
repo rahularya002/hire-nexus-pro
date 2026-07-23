@@ -452,7 +452,7 @@ export const runApifyScout = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // Rate limit: max 5 runs per position per hour
+    // Rate limit: max 30 runs per position per hour (safety cap only)
     if (data.positionId) {
       const since = new Date(Date.now() - 60 * 60_000).toISOString();
       const { count } = await supabase
@@ -460,8 +460,8 @@ export const runApifyScout = createServerFn({ method: "POST" })
         .select("id", { count: "exact", head: true })
         .eq("position_id", data.positionId)
         .gte("created_at", since);
-      if ((count ?? 0) >= 5) {
-        throw new Error("Rate limit: 5 Apify runs per position per hour.");
+      if ((count ?? 0) >= 30) {
+        throw new Error("Too many sourcing runs for this position in the last hour. Please wait a bit and try again.");
       }
     }
 
