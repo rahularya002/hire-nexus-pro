@@ -186,8 +186,9 @@ async function syncGoogleMeet(userId: string, interviewId: string) {
     if (!row) return;
     if (row.provider !== "google_meet" || !row.scheduled_at) return;
 
-    // If someone already pasted a meeting link, don't overwrite it.
-    if ((row as any).meeting_link) return;
+    // If someone pasted a manual link (no calendar event we own), don't overwrite it.
+    // But if we previously created a calendar event, keep syncing it on reschedules.
+    if ((row as any).meeting_link && !row.external_event_id) return;
 
     const conn = await getValidAccessToken(userId);
     if (!conn) return; // recruiter hasn't connected
