@@ -197,27 +197,92 @@ function Scout() {
       setMatchError("Attach a JD or describe the role first.");
       return;
     }
+    const internalSelected = selected.includes("internal");
+    const apifySources = selected.filter(
+      (s): s is "linkedin" | "github" | "naukri" =>
+        s === "linkedin" || s === "github" || s === "naukri",
+    );
+    if (!internalSelected && apifySources.length === 0) {
+      setMatchError("Pick at least one sourcing channel (Internal database, LinkedIn, GitHub, or Naukri).");
+      return;
+    }
     setMatching(true);
     setMatchError(null);
     setMatches(null);
-    setMatchLabel("Searching your database...");
+    setJdContext(briefText);
     try {
-      const res = await searchInternal({
-        data: {
-          positionId: activePositionId ?? undefined,
-          jobTitle: titleGuess,
-          skills: skillsContext,
-          location: locationContext || undefined,
-          limit: 25,
-        },
-      });
-      setMatches(res.matches);
-      setMatchLabel(
-        res.matches.length
-          ? `${res.matches.length} from your database`
-          : "No matches in your database yet — try sourcing fresh from LinkedIn or GitHub.",
-      );
-      setJdContext(briefText);
+      // 1. Internal DB search (only if user picked it)
+      if (internalSelected) {
+        setMatchLabel("Searching your database...");
+        const res = await searchInternal({
+          data: {
+            positionId: activePositionId ?? undefined,
+            jobTitle: titleGuess,
+            skills: skillsContext,
+            location: locationContext || undefined,
+            limit: 25,
+          },
+        });
+        setMatches(res.matches);
+        setMatchLabel(
+          res.matches.length
+            ? `${res.matches.length} from your database`
+            : apifySources.length
+              ? "No database matches — sourcing fresh..."
+              : "No matches in your database yet — enable LinkedIn / GitHub / Naukri to source fresh.",
+        );
+      }
+
+      // 2. External sourcing (only if user picked at least one external channel)
+      if (apifySources.length > 0) {
+        setMatchLabel(`Sourcing from ${apifySources.join(" + ")}...`);
+        const run = await runApify({
+          data: {
+            positionId: activePositionId ?? undefined,
+            sources: apifySources.slice(0, 2),
+            jobTitle: titleGuess,
+            skills: skillsContext,
+            location: locationContext || undefined,
+            jdText: briefText.slice(0, 18_000),
+            maxResults: 15,
+          },
+        });
+        if (run?.errors?.length && !run?.resultCount) {
+          setMatchError(run.errors.join(" | "));
+        }
+        if (activePositionId && briefText.length > 20 && run?.sourcedIds?.length) {
+          setMatchLabel("Ranking candidates against the JD...");
+          try {
+            await rankMatches({
+              data: {
+                positionId: activePositionId,
+                jdText: briefText.slice(0, 18_000),
+                sourcedCandidateIds: run.sourcedIds.slice(0, 50),
+              },
+            });
+          } catch (e) {
+            console.warn("AI ranking failed:", e);
+          }
+        }
+        // Refresh combined view (internal + newly sourced) if we can search
+        const refreshed = await searchInternal({
+          data: {
+            positionId: activePositionId ?? undefined,
+            jobTitle: titleGuess,
+            skills: skillsContext,
+            location: locationContext || undefined,
+            limit: 25,
+          },
+        });
+        // If user didn't pick internal, filter out purely-database rows
+        const filtered = internalSelected
+          ? refreshed.matches
+          : refreshed.matches.filter((m) => m.source !== "database");
+        setMatches(filtered);
+        setMatchLabel(
+          `${filtered.length} candidates · ${run?.resultCount ?? 0} newly sourced from ${apifySources.join(" + ")}`,
+        );
+      }
     } catch (e) {
       setMatchError(e instanceof Error ? e.message : "Search failed.");
     } finally {
