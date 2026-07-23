@@ -14,6 +14,7 @@ import {
   listApplications,
   updateCandidate,
   getResumeSignedUrl,
+  attachCvToCandidate,
   STAGE_LABEL,
   type ApplicationRow,
   type ApplicationStage,
