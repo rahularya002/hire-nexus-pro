@@ -31,6 +31,24 @@ export const Route = createFileRoute("/scout")({
 
 type SourceId = ScoutSourceId;
 
+// Module-level in-memory cache so switching tabs / navigating away and back
+// doesn't wipe the JD, selected channels, and matched candidates.
+type ScoutSnapshot = {
+  input: string;
+  selected: SourceId[];
+  cv: { name: string; text: string } | null;
+  clientId: string | null;
+  matches: SourcedMatchView[] | null;
+  matchLabel: string;
+  matchError: string | null;
+  activePositionId: string | null;
+  jdContext: string;
+  skillsContext: string[];
+  titleContext: string;
+  locationContext: string;
+};
+const scoutCache: { current: ScoutSnapshot | null } = { current: null };
+
 function ScoutPage() {
   return (
     <AppShell>
@@ -45,25 +63,26 @@ function Scout() {
   const fetchSourceSettings = useServerFn(listSourceSettings);
   const navigate = useNavigate();
   const { positionId } = Route.useSearch();
-  const [input, setInput] = useState("");
+  const cached = scoutCache.current;
+  const [input, setInput] = useState(cached?.input ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SourceId[]>(() =>
-    SCOUT_SOURCES.filter((s) => s.hasActor).map((s) => s.id),
+  const [selected, setSelected] = useState<SourceId[]>(
+    () => cached?.selected ?? SCOUT_SOURCES.filter((s) => s.hasActor).map((s) => s.id),
   );
-  const [cv, setCv] = useState<{ name: string; text: string } | null>(null);
+  const [cv, setCv] = useState<{ name: string; text: string } | null>(cached?.cv ?? null);
   const [parsingCv, setParsingCv] = useState(false);
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(cached?.clientId ?? null);
   const [clientMenuOpen, setClientMenuOpen] = useState(false);
   const [matching, setMatching] = useState(false);
-  const [matchError, setMatchError] = useState<string | null>(null);
-  const [matches, setMatches] = useState<SourcedMatchView[] | null>(null);
-  const [matchLabel, setMatchLabel] = useState<string>("");
+  const [matchError, setMatchError] = useState<string | null>(cached?.matchError ?? null);
+  const [matches, setMatches] = useState<SourcedMatchView[] | null>(cached?.matches ?? null);
+  const [matchLabel, setMatchLabel] = useState<string>(cached?.matchLabel ?? "");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [activePositionId, setActivePositionId] = useState<string | null>(null);
-  const [jdContext, setJdContext] = useState<string>("");
-  const [skillsContext, setSkillsContext] = useState<string[]>([]);
-  const [titleContext, setTitleContext] = useState<string>("");
-  const [locationContext, setLocationContext] = useState<string>("");
+  const [activePositionId, setActivePositionId] = useState<string | null>(cached?.activePositionId ?? null);
+  const [jdContext, setJdContext] = useState<string>(cached?.jdContext ?? "");
+  const [skillsContext, setSkillsContext] = useState<string[]>(cached?.skillsContext ?? []);
+  const [titleContext, setTitleContext] = useState<string>(cached?.titleContext ?? "");
+  const [locationContext, setLocationContext] = useState<string>(cached?.locationContext ?? "");
   const searchInternal = useServerFn(searchSourcedCandidates);
   const runApify = useServerFn(runApifyScout);
   const rankMatches = useServerFn(rankSourcedMatches);
@@ -73,6 +92,24 @@ function Scout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientMenuRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
+
+  // Persist snapshot on every relevant change so a tab switch doesn't lose work.
+  useEffect(() => {
+    scoutCache.current = {
+      input,
+      selected,
+      cv,
+      clientId,
+      matches,
+      matchLabel,
+      matchError,
+      activePositionId,
+      jdContext,
+      skillsContext,
+      titleContext,
+      locationContext,
+    };
+  }, [input, selected, cv, clientId, matches, matchLabel, matchError, activePositionId, jdContext, skillsContext, titleContext, locationContext]);
 
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["scout-clients"],
