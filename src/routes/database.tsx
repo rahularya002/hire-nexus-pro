@@ -14,6 +14,7 @@ import {
   listApplications,
   updateCandidate,
   getResumeSignedUrl,
+  attachCvToCandidate,
   STAGE_LABEL,
   type ApplicationRow,
   type ApplicationStage,
@@ -800,6 +801,7 @@ type BulkRow = {
   salary_min?: number;
   salary_max?: number;
   skills?: string[];
+  cv_filename?: string;
   _error?: string;
 };
 
@@ -816,6 +818,7 @@ const BULK_COLUMNS: { key: keyof BulkRow; aliases: string[] }[] = [
   { key: "salary_min", aliases: ["salary min", "salary minimum", "min salary", "ctc min", "min ctc", "salary min lpa"] },
   { key: "salary_max", aliases: ["salary max", "salary maximum", "max salary", "ctc max", "max ctc", "salary max lpa"] },
   { key: "skills", aliases: ["skills", "key skills", "tech stack"] },
+  { key: "cv_filename", aliases: ["cv", "cv file", "cv filename", "resume", "resume file", "resume filename", "cv name"] },
 ];
 
 function normHeader(h: string) {
@@ -849,15 +852,20 @@ function mapRow(raw: Record<string, unknown>): BulkRow {
 function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOpenChange: (o: boolean) => void; clients: ClientRow[] }) {
   const qc = useQueryClient();
   const addCandidate = useServerFn(createCandidate);
+  const attachCv = useServerFn(attachCvToCandidate);
   const [rows, setRows] = useState<BulkRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; ok: number; failed: number } | null>(null);
   const [sourceClientId, setSourceClientId] = useState<string>("");
+  const [imported, setImported] = useState<{ id: string; name: string; cvFilename?: string }[]>([]);
+  const [cvStatuses, setCvStatuses] = useState<Record<string, { status: "queued" | "uploading" | "attached" | "already" | "failed"; candidateName?: string; error?: string }>>({});
+  const cvInputRef = useRef<HTMLInputElement | null>(null);
 
   function reset() {
     setRows([]); setFileName(""); setProgress(null); setSourceClientId("");
+    setImported([]); setCvStatuses({});
   }
 
   async function handleFile(f: File | null) {
@@ -883,8 +891,8 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
 
   function downloadTemplate() {
     // Simple CSV template — Excel opens it natively.
-    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills"];
-    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript"];
+    const headers = ["name", "email", "phone", "role", "current_company", "location", "experience", "linkedin_url", "salary_min", "salary_max", "skills", "cv_filename"];
+    const sample = ["Jane Doe", "jane@example.com", "+91 90000 00000", "Senior Engineer", "Acme", "Bengaluru", "7 years", "https://linkedin.com/in/jane", "35", "50", "React, Node, TypeScript", "jane_doe.pdf"];
     const csv = headers.join(",") + "\n" + sample.map((v) => `"${v.replace(/"/g, '""')}"`).join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -899,10 +907,11 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
     setImporting(true);
     let ok = 0, failed = 0;
     setProgress({ done: 0, ok: 0, failed: 0 });
+    const importedRows: { id: string; name: string; cvFilename?: string }[] = [];
     for (let i = 0; i < valid.length; i++) {
       const r = valid[i];
       try {
-        await addCandidate({ data: {
+        const created = await addCandidate({ data: {
           name: r.name,
           email: r.email, phone: r.phone, role: r.role,
           location: r.location, experience: r.experience,
@@ -911,6 +920,7 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
           salary_min: r.salary_min, salary_max: r.salary_max,
           source_client_id: sourceClientId || null,
         }});
+        importedRows.push({ id: created.id, name: created.name, cvFilename: r.cv_filename });
         ok++;
       } catch (e) {
         failed++;
@@ -921,15 +931,107 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
     }
     setImporting(false);
     qc.invalidateQueries({ queryKey: ["candidates"] });
+    setImported(importedRows);
     toast.success(`Imported ${ok} · ${failed} failed`);
-    if (failed === 0) {
-      reset();
-      onOpenChange(false);
+    // Keep dialog open so the user can attach CVs in step 2.
+  }
+
+  function normalizeFilename(s: string) {
+    return s.toLowerCase().replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+  }
+  function normalizeName(s: string) {
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function matchCandidateForFile(f: File): { id: string; name: string } | null {
+    const fn = normalizeFilename(f.name);
+    if (!fn) return null;
+    // 1) exact cv_filename match (case-insensitive)
+    for (const c of imported) {
+      if (c.cvFilename && c.cvFilename.trim().toLowerCase() === f.name.trim().toLowerCase()) {
+        return { id: c.id, name: c.name };
+      }
+    }
+    // 2) normalized cv_filename equality
+    for (const c of imported) {
+      if (c.cvFilename && normalizeFilename(c.cvFilename) === fn) return { id: c.id, name: c.name };
+    }
+    // 3) filename contains normalized name (or vice versa) — must be unique to be trusted
+    const candidates = imported.filter((c) => {
+      const n = normalizeName(c.name);
+      if (!n) return false;
+      return fn.includes(n) || n.includes(fn);
+    });
+    if (candidates.length === 1) return { id: candidates[0].id, name: candidates[0].name };
+    return null;
+  }
+
+  async function handleCvPicked(files: File[]) {
+    if (!files.length) return;
+    // Seed statuses
+    setCvStatuses((prev) => {
+      const next = { ...prev };
+      for (const f of files) next[f.name] = { status: "queued" };
+      return next;
+    });
+    for (const f of files) {
+      const match = matchCandidateForFile(f);
+      if (!match) {
+        setCvStatuses((p) => ({ ...p, [f.name]: { status: "failed", error: "No match — rename file to match candidate name" } }));
+        continue;
+      }
+      setCvStatuses((p) => ({ ...p, [f.name]: { status: "uploading", candidateName: match.name } }));
+      try {
+        const up = await uploadCvFile(f);
+        const res = await attachCv({ data: {
+          candidateId: match.id,
+          storagePath: up.path,
+          fileName: up.name,
+          mime: up.mime,
+          sizeBytes: up.size,
+        }});
+        setCvStatuses((p) => ({
+          ...p,
+          [f.name]: {
+            status: res.status === "already_has_cv" ? "already" : "attached",
+            candidateName: res.name,
+          },
+        }));
+      } catch (e) {
+        setCvStatuses((p) => ({ ...p, [f.name]: { status: "failed", candidateName: match.name, error: e instanceof Error ? e.message : "Failed" } }));
+      }
+    }
+    qc.invalidateQueries({ queryKey: ["candidates"] });
+  }
+
+  async function manualAttach(fileName: string, candidateId: string, file: File) {
+    const target = imported.find((c) => c.id === candidateId);
+    setCvStatuses((p) => ({ ...p, [fileName]: { status: "uploading", candidateName: target?.name } }));
+    try {
+      const up = await uploadCvFile(file);
+      const res = await attachCv({ data: {
+        candidateId,
+        storagePath: up.path,
+        fileName: up.name,
+        mime: up.mime,
+        sizeBytes: up.size,
+      }});
+      setCvStatuses((p) => ({
+        ...p,
+        [fileName]: {
+          status: res.status === "already_has_cv" ? "already" : "attached",
+          candidateName: res.name,
+        },
+      }));
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    } catch (e) {
+      setCvStatuses((p) => ({ ...p, [fileName]: { status: "failed", candidateName: target?.name, error: e instanceof Error ? e.message : "Failed" } }));
     }
   }
 
   const validCount = rows.filter((r) => !r._error).length;
   const errorCount = rows.length - validCount;
+  const attachingBusy = Object.values(cvStatuses).some((s) => s.status === "uploading" || s.status === "queued");
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
@@ -1025,20 +1127,137 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
               )}
             </>
           )}
+
+          {imported.length > 0 && (
+            <div className="rounded-lg border border-border bg-secondary/20 p-4 space-y-3">
+              <div>
+                <div className="text-sm font-semibold inline-flex items-center gap-2">
+                  <UploadCloud className="size-4 text-primary" /> Step 2 · Attach CVs (optional)
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Drop CV files below — each is matched to a candidate by the <code>cv_filename</code> column,
+                  or by the candidate's name if the filename contains it. Unmatched files can be assigned manually.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  ref={cvInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    e.target.value = "";
+                    if (files.length) void handleCvPicked(files);
+                  }}
+                />
+                <Button variant="outline" size="sm" onClick={() => cvInputRef.current?.click()} className="gap-1.5" disabled={attachingBusy}>
+                  <UploadCloud className="size-3.5" /> Choose CV files
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {imported.length} candidate{imported.length === 1 ? "" : "s"} ready to receive a CV
+                </span>
+              </div>
+
+              {Object.keys(cvStatuses).length > 0 && (
+                <div className="rounded-md border border-border overflow-hidden max-h-[260px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
+                      <tr>
+                        <th className="text-left font-medium px-3 py-2">File</th>
+                        <th className="text-left font-medium px-2 py-2">Candidate</th>
+                        <th className="text-left font-medium px-2 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {Object.entries(cvStatuses).map(([fName, s]) => (
+                        <tr key={fName}>
+                          <td className="px-3 py-1.5 truncate max-w-[220px]" title={fName}>{fName}</td>
+                          <td className="px-2 py-1.5">
+                            {s.status === "failed" && !s.candidateName ? (
+                              <ManualAttachSelect
+                                imported={imported}
+                                onPick={(id) => {
+                                  // We no longer have the File object; user must reselect.
+                                  const input = document.createElement("input");
+                                  input.type = "file";
+                                  input.accept = ".pdf,.doc,.docx,.txt";
+                                  input.onchange = () => {
+                                    const f = input.files?.[0];
+                                    if (f) void manualAttach(fName, id, f);
+                                  };
+                                  input.click();
+                                }}
+                              />
+                            ) : (
+                              <span className="text-muted-foreground">{s.candidateName ?? "—"}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {s.status === "queued" && <span className="text-muted-foreground">Queued</span>}
+                            {s.status === "uploading" && (
+                              <span className="inline-flex items-center gap-1 text-primary">
+                                <Loader2 className="size-3 animate-spin" /> Attaching…
+                              </span>
+                            )}
+                            {s.status === "attached" && (
+                              <span className="inline-flex items-center gap-1 text-emerald-600">
+                                <CheckCircle2 className="size-3" /> Attached
+                              </span>
+                            )}
+                            {s.status === "already" && (
+                              <span className="text-amber-600">Already had a CV</span>
+                            )}
+                            {s.status === "failed" && (
+                              <span className="text-destructive">{s.error ?? "Failed"}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>Cancel</Button>
-          <Button
-            onClick={runImport}
-            disabled={importing || parsing || validCount === 0}
-            className="gap-2"
-          >
-            {importing ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            Import {validCount > 0 ? `${validCount} candidate${validCount === 1 ? "" : "s"}` : ""}
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing || attachingBusy}>
+            {imported.length > 0 ? "Done" : "Cancel"}
           </Button>
+          {imported.length === 0 && (
+            <Button
+              onClick={runImport}
+              disabled={importing || parsing || validCount === 0}
+              className="gap-2"
+            >
+              {importing ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              Import {validCount > 0 ? `${validCount} candidate${validCount === 1 ? "" : "s"}` : ""}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ManualAttachSelect({ imported, onPick }: { imported: { id: string; name: string }[]; onPick: (id: string) => void }) {
+  return (
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const v = e.target.value;
+        e.currentTarget.value = "";
+        if (v) onPick(v);
+      }}
+      className="h-7 rounded-md border border-input bg-card px-1.5 text-[11px]"
+    >
+      <option value="">Assign to…</option>
+      {imported.map((c) => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+    </select>
   );
 }
