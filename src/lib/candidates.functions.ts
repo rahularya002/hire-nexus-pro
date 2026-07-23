@@ -467,7 +467,7 @@ export const getResumeSignedUrl = createServerFn({ method: "GET" })
  * Downloads the file, extracts text (PDF/DOCX/TXT), asks Lovable AI to structure it,
  * and inserts the candidate + a linked documents row. Duplicates on email/phone are skipped.
  */
-export const importCandidateFromCv = createServerFn({ method: "POST" })
+export const extractCandidateFromCv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
@@ -476,12 +476,11 @@ export const importCandidateFromCv = createServerFn({ method: "POST" })
         fileName: z.string().min(1).max(255),
         mime: z.string().max(200).nullable().optional(),
         sizeBytes: z.number().int().min(0).nullable().optional(),
-        sourceClientId: z.string().uuid().nullable().optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { supabase } = context;
 
     // 1) Download the file from private storage.
     const { data: blob, error: dlErr } = await supabase.storage
@@ -595,6 +594,7 @@ export const importCandidateFromCv = createServerFn({ method: "POST" })
     // 4) Duplicate check on email/phone.
     const normEmail = extracted.email?.trim().toLowerCase() || null;
     const normPhone = extracted.phone?.replace(/\D+/g, "") || null;
+    let duplicate: { id: string; name: string } | null = null;
     if (normEmail || (normPhone && normPhone.length >= 7)) {
       const orParts: string[] = [];
       if (normEmail) orParts.push(`email.ilike.${normEmail}`);
@@ -605,33 +605,98 @@ export const importCandidateFromCv = createServerFn({ method: "POST" })
         .or(orParts.join(","))
         .limit(1);
       if (existing && existing.length > 0) {
-        // Best-effort: clean up the freshly uploaded file so we don't leak storage.
-        try { await supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
-        return {
-          status: "duplicate" as const,
-          candidateId: existing[0].id as string,
+        duplicate = {
+          id: existing[0].id as string,
           name: (existing[0].name as string) ?? nameFromFile,
         };
       }
     }
 
-    // 5) Insert candidate.
+    return {
+      status: (duplicate ? "duplicate" : partial ? "partial" : "ready") as
+        | "ready" | "partial" | "duplicate",
+      duplicate,
+      fallbackName: nameFromFile,
+      fields: {
+        name: extracted.name?.trim().slice(0, 200) || null,
+        email: extracted.email?.trim().slice(0, 200) || null,
+        phone: extracted.phone?.trim().slice(0, 50) || null,
+        role: extracted.role?.trim().slice(0, 200) || null,
+        current_company: extracted.current_company?.trim().slice(0, 200) || null,
+        experience: extracted.experience?.trim().slice(0, 100) || null,
+        location: extracted.location?.trim().slice(0, 200) || null,
+        linkedin_url: extracted.linkedin_url?.trim().slice(0, 500) || null,
+        salary: extracted.salary?.trim().slice(0, 200) || null,
+        salary_min: typeof extracted.salary_min === "number" ? extracted.salary_min : null,
+        salary_max: typeof extracted.salary_max === "number" ? extracted.salary_max : null,
+        skills: Array.isArray(extracted.skills)
+          ? extracted.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 40)
+          : [],
+        notes: extracted.notes?.trim().slice(0, 10_000) || null,
+      },
+    };
+  });
+
+/**
+ * Save a candidate from a previewed/edited CV extraction.
+ */
+export const saveCandidateFromCv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        storagePath: z.string().min(1).max(500),
+        fileName: z.string().min(1).max(255),
+        mime: z.string().max(200).nullable().optional(),
+        sizeBytes: z.number().int().min(0).nullable().optional(),
+        sourceClientId: z.string().uuid().nullable().optional(),
+        fields: candidateSchema.partial(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const f = data.fields;
+
+    // Duplicate re-check.
+    const normEmail = f.email?.trim().toLowerCase() || null;
+    const normPhone = f.phone?.replace(/\D+/g, "") || null;
+    if (normEmail || (normPhone && normPhone.length >= 7)) {
+      const orParts: string[] = [];
+      if (normEmail) orParts.push(`email.ilike.${normEmail}`);
+      if (normPhone && normPhone.length >= 7) orParts.push(`phone.ilike.%${normPhone.slice(-10)}%`);
+      const { data: existing } = await supabase
+        .from("candidates")
+        .select("id,name")
+        .or(orParts.join(","))
+        .limit(1);
+      if (existing && existing.length > 0) {
+        try { await supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
+        return {
+          status: "duplicate" as const,
+          candidateId: existing[0].id as string,
+          name: (existing[0].name as string) ?? data.fileName,
+        };
+      }
+    }
+
+    const nameFromFile = data.fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Untitled candidate";
     const insertRow = clean({
-      name: (extracted.name?.trim() || nameFromFile).slice(0, 200),
-      email: extracted.email?.trim().slice(0, 200) || null,
-      phone: extracted.phone?.trim().slice(0, 50) || null,
-      role: extracted.role?.trim().slice(0, 200) || null,
-      current_company: extracted.current_company?.trim().slice(0, 200) || null,
-      experience: extracted.experience?.trim().slice(0, 100) || null,
-      location: extracted.location?.trim().slice(0, 200) || null,
-      linkedin_url: extracted.linkedin_url?.trim().slice(0, 500) || null,
-      salary: extracted.salary?.trim().slice(0, 200) || null,
-      salary_min: typeof extracted.salary_min === "number" ? extracted.salary_min : null,
-      salary_max: typeof extracted.salary_max === "number" ? extracted.salary_max : null,
-      skills: Array.isArray(extracted.skills)
-        ? extracted.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 40)
+      name: (f.name?.trim() || nameFromFile).slice(0, 200),
+      email: f.email?.trim().slice(0, 200) || null,
+      phone: f.phone?.trim().slice(0, 50) || null,
+      role: f.role?.trim().slice(0, 200) || null,
+      current_company: f.current_company?.trim().slice(0, 200) || null,
+      experience: f.experience?.trim().slice(0, 100) || null,
+      location: f.location?.trim().slice(0, 200) || null,
+      linkedin_url: f.linkedin_url?.trim().slice(0, 500) || null,
+      salary: f.salary?.trim().slice(0, 200) || null,
+      salary_min: typeof f.salary_min === "number" ? f.salary_min : null,
+      salary_max: typeof f.salary_max === "number" ? f.salary_max : null,
+      skills: Array.isArray(f.skills)
+        ? f.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 40)
         : [],
-      notes: extracted.notes?.trim().slice(0, 10_000) || null,
+      notes: f.notes?.trim().slice(0, 10_000) || null,
       source: "database" as const,
       resume_url: data.storagePath,
       source_client_id: data.sourceClientId ?? null,
@@ -645,7 +710,6 @@ export const importCandidateFromCv = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // 6) Link documents row (best-effort).
     try {
       await supabase.from("documents").insert(
         clean({
@@ -668,8 +732,18 @@ export const importCandidateFromCv = createServerFn({ method: "POST" })
       candidate_id: row.id,
     });
 
-    return {
-      status: partial ? ("partial" as const) : ("created" as const),
-      candidate: row as CandidateRow,
-    };
+    return { status: "created" as const, candidate: row as CandidateRow };
+  });
+
+/**
+ * Discard a CV upload without creating a candidate (cleans up storage).
+ */
+export const discardCvUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { storagePath: string }) =>
+    z.object({ storagePath: z.string().min(1).max(500) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    try { await context.supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
+    return { ok: true };
   });
