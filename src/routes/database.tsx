@@ -1127,20 +1127,137 @@ function BulkImportDialog({ open, onOpenChange, clients }: { open: boolean; onOp
               )}
             </>
           )}
+
+          {imported.length > 0 && (
+            <div className="rounded-lg border border-border bg-secondary/20 p-4 space-y-3">
+              <div>
+                <div className="text-sm font-semibold inline-flex items-center gap-2">
+                  <UploadCloud className="size-4 text-primary" /> Step 2 · Attach CVs (optional)
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Drop CV files below — each is matched to a candidate by the <code>cv_filename</code> column,
+                  or by the candidate's name if the filename contains it. Unmatched files can be assigned manually.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  ref={cvInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    e.target.value = "";
+                    if (files.length) void handleCvPicked(files);
+                  }}
+                />
+                <Button variant="outline" size="sm" onClick={() => cvInputRef.current?.click()} className="gap-1.5" disabled={attachingBusy}>
+                  <UploadCloud className="size-3.5" /> Choose CV files
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {imported.length} candidate{imported.length === 1 ? "" : "s"} ready to receive a CV
+                </span>
+              </div>
+
+              {Object.keys(cvStatuses).length > 0 && (
+                <div className="rounded-md border border-border overflow-hidden max-h-[260px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
+                      <tr>
+                        <th className="text-left font-medium px-3 py-2">File</th>
+                        <th className="text-left font-medium px-2 py-2">Candidate</th>
+                        <th className="text-left font-medium px-2 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {Object.entries(cvStatuses).map(([fName, s]) => (
+                        <tr key={fName}>
+                          <td className="px-3 py-1.5 truncate max-w-[220px]" title={fName}>{fName}</td>
+                          <td className="px-2 py-1.5">
+                            {s.status === "failed" && !s.candidateName ? (
+                              <ManualAttachSelect
+                                imported={imported}
+                                onPick={(id) => {
+                                  // We no longer have the File object; user must reselect.
+                                  const input = document.createElement("input");
+                                  input.type = "file";
+                                  input.accept = ".pdf,.doc,.docx,.txt";
+                                  input.onchange = () => {
+                                    const f = input.files?.[0];
+                                    if (f) void manualAttach(fName, id, f);
+                                  };
+                                  input.click();
+                                }}
+                              />
+                            ) : (
+                              <span className="text-muted-foreground">{s.candidateName ?? "—"}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {s.status === "queued" && <span className="text-muted-foreground">Queued</span>}
+                            {s.status === "uploading" && (
+                              <span className="inline-flex items-center gap-1 text-primary">
+                                <Loader2 className="size-3 animate-spin" /> Attaching…
+                              </span>
+                            )}
+                            {s.status === "attached" && (
+                              <span className="inline-flex items-center gap-1 text-emerald-600">
+                                <CheckCircle2 className="size-3" /> Attached
+                              </span>
+                            )}
+                            {s.status === "already" && (
+                              <span className="text-amber-600">Already had a CV</span>
+                            )}
+                            {s.status === "failed" && (
+                              <span className="text-destructive">{s.error ?? "Failed"}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>Cancel</Button>
-          <Button
-            onClick={runImport}
-            disabled={importing || parsing || validCount === 0}
-            className="gap-2"
-          >
-            {importing ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            Import {validCount > 0 ? `${validCount} candidate${validCount === 1 ? "" : "s"}` : ""}
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing || attachingBusy}>
+            {imported.length > 0 ? "Done" : "Cancel"}
           </Button>
+          {imported.length === 0 && (
+            <Button
+              onClick={runImport}
+              disabled={importing || parsing || validCount === 0}
+              className="gap-2"
+            >
+              {importing ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              Import {validCount > 0 ? `${validCount} candidate${validCount === 1 ? "" : "s"}` : ""}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ManualAttachSelect({ imported, onPick }: { imported: { id: string; name: string }[]; onPick: (id: string) => void }) {
+  return (
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const v = e.target.value;
+        e.currentTarget.value = "";
+        if (v) onPick(v);
+      }}
+      className="h-7 rounded-md border border-input bg-card px-1.5 text-[11px]"
+    >
+      <option value="">Assign to…</option>
+      {imported.map((c) => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+    </select>
   );
 }
