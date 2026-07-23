@@ -482,11 +482,16 @@ export const extractCandidateFromCv = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
-    // 1) Download the file from private storage.
-    const { data: blob, error: dlErr } = await supabase.storage
+    // 1) Download the file from private storage. The `documents` bucket SELECT
+    // policy only allows reads for paths already linked to a candidate/document/
+    // client row — freshly uploaded CVs at candidates/{uid}/… have no such link
+    // yet, so we use the admin client (caller is already authenticated).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: blob, error: dlErr } = await supabaseAdmin.storage
       .from("documents")
       .download(data.storagePath);
     if (dlErr || !blob) throw new Error(dlErr?.message ?? "Could not download uploaded CV");
+    void supabase; // reserved for later user-scoped writes below
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // 2) Extract raw text.
