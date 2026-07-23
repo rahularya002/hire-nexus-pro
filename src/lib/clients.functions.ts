@@ -260,11 +260,32 @@ const onboardSchema = upsertSchema.extend({
   full_name: z.string().max(200).optional().nullable(),
 });
 
-const bulkRowSchema = upsertSchema.extend({
-  login_email: z.string().email().max(200).optional().nullable(),
-  login_password: z.string().min(8).max(72).optional().nullable(),
-  full_name: z.string().max(200).optional().nullable(),
-});
+// Tolerant per-row schema: bad emails/short passwords must not abort the whole
+// batch. We coerce anything invalid to undefined here and let the handler
+// decide per-row (auto-generate password, skip row with clear error, etc.).
+const optionalEmail = z
+  .preprocess((v) => {
+    if (typeof v !== "string") return undefined;
+    const t = v.trim();
+    if (!t) return undefined;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t) ? t : undefined;
+  }, z.string().max(200).optional())
+  .optional();
+const optionalPassword = z
+  .preprocess((v) => {
+    if (typeof v !== "string") return undefined;
+    const t = v.trim();
+    if (t.length < 8 || t.length > 72) return undefined;
+    return t;
+  }, z.string().min(8).max(72).optional())
+  .optional();
+const bulkRowSchema = upsertSchema
+  .extend({
+    contact_email: optionalEmail,
+    login_email: optionalEmail,
+    login_password: optionalPassword,
+    full_name: z.string().max(200).optional().nullable(),
+  });
 
 function randomPassword(len = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";

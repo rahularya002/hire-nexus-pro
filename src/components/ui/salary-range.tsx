@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Configurable bounds
-export const MIN_SALARY = 2;
-export const MAX_SALARY = 100;
+// Configurable bounds — kept generous so freshers (<2 LPA) and senior/exec
+// filters (>100 LPA) both work.
+export const MIN_SALARY = 0;
+export const MAX_SALARY = 1000;
 
 // Increment thresholds: [upperBoundExclusive, step]
 // 2–10 → 0.5, 10–30 → 1, 30–60 → 2, 60+ → 5
@@ -58,14 +59,14 @@ function SalaryField({ label, value, emptyLabel, ariaLabel, onChange }: FieldPro
   };
 
   const inc = () => {
-    if (value == null) { onChange(MIN_SALARY); return; }
+    if (value == null) { onChange(1); return; }
     const next = clamp(+(value + stepFor(value, 1)).toFixed(2));
     onChange(next);
   };
   const dec = () => {
     if (value == null) return;
     const next = +(value - stepFor(value, -1)).toFixed(2);
-    if (next < MIN_SALARY) { onChange(null); return; }
+    if (next <= MIN_SALARY) { onChange(next < 0 ? null : clamp(next)); return; }
     onChange(clamp(next));
   };
 
