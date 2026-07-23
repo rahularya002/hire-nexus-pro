@@ -1,41 +1,61 @@
-## Verification plan: today's features
+## Redesign `/closed` — Editorial Archive
 
-Drive the running preview with Playwright (headless Chromium), restore the managed Supabase session, and walk through each feature added today. Capture a screenshot at every meaningful step and drop them into `/mnt/documents/` so they render inline in the reply.
+Rebuild `src/routes/closed.tsx` to match the selected "Editorial archive v2" direction while keeping the existing app theme tokens (no hardcoded `#0d0c0b`, no external Google Fonts — use the app's existing font stack).
 
-### Features to verify
+### Data
+Fetch in parallel via existing server fns (already in file):
+- `listPositions` → filter `status === "closed"`
+- `listApplications` → count placements per position (fallback when no placement row exists)
+- **New:** call `listPlacements` (already exported from `interviews.functions.ts`) to pull candidate name, `joining_date`, and `ctc_display` per position.
 
-1. **Drag-and-drop CV import (single + multiple)** on `/database`
-   - Trigger the "Upload CVs" button → file picker path
-   - Simulate drag-and-drop of a sample PDF + DOCX
-   - Confirm progress modal shows Uploading → Extracting → Review
-2. **Pre-save review step** for CV import
-   - Open the Review dialog for an extracted candidate
-   - Verify editable fields: name, email, phone, location, salary range (LPA), skills chips
-   - Verify "More fields" collapsible (role, company, experience, LinkedIn, notes)
-   - Verify duplicate warning + "low-confidence extraction" badges render
-3. **Save individual + Save all** flow
-   - Save one from the review modal → toast + row status → Saved
-   - Save all remaining → check `candidates` list refreshes
-4. **Skip / discard** flow
-   - Skip a row → status Skipped, uploaded file discarded
-5. **Bulk CV attach (Step 2 of Excel import)**
-   - Open Bulk Import dialog on `/database`
-   - Screenshot the Step 2 attach panel with auto-match + `ManualAttachSelect`
-6. **Recent fixes**
-   - Salary filter accepts values below 2 and above 100 LPA (e.g. 0.5 and 120)
-   - (Sanity-only) Reschedule dialog still opens on an existing interview — no live Google Meet needed
-   - (Sanity-only) Bulk client import dialog opens and shows password-optional hint
+Group by client. Per position, hydrate with placement rows (0..n candidates).
 
-### Steps
+### Layout
 
-1. Prepare fixtures under `/tmp/browser/cv-test/`: a tiny sample PDF and DOCX with fake CV text (name/email/phone/skills) so extraction has something to work with.
-2. Write one Playwright script per feature block under `/tmp/browser/<slug>/run.py`, each launching a fresh browser, restoring the Supabase session from env, navigating to `http://localhost:8080/...`, performing the interaction, and saving PNGs to `./screenshots/`.
-3. Run scripts sequentially; after each, `code--view` the PNGs to confirm the UI actually shows the expected state (not just that the script didn't crash).
-4. Copy the confirmed screenshots into `/mnt/documents/today-tests/` with descriptive names.
-5. Reply with a short pass/fail summary and inline `<presentation-artifact>` tags for each screenshot.
+```text
+┌─ Header row ─────────────────────────────────────────┐
+│ [• HISTORICAL ARCHIVE]         Total closed    N     │
+│ Closed positions               Total placements N    │
+│ subtitle                       Top client       X    │
+├─ Client filter chips (subtle, orange active) ────────┤
+├─ For each client group ──────────────────────────────┤
+│ [color-tile] Client name  ────gradient rule────      │
+│                                                      │
+│ Featured card (first / top position) — full card:    │
+│  Title + "Completed" pill  |  Seats filled  Closed   │
+│  Location · closed date                              │
+│  ─────                                               │
+│  Retained talent → grid of candidate chips           │
+│  (avatar w/ initials, name, "Joined <month yyyy>",   │
+│   ctc_display right-aligned)                         │
+│                                                      │
+│ Remaining positions → compact collapsed rows         │
+│  Title · N placement(s) · Closed <date> · location   │
+│  chevron on the right                                │
+└──────────────────────────────────────────────────────┘
+```
 
-### Notes / risks
+Empty state: keep the dashed panel but with a trophy illustration and copy "No wins yet — closed positions will appear here."
 
-- If `LOVABLE_BROWSER_AUTH_STATUS` is `signed_out` or `external_unmanaged`, I can't reach `/database` — I'll stop and tell you to sign in via the preview, then re-run.
-- Real AI extraction hits the Lovable AI gateway and may take a few seconds per file; scripts will wait for the "Review" status before screenshotting.
-- No code changes will be made — this is verification only.
+### Styling rules
+- Use existing tokens: `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`, `text-primary` (orange), `bg-primary/10`, `border-primary/20`, `bg-success/10 text-success` for the Completed pill.
+- Client color tile: `w-8 h-8 rounded-lg` filled with `g.color` fallback muted, initials in white.
+- Featured card: `rounded-2xl border border-border bg-card` with header row divided by `border-b border-border`.
+- Compact rows: `rounded-xl border border-border bg-card p-5` with hover `bg-muted/30` + chevron `text-muted-foreground group-hover:text-primary`.
+- Candidate chip: `rounded-xl bg-muted/20 border border-border p-4`, avatar `w-11 h-11 rounded-lg` — first candidate gets `bg-primary text-primary-foreground`, rest get `bg-muted text-foreground`.
+- No hardcoded hexes; no external font imports.
+
+### Stats
+- Total closed = sum across groups.
+- Total placements = sum of `placementsFor(p.id)`.
+- Top client = group with most placements (falls back to most closed positions).
+
+### Interactivity
+- Client filter chips (existing behavior preserved) — active chip gets `bg-primary/15 text-primary border-primary/30`.
+- Featured vs compact split: first position per client shown featured; if a client has only one position, it stays featured. Compact rows navigate to `/positions/$positionId` on click.
+- Candidate chips link to `/candidates/$candidateId` when candidate id is available.
+
+### Files touched
+- `src/routes/closed.tsx` — full rewrite of the page body (route boilerplate preserved).
+
+No schema changes. No backend changes. No changes outside this route file.
