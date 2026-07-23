@@ -371,6 +371,70 @@ export const deleteApplication = createServerFn({ method: "POST" })
   });
 
 /**
+ * Attach an already-uploaded CV (in the `documents` bucket) to an existing candidate.
+ * Sets `candidates.resume_url` and inserts a matching row in `documents`.
+ */
+export const attachCvToCandidate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        candidateId: z.string().uuid(),
+        storagePath: z.string().min(1).max(500),
+        fileName: z.string().min(1).max(255),
+        mime: z.string().max(200).nullable().optional(),
+        sizeBytes: z.number().int().min(0).nullable().optional(),
+        overwrite: z.boolean().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: existing, error: gErr } = await supabase
+      .from("candidates")
+      .select("id,name,resume_url")
+      .eq("id", data.candidateId)
+      .maybeSingle();
+    if (gErr) throw new Error(gErr.message);
+    if (!existing) throw new Error("Candidate not found");
+
+    if (existing.resume_url && !data.overwrite) {
+      // Clean up the just-uploaded file so we don't leak storage.
+      try { await supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
+      return { status: "already_has_cv" as const, candidateId: existing.id, name: existing.name as string };
+    }
+
+    const { error: uErr } = await supabase
+      .from("candidates")
+      .update({ resume_url: data.storagePath })
+      .eq("id", data.candidateId);
+    if (uErr) throw new Error(uErr.message);
+
+    try {
+      await supabase.from("documents").insert(
+        clean({
+          name: data.fileName,
+          kind: "resume",
+          candidate_id: data.candidateId,
+          storage_bucket: "documents",
+          storage_path: data.storagePath,
+          mime: data.mime ?? null,
+          size_bytes: data.sizeBytes ?? null,
+          uploaded_by: userId,
+        }) as never,
+      );
+    } catch { /* non-fatal */ }
+
+    await logActivity(supabase, userId, {
+      kind: "note",
+      title: `CV attached: ${existing.name}`,
+      candidate_id: existing.id,
+    });
+
+    return { status: "attached" as const, candidateId: existing.id, name: existing.name as string };
+  });
+
+/**
  * Return a temporary signed URL for a candidate's CV.
  * `resume_url` may be either a full https URL (used as-is) or a storage path
  * inside the `documents` bucket (signed for 1 hour).
