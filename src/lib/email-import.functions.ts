@@ -331,6 +331,7 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
     const { data: created, error: cErr } = await supabase
       .from("candidates")
       .insert({
+        agency_id: person.agency_id as string,
         name: person.name as string,
         email: (person.email as string | null) ?? null,
         phone: (person.phone as string | null) ?? null,
