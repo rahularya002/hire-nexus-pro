@@ -195,7 +195,8 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       const name = (ex.name ?? "").trim() || from.name || niceName(primary.filename, email);
 
       // Dedup inside the archive on email or phone.
-      let person: { id: string; skills: string[] | null; resume_count: number; email_count: number } | null = null;
+      type Person = { id: string; skills: string[] | null; resume_count: number; email_count: number };
+      let person: Person | null = null;
       if (email) {
         const { data } = await supabaseAdmin
           .from("email_candidates")
@@ -203,7 +204,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .eq("user_id", run.user_id)
           .ilike("email", email)
           .maybeSingle();
-        person = data as typeof person;
+        person = (data as Person | null) ?? null;
       }
       if (!person && phoneDigits) {
         const { data } = await supabaseAdmin
@@ -212,7 +213,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .eq("user_id", run.user_id)
           .eq("phone_digits", phoneDigits)
           .maybeSingle();
-        person = data as typeof person;
+        person = (data as Person | null) ?? null;
       }
 
       const skills = (ex.skills ?? []).map((s) => s.trim()).filter(Boolean).slice(0, 30);
@@ -272,9 +273,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .select("id, skills, resume_count, email_count")
           .single();
         if (cErr) throw new Error(cErr.message);
-        person = created as typeof person;
+        person = created as unknown as Person;
         peopleFound++;
-        newPeople.push({ id: created!.id as string, name, email });
+        newPeople.push({ id: person.id, name, email });
       }
 
       const { data: msgRow, error: mErr } = await supabaseAdmin
@@ -332,7 +333,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   }
 
   const done = !page.nextPageToken;
-  const prevLog = Array.isArray(run.failure_log) ? (run.failure_log as unknown[]) : [];
+  const prevLog = Array.isArray(run.failure_log) ? (run.failure_log as { message: string }[]) : [];
   await supabaseAdmin
     .from("email_import_runs")
     .update({
