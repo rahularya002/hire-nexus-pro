@@ -23,6 +23,7 @@ import {
   Home,
   Coffee,
   CircleOff,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrackAgencyPath } from "@/lib/portal-state";
@@ -72,6 +73,7 @@ const agencyNav: NavSection[] = [
     label: "Talent & Clients",
     items: [
       { to: "/database",      label: "Candidate DB", icon: Database },
+      { to: "/email-archive", label: "Email Archive", icon: Mail },
       { to: "/admin/clients", label: "Clients",      icon: Building2 },
     ],
   },
@@ -104,6 +106,7 @@ const recruiterNav: NavSection[] = [
     label: "Talent",
     items: [
       { to: "/database", label: "Candidate DB", icon: Database, perm: "candidates.view" },
+      { to: "/email-archive", label: "Email Archive", icon: Mail, perm: "candidates.view" },
       { to: "/sourcing", label: "Sourcing",     icon: Sparkles, perm: "candidates.view" },
     ],
   },

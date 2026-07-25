@@ -5,6 +5,7 @@ import { getRequestHost } from "@tanstack/react-start/server";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ].join(" ");
@@ -12,6 +13,7 @@ const SCOPES = [
 export type GoogleConnectionStatus = {
   connected: boolean;
   google_email: string | null;
+  gmail_enabled: boolean;
 };
 
 export const getMyGoogleConnection = createServerFn({ method: "GET" })
@@ -19,11 +21,15 @@ export const getMyGoogleConnection = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<GoogleConnectionStatus> => {
     const { data, error } = await context.supabase
       .from("google_calendar_connections")
-      .select("google_email")
+      .select("google_email, scopes")
       .eq("user_id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return { connected: !!data, google_email: data?.google_email ?? null };
+    return {
+      connected: !!data,
+      google_email: data?.google_email ?? null,
+      gmail_enabled: !!data?.scopes?.includes("gmail.readonly"),
+    };
   });
 
 export const startGoogleOAuth = createServerFn({ method: "POST" })

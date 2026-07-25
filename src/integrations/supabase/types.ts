@@ -728,6 +728,318 @@ export type Database = {
           },
         ]
       }
+      email_candidates: {
+        Row: {
+          agency_id: string
+          companies_mentioned: string[]
+          created_at: string
+          current_company: string | null
+          email: string | null
+          email_count: number
+          experience: string | null
+          first_email_at: string | null
+          id: string
+          last_email_at: string | null
+          location: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          phone_digits: string | null
+          promoted_candidate_id: string | null
+          resume_count: number
+          role: string | null
+          salary_max: number | null
+          salary_min: number | null
+          search_blob: string
+          skills: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          companies_mentioned?: string[]
+          created_at?: string
+          current_company?: string | null
+          email?: string | null
+          email_count?: number
+          experience?: string | null
+          first_email_at?: string | null
+          id?: string
+          last_email_at?: string | null
+          location?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          phone_digits?: string | null
+          promoted_candidate_id?: string | null
+          resume_count?: number
+          role?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          search_blob?: string
+          skills?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          companies_mentioned?: string[]
+          created_at?: string
+          current_company?: string | null
+          email?: string | null
+          email_count?: number
+          experience?: string | null
+          first_email_at?: string | null
+          id?: string
+          last_email_at?: string | null
+          location?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          phone_digits?: string | null
+          promoted_candidate_id?: string | null
+          resume_count?: number
+          role?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          search_blob?: string
+          skills?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_candidates_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_candidates_promoted_candidate_id_fkey"
+            columns: ["promoted_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_import_runs: {
+        Row: {
+          agency_id: string
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          duplicates_merged: number
+          emails_scanned: number
+          error: string | null
+          exclusions: string[]
+          failure_log: Json
+          failures: number
+          finished_at: string | null
+          google_email: string | null
+          id: string
+          labels: string[]
+          page_token: string | null
+          people_enriched: number
+          people_found: number
+          resume_emails: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          duplicates_merged?: number
+          emails_scanned?: number
+          error?: string | null
+          exclusions?: string[]
+          failure_log?: Json
+          failures?: number
+          finished_at?: string | null
+          google_email?: string | null
+          id?: string
+          labels?: string[]
+          page_token?: string | null
+          people_enriched?: number
+          people_found?: number
+          resume_emails?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          duplicates_merged?: number
+          emails_scanned?: number
+          error?: string | null
+          exclusions?: string[]
+          failure_log?: Json
+          failures?: number
+          finished_at?: string | null
+          google_email?: string | null
+          id?: string
+          labels?: string[]
+          page_token?: string | null
+          people_enriched?: number
+          people_found?: number
+          resume_emails?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_import_runs_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_messages: {
+        Row: {
+          agency_id: string
+          created_at: string
+          direction: string
+          email_candidate_id: string | null
+          from_email: string | null
+          from_name: string | null
+          gmail_message_id: string
+          gmail_thread_id: string | null
+          has_resume: boolean
+          id: string
+          sent_at: string | null
+          snippet: string | null
+          subject: string | null
+          to_emails: string[]
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          direction?: string
+          email_candidate_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          gmail_thread_id?: string | null
+          has_resume?: boolean
+          id?: string
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          to_emails?: string[]
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          direction?: string
+          email_candidate_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          gmail_thread_id?: string | null
+          has_resume?: boolean
+          id?: string
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          to_emails?: string[]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_messages_email_candidate_id_fkey"
+            columns: ["email_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "email_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_resume_versions: {
+        Row: {
+          agency_id: string
+          created_at: string
+          email_candidate_id: string
+          email_message_id: string | null
+          extracted_text: string | null
+          file_name: string
+          id: string
+          mime: string | null
+          received_at: string | null
+          size_bytes: number | null
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          email_candidate_id: string
+          email_message_id?: string | null
+          extracted_text?: string | null
+          file_name: string
+          id?: string
+          mime?: string | null
+          received_at?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          email_candidate_id?: string
+          email_message_id?: string | null
+          extracted_text?: string | null
+          file_name?: string
+          id?: string
+          mime?: string | null
+          received_at?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_resume_versions_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_resume_versions_email_candidate_id_fkey"
+            columns: ["email_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "email_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_resume_versions_email_message_id_fkey"
+            columns: ["email_message_id"]
+            isOneToOne: false
+            referencedRelation: "email_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_connections: {
         Row: {
           access_token: string
