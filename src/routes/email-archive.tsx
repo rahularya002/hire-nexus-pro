@@ -18,6 +18,9 @@ import {
   ArrowDownLeft,
   CheckCircle2,
   Trash2,
+  ShieldQuestion,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { getMyGoogleConnection, startGoogleOAuth } from "@/lib/google-calendar.functions";
 import {
+  approveReviewItem,
   cancelImportRun,
   cleanNonCandidates,
   getArchiveResumeUrl,
@@ -35,11 +39,14 @@ import {
   getImportProgress,
   listEmailCandidates,
   listGmailLabels,
+  listReviewItems,
   processImportBatch,
   promoteArchivePerson,
+  rejectReviewItem,
   resumeImportRun,
   startImportRun,
   type ArchivePerson,
+  type ReviewItem,
 } from "@/lib/email-import.functions";
 import { initialsOf } from "@/lib/display";
 
@@ -85,6 +92,49 @@ function txt(v?: string | null) {
   return t;
 }
 
+const KIND_LABEL: Record<string, string> = {
+  candidate_submission: "Candidate submission",
+  resume_forward: "Resume forward",
+  job_application: "Job application",
+  interview_scheduling: "Interview scheduling",
+  recruiter_conversation: "Recruiter conversation",
+  job_alert: "Job alert",
+  bank_statement: "Bank / brokerage statement",
+  invoice_receipt: "Invoice or receipt",
+  travel: "Travel",
+  order_shipping: "Order / shipping",
+  newsletter_promo: "Newsletter or promotion",
+  otp_security: "OTP / security",
+  other: "Other",
+};
+
+/** "98% Recruitment Email ✓" style confidence chip. */
+function ConfidenceBadge({
+  score,
+  state,
+}: {
+  score: number | null | undefined;
+  state: "imported" | "needs_review" | "skipped";
+}) {
+  const pct = Math.max(0, Math.min(100, Math.round(score ?? 0)));
+  const tone =
+    state === "imported"
+      ? "bg-success/10 text-success border-success/25"
+      : state === "needs_review"
+        ? "bg-warning/10 text-warning border-warning/30"
+        : "bg-destructive/10 text-destructive border-destructive/25";
+  const suffix = state === "imported" ? "✓" : state === "needs_review" ? "Needs review" : "Skipped";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${tone}`}
+      title={`AI confidence that this is a recruitment email: ${pct}%`}
+    >
+      <span className="font-semibold">{pct}%</span> Recruitment Email
+      <span className="opacity-80">{suffix}</span>
+    </span>
+  );
+}
+
 function Page() {
   const qc = useQueryClient();
   const fetchConn = useServerFn(getMyGoogleConnection);
@@ -97,12 +147,16 @@ function Page() {
   const resumeRun = useServerFn(resumeImportRun);
   const fetchPeople = useServerFn(listEmailCandidates);
   const cleanup = useServerFn(cleanNonCandidates);
+  const fetchReview = useServerFn(listReviewItems);
+  const approve = useServerFn(approveReviewItem);
+  const reject = useServerFn(rejectReviewItem);
 
   const [search, setSearch] = useState("");
   const [skill, setSkill] = useState("");
   const [location, setLocation] = useState("");
   const [recentOnly, setRecentOnly] = useState(false);
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
+  const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
 
   const conn = useQuery({ queryKey: ["google-connection"], queryFn: () => fetchConn() });
   const labels = useQuery({
@@ -125,6 +179,29 @@ function Page() {
           contactedWithinDays: recentOnly ? 90 : null,
         },
       }),
+  });
+  const reviewQ = useQuery({
+    queryKey: ["email-archive-review", tab],
+    queryFn: () => fetchReview({ data: { status: tab === "skipped" ? "skipped" : "needs_review" } }),
+    enabled: tab !== "archive",
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (id: string) => approve({ data: { id } }),
+    onSuccess: (r) => {
+      toast.success(`${r.name} added to the archive.`);
+      qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not import this email"),
+  });
+  const rejectMut = useMutation({
+    mutationFn: (id: string) => reject({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Marked as not recruitment.");
+      qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update"),
   });
 
   const run = progress.data;
@@ -286,11 +363,11 @@ function Page() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               {[
                 ["Emails scanned", run?.emails_scanned ?? 0],
-                ["Resume emails", run?.resume_emails ?? 0],
+                ["Recruitment emails", run?.resume_emails ?? 0],
                 ["People found", run?.people_found ?? 0],
                 ["Profiles enriched", run?.people_enriched ?? 0],
-                ["Duplicates merged", run?.duplicates_merged ?? 0],
-                ["Skipped (not a CV)", run?.skipped_non_resume ?? 0],
+                ["Needs review", run?.needs_review ?? 0],
+                ["Skipped as noise", run?.skipped_noise ?? run?.skipped_non_resume ?? 0],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg border border-border bg-background px-3 py-2">
                   <div className="text-base font-semibold">{value as number}</div>
