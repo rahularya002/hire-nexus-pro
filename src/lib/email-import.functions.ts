@@ -15,6 +15,7 @@ export type ImportRun = {
   people_enriched: number;
   duplicates_merged: number;
   failures: number;
+  skipped_non_resume: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -130,7 +131,7 @@ export const processImportBatch = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!run) throw new Error("Import run not found");
-    if (run.status !== "running") return { done: true, scanned: 0, newPeople: [] };
+    if (run.status !== "running") return { done: true, scanned: 0, skipped: 0, newPeople: [] };
 
     const { getValidAccessToken } = await import("./google-calendar.server");
     const conn = await getValidAccessToken(context.userId);
@@ -158,7 +159,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
