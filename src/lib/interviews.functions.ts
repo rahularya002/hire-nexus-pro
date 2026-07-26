@@ -800,11 +800,25 @@ export const createClientPlacement = createServerFn({ method: "POST" })
       .update({ stage: "closed" })
       .eq("id", app.id);
 
-    // Close the position as well — a candidate joining fills the mandate.
-    await supabaseAdmin
-      .from("positions")
-      .update({ status: "closed" })
-      .eq("id", app.position_id);
+    // Close the position only once every opening on the mandate is filled.
+    if (app.position_id) {
+      const { data: pos } = await supabaseAdmin
+        .from("positions")
+        .select("openings")
+        .eq("id", app.position_id)
+        .maybeSingle();
+      const seats = Math.max(1, Number(pos?.openings ?? 1));
+      const { count: filled } = await supabaseAdmin
+        .from("placements")
+        .select("id", { count: "exact", head: true })
+        .eq("position_id", app.position_id);
+      if ((filled ?? 0) >= seats) {
+        await supabaseAdmin
+          .from("positions")
+          .update({ status: "closed" })
+          .eq("id", app.position_id);
+      }
+    }
 
     await logActivity(supabaseAdmin, userId, {
       kind: "offer",

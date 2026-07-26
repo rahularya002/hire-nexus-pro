@@ -329,12 +329,30 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
       .limit(1)
       .maybeSingle();
 
+    const personEmail = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
+
+    // candidates.email is globally unique — link to the existing record instead of failing.
+    if (personEmail) {
+      const { data: existing } = await supabase
+        .from("candidates")
+        .select("id")
+        .ilike("email", personEmail)
+        .maybeSingle();
+      if (existing) {
+        await supabase
+          .from("email_candidates")
+          .update({ promoted_candidate_id: existing.id as string })
+          .eq("id", data.id);
+        return { candidateId: existing.id as string, alreadyPromoted: true };
+      }
+    }
+
     const { data: created, error: cErr } = await supabase
       .from("candidates")
       .insert({
         agency_id: person.agency_id as string,
         name: person.name as string,
-        email: (person.email as string | null) ?? null,
+        email: personEmail,
         phone: (person.phone as string | null) ?? null,
         role: (person.role as string | null) ?? null,
         experience: (person.experience as string | null) ?? null,
