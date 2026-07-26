@@ -83,9 +83,13 @@ export type ApplicationRow = {
   } | null;
 };
 
+/** Cleared inputs arrive as "" — treat them as null so format checks don't fire. */
+const emptyToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), schema);
+
 const candidateSchema = z.object({
   name: z.string().min(1).max(200),
-  email: z.string().email().max(200).optional().nullable(),
+  email: emptyToNull(z.string().email().max(200).optional().nullable()),
   phone: z.string().max(50).optional().nullable(),
   role: z.string().max(200).optional().nullable(),
   experience: z.string().max(100).optional().nullable(),
@@ -94,7 +98,7 @@ const candidateSchema = z.object({
   skills: z.array(z.string().min(1).max(60)).max(40).optional(),
   // Stores either a full URL or a storage path (bucket/key) — signed on demand.
   resume_url: z.string().max(500).optional().nullable(),
-  linkedin_url: z.string().url().max(500).optional().nullable(),
+  linkedin_url: emptyToNull(z.string().url().max(500).optional().nullable()),
   salary: z.string().max(200).optional().nullable(),
   salary_min: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
   salary_max: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
