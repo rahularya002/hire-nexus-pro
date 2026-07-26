@@ -4,100 +4,21 @@ import {
   buildQuery,
   findResumeAttachments,
   getAttachmentBytes,
+  getBodyText,
   getMessage,
   header,
   listMessageIds,
-  messageLooksLikeResumeEmail,
   parseAddress,
   parseAddressList,
-  preferResumeAttachments,
-  textLooksLikeResume,
 } from "./gmail.server";
+import {
+  classifyEmail,
+  heuristicScore,
+  type Classification,
+  type Extracted,
+} from "./recruitment-classify.server";
 
-export type Extracted = {
-  is_resume?: boolean | null;
-  name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  role?: string | null;
-  current_company?: string | null;
-  experience?: string | null;
-  location?: string | null;
-  salary_min?: number | null;
-  salary_max?: number | null;
-  skills?: string[] | null;
-  notes?: string | null;
-};
-
-/** AI models happily return the string "null" — treat that as empty. */
-function clean(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  if (!t || /^(null|undefined|n\/a|na|none|unknown|-)$/i.test(t)) return null;
-  return t;
-}
-
-export async function aiExtract(rawText: string): Promise<Extracted> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey || rawText.trim().length < 40) return {};
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You extract recruiter-facing candidate fields from a document. First decide 'is_resume': true ONLY if the document is a person's resume/CV or job-application profile. Set it to false for bank or brokerage statements, invoices, receipts, transaction or market alerts, newsletters, tickets, policies, contracts and any other non-resume document. When is_resume is false, set every other field to null. Otherwise return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years'. Salary min/max in LPA as numbers when stated; null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
-          },
-          { role: "user", content: rawText.slice(0, 15_000) },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_candidate",
-              description: "Return structured candidate fields.",
-              parameters: {
-                type: "object",
-                properties: {
-                  is_resume: { type: "boolean" },
-                  name: { type: ["string", "null"] },
-                  email: { type: ["string", "null"] },
-                  phone: { type: ["string", "null"] },
-                  role: { type: ["string", "null"] },
-                  current_company: { type: ["string", "null"] },
-                  experience: { type: ["string", "null"] },
-                  location: { type: ["string", "null"] },
-                  salary_min: { type: ["number", "null"] },
-                  salary_max: { type: ["number", "null"] },
-                  skills: { type: ["array", "null"], items: { type: "string" } },
-                  notes: { type: ["string", "null"] },
-                },
-                required: [
-                  "is_resume","name","email","phone","role","current_company","experience","location",
-                  "salary_min","salary_max","skills","notes",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_candidate" } },
-      }),
-    });
-    if (!res.ok) return {};
-    const json = (await res.json()) as {
-      choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
-    };
-    const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    return args ? (JSON.parse(args) as Extracted) : {};
-  } catch {
-    return {};
-  }
-}
+export type { Extracted };
 
 function digits(v?: string | null) {
   const d = (v ?? "").replace(/\D+/g, "");
@@ -128,16 +49,208 @@ type Run = {
   failures: number;
   failure_log: unknown;
   skipped_non_resume?: number | null;
+  needs_review?: number | null;
+  skipped_noise?: number | null;
 };
 
 export type BatchResult = {
   done: boolean;
   scanned: number;
   skipped: number;
+  needsReview: number;
   newPeople: { id: string; name: string; email: string | null }[];
 };
 
-/** Process one page of resume-bearing emails for a run. */
+export type StoredAttachment = {
+  path: string;
+  file_name: string;
+  mime: string | null;
+  size: number;
+  extracted_text?: string | null;
+};
+
+/** Everything needed to turn a classified email into an archive person. */
+export type CandidatePayload = {
+  agency_id: string;
+  user_id: string;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  subject: string | null;
+  snippet: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  to_emails: string[];
+  direction: string;
+  sent_at: string | null;
+  confidence: number;
+  email_kind: string;
+  reason: string;
+  signals: unknown;
+  extracted: Extracted;
+  attachments: StoredAttachment[];
+  body_text?: string;
+};
+
+type Person = { id: string; skills: string[] | null; resume_count: number; email_count: number };
+
+/**
+ * Create (or enrich) an archive person from a classified recruitment email.
+ * Shared by the importer and the "approve from review" action.
+ */
+export async function upsertPersonFromPayload(
+  payload: CandidatePayload,
+): Promise<{ personId: string; name: string; email: string | null; merged: boolean }> {
+  const ex = payload.extracted;
+  const primary = payload.attachments[0] ?? null;
+  const email =
+    (ex.email ?? "").toLowerCase() ||
+    (payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) ||
+    null;
+  const phoneDigits = digits(ex.phone);
+  const name = ex.name || payload.from_name || (primary ? niceName(primary.file_name, email) : email) || "Unknown";
+  const skills = (ex.skills ?? []).slice(0, 30);
+
+  let person: Person | null = null;
+  if (email) {
+    const { data } = await supabaseAdmin
+      .from("email_candidates")
+      .select("id, skills, resume_count, email_count")
+      .eq("user_id", payload.user_id)
+      .ilike("email", email)
+      .maybeSingle();
+    person = (data as Person | null) ?? null;
+  }
+  if (!person && phoneDigits) {
+    const { data } = await supabaseAdmin
+      .from("email_candidates")
+      .select("id, skills, resume_count, email_count")
+      .eq("user_id", payload.user_id)
+      .eq("phone_digits", phoneDigits)
+      .maybeSingle();
+    person = (data as Person | null) ?? null;
+  }
+
+  const blob = [
+    name,
+    email,
+    ex.role,
+    ex.current_company,
+    ex.location,
+    skills.join(" "),
+    payload.subject,
+    (primary?.extracted_text ?? payload.body_text ?? "").slice(0, 8000),
+  ]
+    .filter(Boolean)
+    .join(" \n ");
+
+  let merged = false;
+  if (person) {
+    merged = true;
+    const mergedSkills = Array.from(new Set([...(person.skills ?? []), ...skills])).slice(0, 40);
+    await supabaseAdmin
+      .from("email_candidates")
+      .update({
+        name,
+        email: email ?? undefined,
+        phone: ex.phone ?? undefined,
+        phone_digits: phoneDigits ?? undefined,
+        location: ex.location ?? undefined,
+        role: ex.role ?? undefined,
+        current_company: ex.current_company ?? undefined,
+        experience: ex.experience ?? undefined,
+        salary_min: ex.salary_min ?? undefined,
+        salary_max: ex.salary_max ?? undefined,
+        notes: ex.notes ?? undefined,
+        skills: mergedSkills,
+        resume_count: (person.resume_count ?? 0) + (payload.attachments.length ? 1 : 0),
+        email_count: (person.email_count ?? 0) + 1,
+        last_email_at: payload.sent_at,
+        confidence: payload.confidence,
+        review_status: "imported",
+        email_kind: payload.email_kind,
+        classification_reason: payload.reason,
+        signals: payload.signals as never,
+        search_blob: blob.slice(0, 20_000),
+      })
+      .eq("id", person.id);
+  } else {
+    const { data: created, error: cErr } = await supabaseAdmin
+      .from("email_candidates")
+      .insert({
+        agency_id: payload.agency_id,
+        user_id: payload.user_id,
+        name,
+        email,
+        phone: ex.phone,
+        phone_digits: phoneDigits,
+        location: ex.location,
+        role: ex.role,
+        current_company: ex.current_company,
+        experience: ex.experience,
+        salary_min: ex.salary_min ?? null,
+        salary_max: ex.salary_max ?? null,
+        notes: ex.notes,
+        skills,
+        resume_count: payload.attachments.length ? 1 : 0,
+        email_count: 1,
+        first_email_at: payload.sent_at,
+        last_email_at: payload.sent_at,
+        confidence: payload.confidence,
+        review_status: "imported",
+        email_kind: payload.email_kind,
+        classification_reason: payload.reason,
+        signals: payload.signals as never,
+        search_blob: blob.slice(0, 20_000),
+      })
+      .select("id, skills, resume_count, email_count")
+      .single();
+    if (cErr) throw new Error(cErr.message);
+    person = created as unknown as Person;
+  }
+
+  const { data: msgRow, error: mErr } = await supabaseAdmin
+    .from("email_messages")
+    .upsert(
+      {
+        agency_id: payload.agency_id,
+        user_id: payload.user_id,
+        email_candidate_id: person!.id,
+        gmail_message_id: payload.gmail_message_id,
+        gmail_thread_id: payload.gmail_thread_id,
+        subject: payload.subject,
+        snippet: payload.snippet,
+        from_email: payload.from_email,
+        from_name: payload.from_name,
+        to_emails: payload.to_emails,
+        direction: payload.direction,
+        has_resume: payload.attachments.length > 0,
+        sent_at: payload.sent_at,
+      },
+      { onConflict: "user_id,gmail_message_id" },
+    )
+    .select("id")
+    .single();
+  if (mErr) throw new Error(mErr.message);
+
+  for (const att of payload.attachments) {
+    await supabaseAdmin.from("email_resume_versions").insert({
+      agency_id: payload.agency_id,
+      user_id: payload.user_id,
+      email_candidate_id: person!.id,
+      email_message_id: msgRow!.id as string,
+      storage_path: att.path,
+      file_name: att.file_name,
+      mime: att.mime,
+      size_bytes: att.size,
+      extracted_text: att.extracted_text ? att.extracted_text.slice(0, 200_000) : null,
+      received_at: payload.sent_at,
+    });
+  }
+
+  return { personId: person!.id, name, email, merged };
+}
+
+/** Process one page of candidate-looking emails for a run. */
 export async function processRunBatch(run: Run, accessToken: string, pageSize = 8): Promise<BatchResult> {
   const query = buildQuery({
     dateFrom: run.date_from,
@@ -156,233 +269,247 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   let enriched = 0;
   let merged = 0;
   let skipped = 0;
+  let needsReview = 0;
+
+  const mine = (run.google_email ?? "").toLowerCase() || null;
 
   for (const ref of page.messages) {
     scanned++;
     try {
-      const { data: dupe } = await supabaseAdmin
-        .from("email_messages")
-        .select("id")
-        .eq("user_id", run.user_id)
-        .eq("gmail_message_id", ref.id)
-        .maybeSingle();
-      if (dupe) continue;
+      const [{ data: seenMsg }, { data: seenSkip }] = await Promise.all([
+        supabaseAdmin
+          .from("email_messages")
+          .select("id")
+          .eq("user_id", run.user_id)
+          .eq("gmail_message_id", ref.id)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("email_import_skips")
+          .select("id")
+          .eq("user_id", run.user_id)
+          .eq("gmail_message_id", ref.id)
+          .maybeSingle(),
+      ]);
+      if (seenMsg || seenSkip) continue;
 
       const msg = await getMessage(accessToken, ref.id);
-      const allAttachments = findResumeAttachments(msg);
-      if (allAttachments.length === 0) continue;
-
+      const attachments = findResumeAttachments(msg);
       const from = parseAddress(header(msg, "From"));
-      const subjectRaw = header(msg, "Subject");
-
-      // Layer 2 — header/filename heuristics, before downloading anything.
-      const gate = messageLooksLikeResumeEmail({
-        fromEmail: from.email,
-        subject: subjectRaw,
-        attachments: allAttachments,
-      });
-      if (!gate.keep) {
-        skipped++;
-        continue;
-      }
-      const attachments = preferResumeAttachments(allAttachments);
-      if (attachments.length === 0) {
-        skipped++;
-        continue;
-      }
-      resumeEmails++;
-
+      const subject = header(msg, "Subject");
       const toList = parseAddressList(header(msg, "To"));
-      const subject = subjectRaw;
+      const bodyText = getBodyText(msg);
       const sentAt = msg.internalDate
         ? new Date(Number(msg.internalDate)).toISOString()
         : header(msg, "Date")
           ? new Date(header(msg, "Date")!).toISOString()
           : null;
-      const mine = (run.google_email ?? "").toLowerCase();
       const direction = from.email && mine && from.email === mine ? "outbound" : "inbound";
 
-      // Use the first resume attachment for field extraction.
-      const primary = attachments[0];
-      const bytes = await getAttachmentBytes(accessToken, ref.id, primary.attachmentId);
-      const { extractCvText } = await import("./cv-parse.server");
-      let text = "";
-      try {
-        text = await extractCvText(bytes, primary.filename, primary.mimeType);
-      } catch {
-        text = "";
-      }
-
-      // Layer 3 — content gate. Don't create people from non-resume documents.
-      if (!textLooksLikeResume(text)) {
-        skipped++;
-        continue;
-      }
-      const ex = await aiExtract(text);
-      if (ex.is_resume === false) {
-        skipped++;
-        continue;
-      }
-      const exName = clean(ex.name);
-      const exEmail = clean(ex.email);
-      const exSkills = (ex.skills ?? []).map((s) => clean(s)).filter((s): s is string => !!s);
-      if (!exName && !exEmail && exSkills.length === 0) {
-        skipped++;
-        continue;
-      }
-
-      const safe = primary.filename.replace(/[^\w.\-]+/g, "_");
-      const storagePath = `email-archive/${run.user_id}/${ref.id}-${safe}`;
-      const up = await supabaseAdmin.storage
-        .from("documents")
-        .upload(storagePath, bytes, { upsert: true, contentType: primary.mimeType ?? undefined });
-      if (up.error) throw new Error(up.error.message);
-
-      const email =
-        (exEmail ?? "").toLowerCase() ||
-        (direction === "inbound" ? from.email : toList[0]) ||
-        null;
-      const phoneDigits = digits(clean(ex.phone));
-      const name = exName || from.name || niceName(primary.filename, email);
-
-      // Dedup inside the archive on email or phone.
-      type Person = { id: string; skills: string[] | null; resume_count: number; email_count: number };
-      let person: Person | null = null;
-      if (email) {
-        const { data } = await supabaseAdmin
-          .from("email_candidates")
-          .select("id, skills, resume_count, email_count")
+      // Has this thread already produced recruitment mail for this user?
+      let threadKnown = false;
+      if (ref.threadId) {
+        const { data: t } = await supabaseAdmin
+          .from("email_messages")
+          .select("id")
           .eq("user_id", run.user_id)
-          .ilike("email", email)
+          .eq("gmail_thread_id", ref.threadId)
+          .limit(1)
           .maybeSingle();
-        person = (data as Person | null) ?? null;
-      }
-      if (!person && phoneDigits) {
-        const { data } = await supabaseAdmin
-          .from("email_candidates")
-          .select("id, skills, resume_count, email_count")
-          .eq("user_id", run.user_id)
-          .eq("phone_digits", phoneDigits)
-          .maybeSingle();
-        person = (data as Person | null) ?? null;
+        threadKnown = !!t;
       }
 
-      const skills = exSkills.slice(0, 30);
-      const exRole = clean(ex.role);
-      const exCompany = clean(ex.current_company);
-      const exLocation = clean(ex.location);
-      const exExperience = clean(ex.experience);
-      const exNotes = clean(ex.notes);
-      const exPhone = clean(ex.phone);
-      const blob = [name, email, exRole, exCompany, exLocation, skills.join(" "), subject, text.slice(0, 8000)]
-        .filter(Boolean)
-        .join(" \n ");
+      const attNames = attachments.map((a) => a.filename);
+      const baseSignal = {
+        fromEmail: from.email,
+        fromName: from.name,
+        toEmails: toList,
+        myEmail: mine,
+        subject,
+        bodyText,
+        attachmentNames: attNames,
+        docText: "",
+        threadKnown,
+      };
 
-      if (person) {
-        merged++;
-        enriched++;
-        const mergedSkills = Array.from(new Set([...(person.skills ?? []), ...skills])).slice(0, 40);
-        await supabaseAdmin
-          .from("email_candidates")
-          .update({
-            name,
-            email: email ?? undefined,
-            phone: exPhone ?? undefined,
-            phone_digits: phoneDigits ?? undefined,
-            location: exLocation ?? undefined,
-            role: exRole ?? undefined,
-            current_company: exCompany ?? undefined,
-            experience: exExperience ?? undefined,
-            salary_min: ex.salary_min ?? undefined,
-            salary_max: ex.salary_max ?? undefined,
-            notes: exNotes ?? undefined,
-            skills: mergedSkills,
-            resume_count: (person.resume_count ?? 0) + 1,
-            email_count: (person.email_count ?? 0) + 1,
-            last_email_at: sentAt,
-            search_blob: blob.slice(0, 20_000),
-          })
-          .eq("id", person.id);
-      } else {
-        const { data: created, error: cErr } = await supabaseAdmin
-          .from("email_candidates")
-          .insert({
-            agency_id: run.agency_id,
-            user_id: run.user_id,
-            name,
-            email,
-            phone: exPhone,
-            phone_digits: phoneDigits,
-            location: exLocation,
-            role: exRole,
-            current_company: exCompany,
-            experience: exExperience,
-            salary_min: ex.salary_min ?? null,
-            salary_max: ex.salary_max ?? null,
-            notes: exNotes,
-            skills,
-            resume_count: 1,
-            email_count: 1,
-            first_email_at: sentAt,
-            last_email_at: sentAt,
-            search_blob: blob.slice(0, 20_000),
-          })
-          .select("id, skills, resume_count, email_count")
-          .single();
-        if (cErr) throw new Error(cErr.message);
-        person = created as unknown as Person;
-        peopleFound++;
-        newPeople.push({ id: person.id, name, email });
-      }
-
-      const { data: msgRow, error: mErr } = await supabaseAdmin
-        .from("email_messages")
-        .insert({
+      const recordSkip = async (c: {
+        confidence: number;
+        kind: string;
+        reason: string;
+        signals: unknown;
+        status: "skipped" | "needs_review";
+        payload?: CandidatePayload | null;
+      }) => {
+        await supabaseAdmin.from("email_import_skips").insert({
           agency_id: run.agency_id,
           user_id: run.user_id,
-          email_candidate_id: person!.id,
+          run_id: run.id,
           gmail_message_id: ref.id,
-          gmail_thread_id: ref.threadId,
+          gmail_thread_id: ref.threadId ?? null,
+          subject,
+          snippet: msg.snippet ?? null,
+          from_email: from.email,
+          from_name: from.name,
+          attachment_names: attNames,
+          confidence: c.confidence,
+          email_kind: c.kind,
+          reason: c.reason,
+          signals: c.signals as never,
+          pending_payload: (c.payload ?? null) as never,
+          status: c.status,
+          sent_at: sentAt,
+        });
+      };
+
+      // Cheapest gate: obvious noise never gets downloaded or sent to the AI.
+      const pre = heuristicScore(baseSignal);
+      if (pre.score <= 12) {
+        skipped++;
+        await recordSkip({
+          confidence: pre.score,
+          kind: "other",
+          reason: pre.blocks[0] ? `Non-recruitment mail — ${pre.blocks[0]}.` : "No recruitment signals found.",
+          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks },
+          status: "skipped",
+        });
+        continue;
+      }
+
+      // Download + read the primary attachment (if any) for full-context scoring.
+      let docText = "";
+      let primaryBytes: Uint8Array | null = null;
+      const primary = attachments[0] ?? null;
+      if (primary) {
+        try {
+          primaryBytes = await getAttachmentBytes(accessToken, ref.id, primary.attachmentId);
+          const { extractCvText } = await import("./cv-parse.server");
+          docText = await extractCvText(primaryBytes, primary.filename, primary.mimeType);
+        } catch {
+          docText = "";
+        }
+      }
+
+      const cls: Classification = await classifyEmail({ ...baseSignal, docText });
+
+      if (cls.decision === "skip") {
+        skipped++;
+        await recordSkip({
+          confidence: cls.confidence,
+          kind: cls.kind,
+          reason: cls.reason,
+          signals: cls.signals,
+          status: "skipped",
+        });
+        continue;
+      }
+
+      if (attachments.length) resumeEmails++;
+
+      // Store attachments so both "import" and later "approve" keep the files.
+      const stored: StoredAttachment[] = [];
+      for (const att of attachments) {
+        const safe = att.filename.replace(/[^\w.\-]+/g, "_");
+        const path = `email-archive/${run.user_id}/${ref.id}-${safe}`;
+        const isPrimary = primary && att.attachmentId === primary.attachmentId;
+        try {
+          const bytes = isPrimary && primaryBytes ? primaryBytes : await getAttachmentBytes(accessToken, ref.id, att.attachmentId);
+          const up = await supabaseAdmin.storage
+            .from("documents")
+            .upload(path, bytes, { upsert: true, contentType: att.mimeType ?? undefined });
+          if (up.error) throw new Error(up.error.message);
+        } catch {
+          continue;
+        }
+        stored.push({
+          path,
+          file_name: att.filename,
+          mime: att.mimeType,
+          size: att.size,
+          extracted_text: isPrimary ? docText : null,
+        });
+      }
+
+      const payload: CandidatePayload = {
+        agency_id: run.agency_id,
+        user_id: run.user_id,
+        gmail_message_id: ref.id,
+        gmail_thread_id: ref.threadId ?? null,
+        subject,
+        snippet: msg.snippet ?? null,
+        from_email: from.email,
+        from_name: from.name,
+        to_emails: toList,
+        direction,
+        sent_at: sentAt,
+        confidence: cls.confidence,
+        email_kind: cls.kind,
+        reason: cls.reason,
+        signals: cls.signals,
+        extracted: cls.extracted,
+        attachments: stored,
+        body_text: bodyText.slice(0, 4000),
+      };
+
+      if (cls.decision === "review") {
+        needsReview++;
+        await recordSkip({
+          confidence: cls.confidence,
+          kind: cls.kind,
+          reason: cls.reason,
+          signals: cls.signals,
+          status: "needs_review",
+          payload,
+        });
+        continue;
+      }
+
+      // Attachment-free recruitment mail only enriches a known person's timeline.
+      if (stored.length === 0) {
+        const { data: existing } = await supabaseAdmin
+          .from("email_messages")
+          .select("email_candidate_id")
+          .eq("user_id", run.user_id)
+          .eq("gmail_thread_id", ref.threadId ?? "")
+          .not("email_candidate_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        if (!existing?.email_candidate_id) {
+          needsReview++;
+          await recordSkip({
+            confidence: cls.confidence,
+            kind: cls.kind,
+            reason: `${cls.reason} No resume attached, so no profile was created.`,
+            signals: cls.signals,
+            status: "needs_review",
+            payload,
+          });
+          continue;
+        }
+        await supabaseAdmin.from("email_messages").insert({
+          agency_id: run.agency_id,
+          user_id: run.user_id,
+          email_candidate_id: existing.email_candidate_id as string,
+          gmail_message_id: ref.id,
+          gmail_thread_id: ref.threadId ?? null,
           subject,
           snippet: msg.snippet ?? null,
           from_email: from.email,
           from_name: from.name,
           to_emails: toList,
           direction,
-          has_resume: true,
+          has_resume: false,
           sent_at: sentAt,
-        })
-        .select("id")
-        .single();
-      if (mErr) throw new Error(mErr.message);
-
-      for (const att of attachments) {
-        const isPrimary = att.attachmentId === primary.attachmentId;
-        let path = storagePath;
-        if (!isPrimary) {
-          const s = att.filename.replace(/[^\w.\-]+/g, "_");
-          path = `email-archive/${run.user_id}/${ref.id}-${s}`;
-          try {
-            const extra = await getAttachmentBytes(accessToken, ref.id, att.attachmentId);
-            await supabaseAdmin.storage
-              .from("documents")
-              .upload(path, extra, { upsert: true, contentType: att.mimeType ?? undefined });
-          } catch {
-            continue;
-          }
-        }
-        await supabaseAdmin.from("email_resume_versions").insert({
-          agency_id: run.agency_id,
-          user_id: run.user_id,
-          email_candidate_id: person!.id,
-          email_message_id: msgRow!.id as string,
-          storage_path: path,
-          file_name: att.filename,
-          mime: att.mimeType,
-          size_bytes: att.size,
-          extracted_text: isPrimary ? text.slice(0, 200_000) : null,
-          received_at: sentAt,
         });
+        enriched++;
+        continue;
+      }
+
+      const res = await upsertPersonFromPayload(payload);
+      if (res.merged) {
+        merged++;
+        enriched++;
+      } else {
+        peopleFound++;
+        newPeople.push({ id: res.personId, name: res.name, email: res.email });
       }
     } catch (e) {
       failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
@@ -402,11 +529,13 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       duplicates_merged: run.duplicates_merged + merged,
       failures: run.failures + failures.length,
       skipped_non_resume: (run.skipped_non_resume ?? 0) + skipped,
+      skipped_noise: (run.skipped_noise ?? 0) + skipped,
+      needs_review: (run.needs_review ?? 0) + needsReview,
       failure_log: [...prevLog, ...failures].slice(-50),
       status: done ? "completed" : "running",
       finished_at: done ? new Date().toISOString() : null,
     })
     .eq("id", run.id);
 
-  return { done, scanned, skipped, newPeople };
+  return { done, scanned, skipped, needsReview, newPeople };
 }
