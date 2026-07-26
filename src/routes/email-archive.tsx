@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +29,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { getMyGoogleConnection, startGoogleOAuth } from "@/lib/google-calendar.functions";
 import {
   cancelImportRun,
+  cleanNonCandidates,
   getArchiveResumeUrl,
   getEmailCandidate,
   getImportProgress,
@@ -75,6 +77,14 @@ function lpa(min: number | null, max: number | null) {
   return `${min ?? max} LPA`;
 }
 
+/** AI extraction sometimes stored the literal string "null" — never show it. */
+function txt(v?: string | null) {
+  if (!v) return null;
+  const t = v.trim();
+  if (!t || /^(null|undefined|n\/a|na|none|unknown|-)$/i.test(t)) return null;
+  return t;
+}
+
 function Page() {
   const qc = useQueryClient();
   const fetchConn = useServerFn(getMyGoogleConnection);
@@ -86,6 +96,7 @@ function Page() {
   const pauseRun = useServerFn(cancelImportRun);
   const resumeRun = useServerFn(resumeImportRun);
   const fetchPeople = useServerFn(listEmailCandidates);
+  const cleanup = useServerFn(cleanNonCandidates);
 
   const [search, setSearch] = useState("");
   const [skill, setSkill] = useState("");
@@ -258,6 +269,7 @@ function Page() {
                 ["People found", run?.people_found ?? 0],
                 ["Profiles enriched", run?.people_enriched ?? 0],
                 ["Duplicates merged", run?.duplicates_merged ?? 0],
+                ["Skipped (not a CV)", run?.skipped_non_resume ?? 0],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg border border-border bg-background px-3 py-2">
                   <div className="text-base font-semibold">{value as number}</div>
