@@ -482,32 +482,110 @@ export const rejectReviewItem = createServerFn({ method: "POST" })
 export const cleanNonCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    return rescoreImpl(context);
+  });
+
+/**
+ * Re-read the stored mail (sender, subject, snippets) plus the extracted resume
+ * text for every archived person and re-score them with the classifier, so rows
+ * imported before scoring existed get a real confidence and are demoted when
+ * they turn out to be bank / wallet / billing mail.
+ */
+export const rescoreArchive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => rescoreImpl(context));
+
+async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) {
+  const { data: rows, error } = await context.supabase
+    .from("email_candidates")
+    .select("id,name,email,role,notes,skills,promoted_candidate_id,review_status")
+    .limit(300);
+  if (error) throw new Error(error.message);
+
+  const { classifyEmail } = await import("./recruitment-classify.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  let imported = 0;
+  let review = 0;
+  let rejected = 0;
+
+  for (const r of rows ?? []) {
+    const id = r.id as string;
+    const [{ data: msgs }, { data: resumes }] = await Promise.all([
+      context.supabase
+        .from("email_messages")
+        .select("subject,snippet,from_email,from_name,to_emails")
+        .eq("email_candidate_id", id)
+        .order("sent_at", { ascending: false })
+        .limit(5),
+      context.supabase
+        .from("email_resume_versions")
+        .select("file_name,extracted_text")
+        .eq("email_candidate_id", id)
+        .order("received_at", { ascending: false })
+        .limit(2),
+    ]);
+
+    const first = (msgs ?? [])[0] as
+      | { subject: string | null; snippet: string | null; from_email: string | null; from_name: string | null; to_emails: string[] | null }
+      | undefined;
+    const bodyText = (msgs ?? [])
+      .map((m) => `${(m as { subject: string | null }).subject ?? ""}\n${(m as { snippet: string | null }).snippet ?? ""}`)
+      .join("\n\n");
+
+    const cls = await classifyEmail({
+      fromEmail: first?.from_email ?? (r.email as string | null),
+      fromName: first?.from_name ?? (r.name as string | null),
+      toEmails: first?.to_emails ?? [],
+      myEmail: null,
+      subject: first?.subject ?? null,
+      bodyText,
+      attachmentNames: (resumes ?? []).map((x) => (x as { file_name: string }).file_name),
+      docText: (resumes ?? []).map((x) => (x as { extracted_text: string | null }).extracted_text ?? "").join("\n").slice(0, 12000),
+      threadKnown: false,
+    });
+
+    const status =
+      r.promoted_candidate_id
+        ? "imported"
+        : cls.decision === "import"
+          ? "imported"
+          : cls.decision === "review"
+            ? "needs_review"
+            : "rejected";
+    if (status === "imported") imported++;
+    else if (status === "needs_review") review++;
+    else rejected++;
+
+    await supabaseAdmin
+      .from("email_candidates")
+      .update({
+        confidence: r.promoted_candidate_id ? Math.max(cls.confidence, 80) : cls.confidence,
+        review_status: status,
+        email_kind: cls.kind,
+        classification_reason: cls.reason,
+        signals: cls.signals as never,
+      })
+      .eq("id", id);
+  }
+
+  return { scored: (rows ?? []).length, imported, review, rejected, removed: rejected };
+}
+
+type SupabaseLike = Parameters<typeof noop>[0];
+function noop(_c: { from: (t: string) => never }) {}
+
+export const deleteRejectedArchive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
     const { data: rows, error } = await context.supabase
       .from("email_candidates")
-      .select("id,name,email,skills,role,notes,promoted_candidate_id")
+      .select("id")
+      .eq("review_status", "rejected")
+      .is("promoted_candidate_id", null)
       .limit(2000);
     if (error) throw new Error(error.message);
-
-    const { senderLooksAutomated } = await import("./gmail.server");
-    const isNoise = (r: {
-      name: string | null;
-      email: string | null;
-      skills: string[] | null;
-      role: string | null;
-      notes: string | null;
-      promoted_candidate_id: string | null;
-    }) => {
-      if (r.promoted_candidate_id) return false;
-      if (senderLooksAutomated(r.email)) return true;
-      const hasSignal =
-        (r.skills?.length ?? 0) > 0 ||
-        !!(r.role && !/^null$/i.test(r.role)) ||
-        !!(r.notes && !/^null$/i.test(r.notes));
-      if (!hasSignal) return true;
-      return false;
-    };
-
-    const doomed = (rows ?? []).filter((r) => isNoise(r as never)).map((r) => r.id as string);
+    const doomed = (rows ?? []).map((r) => r.id as string);
     if (doomed.length === 0) return { removed: 0 };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
