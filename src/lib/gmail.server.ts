@@ -32,7 +32,14 @@ export function buildQuery(args: {
   labels?: string[];
   exclusions?: string[];
 }) {
-  const parts: string[] = ["has:attachment", "(filename:pdf OR filename:doc OR filename:docx)"];
+  // Attachment-bearing mail OR mail that talks like recruitment. The classifier
+  // decides what is actually recruitment — the query only sets the scope.
+  const parts: string[] = [
+    "{" +
+      "(has:attachment (filename:pdf OR filename:doc OR filename:docx))" +
+      ' (subject:(resume OR cv OR candidate OR profile OR interview OR hiring OR shortlist OR opening OR position OR applying OR application OR recruitment) OR "notice period" OR "current ctc" OR "expected ctc" OR "years of experience")' +
+      "}",
+  ];
   if (args.dateFrom) parts.push(`after:${fmtDate(args.dateFrom)}`);
   if (args.dateTo) parts.push(`before:${fmtDate(args.dateTo)}`);
   const labels = (args.labels ?? []).filter(Boolean);
@@ -50,10 +57,6 @@ export function buildQuery(args: {
     "-from:no-reply",
     "-from:donotreply",
     "-from:do-not-reply",
-    "-from:alerts",
-    "-from:alert",
-    "-from:notifications",
-    "-from:notification",
     "-from:statements",
     "-from:statement",
     "-from:billing",
@@ -61,7 +64,6 @@ export function buildQuery(args: {
     "-from:newsletter",
     "-category:promotions",
     "-category:social",
-    "-category:updates",
     "-label:spam",
   );
   return parts.join(" ");
