@@ -111,6 +111,44 @@ export async function getMessage(accessToken: string, id: string) {
   return gget<GmailMessage>(accessToken, `/messages/${encodeURIComponent(id)}?format=full`);
 }
 
+function decodeB64Url(data: string): string {
+  try {
+    const b64 = data.replace(/-/g, "+").replace(/_/g, "/");
+    return Buffer.from(b64, "base64").toString("utf-8");
+  } catch {
+    return "";
+  }
+}
+
+/** Decoded plain-text body of a Gmail message (HTML stripped when needed). */
+export function getBodyText(msg: GmailMessage, limit = 6000): string {
+  let plain = "";
+  let html = "";
+  const walk = (p?: Part) => {
+    if (!p) return;
+    const mime = (p.mimeType ?? "").toLowerCase();
+    if (!p.filename && p.body?.data) {
+      if (mime === "text/plain") plain += decodeB64Url(p.body.data) + "\n";
+      else if (mime === "text/html") html += decodeB64Url(p.body.data) + "\n";
+    }
+    for (const c of p.parts ?? []) walk(c);
+  };
+  walk(msg.payload);
+  const raw =
+    plain.trim() ||
+    html
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|tr|li|h\d)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">");
+  return raw.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, limit);
+}
+
 export function header(msg: GmailMessage, name: string): string | null {
   const h = msg.payload?.headers?.find((x) => x.name.toLowerCase() === name.toLowerCase());
   return h?.value ?? null;
