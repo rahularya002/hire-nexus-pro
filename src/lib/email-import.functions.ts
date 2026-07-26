@@ -153,7 +153,8 @@ export const processImportBatch = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!run) throw new Error("Import run not found");
-    if (run.status !== "running") return { done: true, scanned: 0, skipped: 0, newPeople: [] };
+    if (run.status !== "running")
+      return { done: true, scanned: 0, skipped: 0, needsReview: 0, newPeople: [] as { id: string; name: string; email: string | null }[] };
 
     const { getValidAccessToken } = await import("./google-calendar.server");
     const conn = await getValidAccessToken(context.userId);
@@ -400,6 +401,83 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
   });
 
 /** Re-score already-imported archive rows and delete obvious non-candidates. */
+export const listReviewItems = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({ status: z.enum(["needs_review", "skipped"]).default("needs_review") })
+      .partial()
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_import_skips")
+      .select(
+        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,reason,status,sent_at,created_at,pending_payload",
+      )
+      .eq("status", data.status ?? "needs_review")
+      .order("confidence", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((r) => ({
+      id: r.id as string,
+      subject: r.subject as string | null,
+      snippet: r.snippet as string | null,
+      from_email: r.from_email as string | null,
+      from_name: r.from_name as string | null,
+      attachment_names: (r.attachment_names as string[] | null) ?? [],
+      confidence: (r.confidence as number) ?? 0,
+      email_kind: r.email_kind as string | null,
+      reason: r.reason as string | null,
+      status: r.status as string,
+      sent_at: r.sent_at as string | null,
+      created_at: r.created_at as string,
+      has_payload: !!r.pending_payload,
+    })) as ReviewItem[];
+  });
+
+/** Recruiter confirms a borderline email really is recruitment — create the person. */
+export const approveReviewItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("email_import_skips")
+      .select("id,pending_payload,confidence")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Review item not found");
+    const payload = row.pending_payload as Record<string, unknown> | null;
+    if (!payload) throw new Error("This email has no saved content to import. Re-run the import instead.");
+
+    const { upsertPersonFromPayload } = await import("./email-import.server");
+    const res = await upsertPersonFromPayload({
+      ...(payload as never),
+      user_id: context.userId,
+    } as never);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("email_import_skips")
+      .update({ status: "approved", pending_payload: null })
+      .eq("id", data.id);
+    return { personId: res.personId, name: res.name, merged: res.merged };
+  });
+
+/** Recruiter confirms a borderline email is not recruitment. */
+export const rejectReviewItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_import_skips")
+      .update({ status: "rejected", pending_payload: null })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const cleanNonCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
