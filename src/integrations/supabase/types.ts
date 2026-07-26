@@ -731,11 +731,14 @@ export type Database = {
       email_candidates: {
         Row: {
           agency_id: string
+          classification_reason: string | null
           companies_mentioned: string[]
+          confidence: number
           created_at: string
           current_company: string | null
           email: string | null
           email_count: number
+          email_kind: string | null
           experience: string | null
           first_email_at: string | null
           id: string
@@ -747,21 +750,26 @@ export type Database = {
           phone_digits: string | null
           promoted_candidate_id: string | null
           resume_count: number
+          review_status: string
           role: string | null
           salary_max: number | null
           salary_min: number | null
           search_blob: string
+          signals: Json
           skills: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           agency_id: string
+          classification_reason?: string | null
           companies_mentioned?: string[]
+          confidence?: number
           created_at?: string
           current_company?: string | null
           email?: string | null
           email_count?: number
+          email_kind?: string | null
           experience?: string | null
           first_email_at?: string | null
           id?: string
@@ -773,21 +781,26 @@ export type Database = {
           phone_digits?: string | null
           promoted_candidate_id?: string | null
           resume_count?: number
+          review_status?: string
           role?: string | null
           salary_max?: number | null
           salary_min?: number | null
           search_blob?: string
+          signals?: Json
           skills?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           agency_id?: string
+          classification_reason?: string | null
           companies_mentioned?: string[]
+          confidence?: number
           created_at?: string
           current_company?: string | null
           email?: string | null
           email_count?: number
+          email_kind?: string | null
           experience?: string | null
           first_email_at?: string | null
           id?: string
@@ -799,10 +812,12 @@ export type Database = {
           phone_digits?: string | null
           promoted_candidate_id?: string | null
           resume_count?: number
+          review_status?: string
           role?: string | null
           salary_max?: number | null
           salary_min?: number | null
           search_blob?: string
+          signals?: Json
           skills?: string[]
           updated_at?: string
           user_id?: string
@@ -840,10 +855,12 @@ export type Database = {
           google_email: string | null
           id: string
           labels: string[]
+          needs_review: number
           page_token: string | null
           people_enriched: number
           people_found: number
           resume_emails: number
+          skipped_noise: number
           skipped_non_resume: number
           status: string
           updated_at: string
@@ -864,10 +881,12 @@ export type Database = {
           google_email?: string | null
           id?: string
           labels?: string[]
+          needs_review?: number
           page_token?: string | null
           people_enriched?: number
           people_found?: number
           resume_emails?: number
+          skipped_noise?: number
           skipped_non_resume?: number
           status?: string
           updated_at?: string
@@ -888,10 +907,12 @@ export type Database = {
           google_email?: string | null
           id?: string
           labels?: string[]
+          needs_review?: number
           page_token?: string | null
           people_enriched?: number
           people_found?: number
           resume_emails?: number
+          skipped_noise?: number
           skipped_non_resume?: number
           status?: string
           updated_at?: string
@@ -903,6 +924,90 @@ export type Database = {
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_import_skips: {
+        Row: {
+          agency_id: string
+          attachment_names: string[]
+          confidence: number
+          created_at: string
+          email_kind: string | null
+          from_email: string | null
+          from_name: string | null
+          gmail_message_id: string
+          gmail_thread_id: string | null
+          id: string
+          pending_payload: Json | null
+          reason: string | null
+          run_id: string | null
+          sent_at: string | null
+          signals: Json
+          snippet: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          attachment_names?: string[]
+          confidence?: number
+          created_at?: string
+          email_kind?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          gmail_thread_id?: string | null
+          id?: string
+          pending_payload?: Json | null
+          reason?: string | null
+          run_id?: string | null
+          sent_at?: string | null
+          signals?: Json
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          attachment_names?: string[]
+          confidence?: number
+          created_at?: string
+          email_kind?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          gmail_thread_id?: string | null
+          id?: string
+          pending_payload?: Json | null
+          reason?: string | null
+          run_id?: string | null
+          sent_at?: string | null
+          signals?: Json
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_import_skips_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_import_skips_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "email_import_runs"
             referencedColumns: ["id"]
           },
         ]

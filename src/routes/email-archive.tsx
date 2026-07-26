@@ -18,6 +18,9 @@ import {
   ArrowDownLeft,
   CheckCircle2,
   Trash2,
+  ShieldQuestion,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { getMyGoogleConnection, startGoogleOAuth } from "@/lib/google-calendar.functions";
 import {
+  approveReviewItem,
   cancelImportRun,
   cleanNonCandidates,
   getArchiveResumeUrl,
@@ -35,11 +39,14 @@ import {
   getImportProgress,
   listEmailCandidates,
   listGmailLabels,
+  listReviewItems,
   processImportBatch,
   promoteArchivePerson,
+  rejectReviewItem,
   resumeImportRun,
   startImportRun,
   type ArchivePerson,
+  type ReviewItem,
 } from "@/lib/email-import.functions";
 import { initialsOf } from "@/lib/display";
 
@@ -85,6 +92,49 @@ function txt(v?: string | null) {
   return t;
 }
 
+const KIND_LABEL: Record<string, string> = {
+  candidate_submission: "Candidate submission",
+  resume_forward: "Resume forward",
+  job_application: "Job application",
+  interview_scheduling: "Interview scheduling",
+  recruiter_conversation: "Recruiter conversation",
+  job_alert: "Job alert",
+  bank_statement: "Bank / brokerage statement",
+  invoice_receipt: "Invoice or receipt",
+  travel: "Travel",
+  order_shipping: "Order / shipping",
+  newsletter_promo: "Newsletter or promotion",
+  otp_security: "OTP / security",
+  other: "Other",
+};
+
+/** "98% Recruitment Email ✓" style confidence chip. */
+function ConfidenceBadge({
+  score,
+  state,
+}: {
+  score: number | null | undefined;
+  state: "imported" | "needs_review" | "skipped";
+}) {
+  const pct = Math.max(0, Math.min(100, Math.round(score ?? 0)));
+  const tone =
+    state === "imported"
+      ? "bg-success/10 text-success border-success/25"
+      : state === "needs_review"
+        ? "bg-warning/10 text-warning border-warning/30"
+        : "bg-destructive/10 text-destructive border-destructive/25";
+  const suffix = state === "imported" ? "✓" : state === "needs_review" ? "Needs review" : "Skipped";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${tone}`}
+      title={`AI confidence that this is a recruitment email: ${pct}%`}
+    >
+      <span className="font-semibold">{pct}%</span> Recruitment Email
+      <span className="opacity-80">{suffix}</span>
+    </span>
+  );
+}
+
 function Page() {
   const qc = useQueryClient();
   const fetchConn = useServerFn(getMyGoogleConnection);
@@ -97,12 +147,16 @@ function Page() {
   const resumeRun = useServerFn(resumeImportRun);
   const fetchPeople = useServerFn(listEmailCandidates);
   const cleanup = useServerFn(cleanNonCandidates);
+  const fetchReview = useServerFn(listReviewItems);
+  const approve = useServerFn(approveReviewItem);
+  const reject = useServerFn(rejectReviewItem);
 
   const [search, setSearch] = useState("");
   const [skill, setSkill] = useState("");
   const [location, setLocation] = useState("");
   const [recentOnly, setRecentOnly] = useState(false);
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
+  const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
 
   const conn = useQuery({ queryKey: ["google-connection"], queryFn: () => fetchConn() });
   const labels = useQuery({
@@ -125,6 +179,29 @@ function Page() {
           contactedWithinDays: recentOnly ? 90 : null,
         },
       }),
+  });
+  const reviewQ = useQuery({
+    queryKey: ["email-archive-review", tab],
+    queryFn: () => fetchReview({ data: { status: tab === "skipped" ? "skipped" : "needs_review" } }),
+    enabled: tab !== "archive",
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (id: string) => approve({ data: { id } }),
+    onSuccess: (r) => {
+      toast.success(`${r.name} added to the archive.`);
+      qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not import this email"),
+  });
+  const rejectMut = useMutation({
+    mutationFn: (id: string) => reject({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Marked as not recruitment.");
+      qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update"),
   });
 
   const run = progress.data;
@@ -286,11 +363,11 @@ function Page() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               {[
                 ["Emails scanned", run?.emails_scanned ?? 0],
-                ["Resume emails", run?.resume_emails ?? 0],
+                ["Recruitment emails", run?.resume_emails ?? 0],
                 ["People found", run?.people_found ?? 0],
                 ["Profiles enriched", run?.people_enriched ?? 0],
-                ["Duplicates merged", run?.duplicates_merged ?? 0],
-                ["Skipped (not a CV)", run?.skipped_non_resume ?? 0],
+                ["Needs review", run?.needs_review ?? 0],
+                ["Skipped as noise", run?.skipped_noise ?? run?.skipped_non_resume ?? 0],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg border border-border bg-background px-3 py-2">
                   <div className="text-base font-semibold">{value as number}</div>
@@ -387,6 +464,101 @@ function Page() {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
+        {(
+          [
+            ["archive", "Archive"],
+            ["needs_review", `Needs review${run?.needs_review ? ` (${run.needs_review})` : ""}`],
+            ["skipped", "Skipped"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
+              tab === key ? "bg-secondary font-medium" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== "archive" ? (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {tab === "needs_review"
+              ? "Borderline emails the AI wasn't confident about. Confirm the ones that really are recruitment."
+              : "Emails the AI judged to be non-recruitment. Nothing here was added to the archive."}
+          </p>
+          {reviewQ.isLoading ? (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> Loading…
+            </div>
+          ) : (reviewQ.data ?? []).length === 0 ? (
+            <EmptyState
+              icon={ShieldQuestion}
+              title={tab === "needs_review" ? "Nothing waiting for review" : "Nothing skipped yet"}
+              description="Run an import and the AI will route uncertain emails here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {(reviewQ.data as ReviewItem[]).map((r) => (
+                <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <ConfidenceBadge
+                          score={r.confidence}
+                          state={tab === "needs_review" ? "needs_review" : "skipped"}
+                        />
+                        <span className="text-[11px] text-muted-foreground">
+                          {KIND_LABEL[r.email_kind ?? "other"] ?? "Other"}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium truncate mt-1">{r.subject ?? "(no subject)"}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {txt(r.from_name) ? `${txt(r.from_name)} · ` : ""}
+                        {r.from_email ?? "unknown sender"} · {fmtDate(r.sent_at)}
+                      </div>
+                      {txt(r.reason) && <p className="text-[11px] text-muted-foreground mt-1">{txt(r.reason)}</p>}
+                      {r.attachment_names.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {r.attachment_names.map((n) => (
+                            <span key={n} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary truncate max-w-[200px]">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => approveMut.mutate(r.id)}
+                        disabled={approveMut.isPending || !r.has_payload}
+                        title={r.has_payload ? "Import this email" : "Re-run the import to recover this email"}
+                      >
+                        <Check className="size-3.5" /> It's recruitment
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => rejectMut.mutate(r.id)}
+                        disabled={rejectMut.isPending}
+                      >
+                        <X className="size-3.5" /> Not recruitment
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="relative flex-1 min-w-[220px]">
@@ -448,6 +620,9 @@ function Page() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
+                  <div className="mt-1.5">
+                    <ConfidenceBadge score={p.confidence} state="imported" />
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                     {txt(p.role) && (
                       <span className="inline-flex items-center gap-1 truncate">
@@ -478,6 +653,8 @@ function Page() {
             </button>
           ))}
         </div>
+      )}
+      </>
       )}
 
       <PersonSheet person={selected} onClose={() => setSelected(null)} />
@@ -528,6 +705,15 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
 
         {p && (
           <div className="mt-4 space-y-5 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <ConfidenceBadge score={p.confidence} state="imported" />
+              <span className="text-[11px] text-muted-foreground">
+                {KIND_LABEL[p.email_kind ?? "other"] ?? "Other"}
+              </span>
+            </div>
+            {txt(p.classification_reason) && (
+              <p className="text-[11px] text-muted-foreground -mt-3">{txt(p.classification_reason)}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => promoteMut.mutate()}

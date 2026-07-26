@@ -16,6 +16,8 @@ export type ImportRun = {
   duplicates_merged: number;
   failures: number;
   skipped_non_resume: number;
+  needs_review: number;
+  skipped_noise: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -40,6 +42,26 @@ export type ArchivePerson = {
   last_email_at: string | null;
   promoted_candidate_id: string | null;
   created_at: string;
+  confidence: number;
+  review_status: string;
+  email_kind: string | null;
+  classification_reason: string | null;
+};
+
+export type ReviewItem = {
+  id: string;
+  subject: string | null;
+  snippet: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  attachment_names: string[];
+  confidence: number;
+  email_kind: string | null;
+  reason: string | null;
+  status: string;
+  sent_at: string | null;
+  created_at: string;
+  has_payload: boolean;
 };
 
 async function callerAgency(supabase: any, userId: string) {
@@ -131,7 +153,8 @@ export const processImportBatch = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!run) throw new Error("Import run not found");
-    if (run.status !== "running") return { done: true, scanned: 0, skipped: 0, newPeople: [] };
+    if (run.status !== "running")
+      return { done: true, scanned: 0, skipped: 0, needsReview: 0, newPeople: [] as { id: string; name: string; email: string | null }[] };
 
     const { getValidAccessToken } = await import("./google-calendar.server");
     const conn = await getValidAccessToken(context.userId);
@@ -159,7 +182,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -213,7 +236,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("email_candidates")
       .select(
-        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at",
+        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
       )
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
@@ -243,7 +266,7 @@ export const getEmailCandidate = createServerFn({ method: "GET" })
       supabase
         .from("email_candidates")
         .select(
-          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at",
+          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
         )
         .eq("id", data.id)
         .maybeSingle(),
@@ -378,6 +401,81 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
   });
 
 /** Re-score already-imported archive rows and delete obvious non-candidates. */
+export const listReviewItems = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({ status: z.enum(["needs_review", "skipped"]).default("needs_review") })
+      .partial()
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_import_skips")
+      .select(
+        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,reason,status,sent_at,created_at,pending_payload",
+      )
+      .eq("status", data.status ?? "needs_review")
+      .order("confidence", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((r) => ({
+      id: r.id as string,
+      subject: r.subject as string | null,
+      snippet: r.snippet as string | null,
+      from_email: r.from_email as string | null,
+      from_name: r.from_name as string | null,
+      attachment_names: (r.attachment_names as string[] | null) ?? [],
+      confidence: (r.confidence as number) ?? 0,
+      email_kind: r.email_kind as string | null,
+      reason: r.reason as string | null,
+      status: r.status as string,
+      sent_at: r.sent_at as string | null,
+      created_at: r.created_at as string,
+      has_payload: !!r.pending_payload,
+    })) as ReviewItem[];
+  });
+
+/** Recruiter confirms a borderline email really is recruitment — create the person. */
+export const approveReviewItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("email_import_skips")
+      .select("id,pending_payload,confidence")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Review item not found");
+    const payload = (row.pending_payload ?? null) as Record<string, unknown> | null;
+    if (!payload) throw new Error("This email has no saved content to import. Re-run the import instead.");
+
+    const { upsertPersonFromPayload } = await import("./email-import.server");
+    const merged = Object.assign({}, payload, { user_id: context.userId });
+    const res = await upsertPersonFromPayload(merged as never);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("email_import_skips")
+      .update({ status: "approved", pending_payload: null })
+      .eq("id", data.id);
+    return { personId: res.personId, name: res.name, merged: res.merged };
+  });
+
+/** Recruiter confirms a borderline email is not recruitment. */
+export const rejectReviewItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_import_skips")
+      .update({ status: "rejected", pending_payload: null })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const cleanNonCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
