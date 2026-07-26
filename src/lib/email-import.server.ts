@@ -7,11 +7,15 @@ import {
   getMessage,
   header,
   listMessageIds,
+  messageLooksLikeResumeEmail,
   parseAddress,
   parseAddressList,
+  preferResumeAttachments,
+  textLooksLikeResume,
 } from "./gmail.server";
 
 export type Extracted = {
+  is_resume?: boolean | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -24,6 +28,14 @@ export type Extracted = {
   skills?: string[] | null;
   notes?: string | null;
 };
+
+/** AI models happily return the string "null" — treat that as empty. */
+function clean(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (!t || /^(null|undefined|n\/a|na|none|unknown|-)$/i.test(t)) return null;
+  return t;
+}
 
 export async function aiExtract(rawText: string): Promise<Extracted> {
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -38,7 +50,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
           {
             role: "system",
             content:
-              "You extract recruiter-facing candidate fields from a resume/CV. Return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years'. Salary min/max in LPA as numbers when stated; null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
+              "You extract recruiter-facing candidate fields from a document. First decide 'is_resume': true ONLY if the document is a person's resume/CV or job-application profile. Set it to false for bank or brokerage statements, invoices, receipts, transaction or market alerts, newsletters, tickets, policies, contracts and any other non-resume document. When is_resume is false, set every other field to null. Otherwise return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years'. Salary min/max in LPA as numbers when stated; null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
           },
           { role: "user", content: rawText.slice(0, 15_000) },
         ],
@@ -51,6 +63,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
               parameters: {
                 type: "object",
                 properties: {
+                  is_resume: { type: "boolean" },
                   name: { type: ["string", "null"] },
                   email: { type: ["string", "null"] },
                   phone: { type: ["string", "null"] },
@@ -64,7 +77,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
                   notes: { type: ["string", "null"] },
                 },
                 required: [
-                  "name","email","phone","role","current_company","experience","location",
+                  "is_resume","name","email","phone","role","current_company","experience","location",
                   "salary_min","salary_max","skills","notes",
                 ],
                 additionalProperties: false,
