@@ -16,6 +16,8 @@ export type ImportRun = {
   duplicates_merged: number;
   failures: number;
   skipped_non_resume: number;
+  needs_review: number;
+  skipped_noise: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -40,6 +42,26 @@ export type ArchivePerson = {
   last_email_at: string | null;
   promoted_candidate_id: string | null;
   created_at: string;
+  confidence: number;
+  review_status: string;
+  email_kind: string | null;
+  classification_reason: string | null;
+};
+
+export type ReviewItem = {
+  id: string;
+  subject: string | null;
+  snippet: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  attachment_names: string[];
+  confidence: number;
+  email_kind: string | null;
+  reason: string | null;
+  status: string;
+  sent_at: string | null;
+  created_at: string;
+  has_payload: boolean;
 };
 
 async function callerAgency(supabase: any, userId: string) {
@@ -159,7 +181,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -213,7 +235,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("email_candidates")
       .select(
-        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at",
+        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
       )
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
@@ -243,7 +265,7 @@ export const getEmailCandidate = createServerFn({ method: "GET" })
       supabase
         .from("email_candidates")
         .select(
-          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at",
+          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
         )
         .eq("id", data.id)
         .maybeSingle(),
