@@ -358,3 +358,97 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
 
     return { candidateId: created!.id as string, alreadyPromoted: false };
   });
+
+/** Re-score already-imported archive rows and delete obvious non-candidates. */
+export const cleanNonCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_candidates")
+      .select("id,name,email,skills,role,notes,promoted_candidate_id")
+      .limit(2000);
+    if (error) throw new Error(error.message);
+
+    const { senderLooksAutomated } = await import("./gmail.server");
+    const isNoise = (r: {
+      name: string | null;
+      email: string | null;
+      skills: string[] | null;
+      role: string | null;
+      notes: string | null;
+      promoted_candidate_id: string | null;
+    }) => {
+      if (r.promoted_candidate_id) return false;
+      if (senderLooksAutomated(r.email)) return true;
+      const hasSignal =
+        (r.skills?.length ?? 0) > 0 ||
+        !!(r.role && !/^null$/i.test(r.role)) ||
+        !!(r.notes && !/^null$/i.test(r.notes));
+      if (!hasSignal) return true;
+      return false;
+    };
+
+    const doomed = (rows ?? []).filter((r) => isNoise(r as never)).map((r) => r.id as string);
+    if (doomed.length === 0) return { removed: 0 };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
+    await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
+    const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
+    if (dErr) throw new Error(dErr.message);
+    return { removed: doomed.length };
+  });
+
+const _unusedPromote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: person, error } = await supabase
+      .from("email_candidates")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!person) throw new Error("Archived person not found");
+    if (person.promoted_candidate_id) {
+      return { candidateId: person.promoted_candidate_id as string, alreadyPromoted: true };
+    }
+
+    const { data: latest } = await supabase
+      .from("email_resume_versions")
+      .select("storage_path")
+      .eq("email_candidate_id", data.id)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: created, error: cErr } = await supabase
+      .from("candidates")
+      .insert({
+        agency_id: person.agency_id as string,
+        name: person.name as string,
+        email: (person.email as string | null) ?? null,
+        phone: (person.phone as string | null) ?? null,
+        role: (person.role as string | null) ?? null,
+        experience: (person.experience as string | null) ?? null,
+        location: (person.location as string | null) ?? null,
+        current_company: (person.current_company as string | null) ?? null,
+        skills: (person.skills as string[] | null) ?? [],
+        salary_min: (person.salary_min as number | null) ?? null,
+        salary_max: (person.salary_max as number | null) ?? null,
+        notes: (person.notes as string | null) ?? null,
+        resume_url: (latest?.storage_path as string | undefined) ?? null,
+        source: "inbound",
+      })
+      .select("id")
+      .single();
+    if (cErr) throw new Error(cErr.message);
+
+    await supabase
+      .from("email_candidates")
+      .update({ promoted_candidate_id: created!.id as string })
+      .eq("id", data.id);
+
+    return { candidateId: created!.id as string, alreadyPromoted: false };
+  });
