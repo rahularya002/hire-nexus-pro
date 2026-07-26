@@ -620,6 +620,9 @@ function Page() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
+                  <div className="mt-1.5">
+                    <ConfidenceBadge score={p.confidence} state="imported" />
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                     {txt(p.role) && (
                       <span className="inline-flex items-center gap-1 truncate">
@@ -702,6 +705,15 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
 
         {p && (
           <div className="mt-4 space-y-5 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <ConfidenceBadge score={p.confidence} state="imported" />
+              <span className="text-[11px] text-muted-foreground">
+                {KIND_LABEL[p.email_kind ?? "other"] ?? "Other"}
+              </span>
+            </div>
+            {txt(p.classification_reason) && (
+              <p className="text-[11px] text-muted-foreground -mt-3">{txt(p.classification_reason)}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => promoteMut.mutate()}
