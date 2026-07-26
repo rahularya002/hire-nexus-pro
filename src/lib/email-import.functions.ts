@@ -495,7 +495,8 @@ export const rescoreArchive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => rescoreImpl(context));
 
-async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function rescoreImpl(context: { supabase: any; userId: string }) {
   const { data: rows, error } = await context.supabase
     .from("email_candidates")
     .select("id,name,email,role,notes,skills,promoted_candidate_id,review_status")
@@ -509,7 +510,7 @@ async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) 
   let review = 0;
   let rejected = 0;
 
-  for (const r of rows ?? []) {
+  for (const r of (rows ?? []) as any[]) {
     const id = r.id as string;
     const [{ data: msgs }, { data: resumes }] = await Promise.all([
       context.supabase
@@ -529,8 +530,8 @@ async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) 
     const first = (msgs ?? [])[0] as
       | { subject: string | null; snippet: string | null; from_email: string | null; from_name: string | null; to_emails: string[] | null }
       | undefined;
-    const bodyText = (msgs ?? [])
-      .map((m) => `${(m as { subject: string | null }).subject ?? ""}\n${(m as { snippet: string | null }).snippet ?? ""}`)
+    const bodyText = ((msgs ?? []) as any[])
+      .map((m) => `${m.subject ?? ""}\n${m.snippet ?? ""}`)
       .join("\n\n");
 
     const cls = await classifyEmail({
@@ -540,8 +541,11 @@ async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) 
       myEmail: null,
       subject: first?.subject ?? null,
       bodyText,
-      attachmentNames: (resumes ?? []).map((x) => (x as { file_name: string }).file_name),
-      docText: (resumes ?? []).map((x) => (x as { extracted_text: string | null }).extracted_text ?? "").join("\n").slice(0, 12000),
+      attachmentNames: ((resumes ?? []) as any[]).map((x) => x.file_name as string),
+      docText: ((resumes ?? []) as any[])
+        .map((x) => (x.extracted_text as string | null) ?? "")
+        .join("\n")
+        .slice(0, 12000),
       threadKnown: false,
     });
 
@@ -571,9 +575,7 @@ async function rescoreImpl(context: { supabase: SupabaseLike; userId: string }) 
 
   return { scored: (rows ?? []).length, imported, review, rejected, removed: rejected };
 }
-
-type SupabaseLike = Parameters<typeof noop>[0];
-function noop(_c: { from: (t: string) => never }) {}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const deleteRejectedArchive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
