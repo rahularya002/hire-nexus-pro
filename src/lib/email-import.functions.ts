@@ -448,14 +448,12 @@ export const approveReviewItem = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Review item not found");
-    const payload = row.pending_payload as Record<string, unknown> | null;
+    const payload = (row.pending_payload ?? null) as Record<string, unknown> | null;
     if (!payload) throw new Error("This email has no saved content to import. Re-run the import instead.");
 
     const { upsertPersonFromPayload } = await import("./email-import.server");
-    const res = await upsertPersonFromPayload({
-      ...(payload as never),
-      user_id: context.userId,
-    } as never);
+    const merged = Object.assign({}, payload, { user_id: context.userId });
+    const res = await upsertPersonFromPayload(merged as never);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin
