@@ -844,6 +844,7 @@ export type Database = {
           people_enriched: number
           people_found: number
           resume_emails: number
+          skipped_non_resume: number
           status: string
           updated_at: string
           user_id: string
@@ -867,6 +868,7 @@ export type Database = {
           people_enriched?: number
           people_found?: number
           resume_emails?: number
+          skipped_non_resume?: number
           status?: string
           updated_at?: string
           user_id: string
@@ -890,6 +892,7 @@ export type Database = {
           people_enriched?: number
           people_found?: number
           resume_emails?: number
+          skipped_non_resume?: number
           status?: string
           updated_at?: string
           user_id?: string
