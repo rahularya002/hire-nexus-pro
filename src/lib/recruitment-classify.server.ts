@@ -106,19 +106,21 @@ export type SignalInput = {
   threadKnown: boolean;
 };
 
-export type HeuristicResult = { score: number; hits: string[]; blocks: string[] };
+export type HeuristicResult = { score: number; hits: string[]; blocks: string[]; hardBlock: boolean };
 
 /** Cheap multi-signal pre-score in the 0-100 range. */
 export function heuristicScore(i: SignalInput): HeuristicResult {
   const hits: string[] = [];
   const blocks: string[] = [];
   let score = 40;
+  let hardBlock = false;
 
   const [local = "", domain = ""] = (i.fromEmail ?? "").toLowerCase().split("@");
 
   if (TRANSACTIONAL_DOMAIN.test(domain)) {
     score -= 45;
     blocks.push("transactional sender domain");
+    hardBlock = true;
   }
   if (AUTOMATED_LOCAL.test(local)) {
     score -= 20;
@@ -196,7 +198,12 @@ export function heuristicScore(i: SignalInput): HeuristicResult {
     }
   }
 
-  return { score: Math.max(0, Math.min(100, score)), hits, blocks };
+  // An automated address on a bank / marketplace / utility domain is never a
+  // candidate applying for a job, no matter what the attachment looks like.
+  if (hardBlock && AUTOMATED_LOCAL.test(local)) score = Math.min(score, 5);
+  if (hardBlock && NOISE_SUBJECT.test(i.subject ?? "")) score = Math.min(score, 8);
+
+  return { score: Math.max(0, Math.min(100, score)), hits, blocks, hardBlock };
 }
 
 /* ------------------------------- AI pass ------------------------------- */
@@ -367,6 +374,9 @@ export async function classifyEmail(i: SignalInput): Promise<Classification> {
     if (ai?.is_recruitment === false) score = Math.min(score, 30);
     if (!isRecruitKind) score = Math.min(score, kind === "job_alert" ? 40 : 25);
     if (h.blocks.length >= 2) score = Math.min(score, 55);
+    // Transactional sender: cap well below the import bar — a bank or wallet
+    // never applies for a job, and its statements are not resumes.
+    if (h.hardBlock) score = Math.min(score, 30);
     if (h.hits.length >= 3 && isRecruitKind) score = Math.min(100, score + 5);
   }
   score = Math.max(0, Math.min(100, score));

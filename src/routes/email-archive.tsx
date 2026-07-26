@@ -290,11 +290,12 @@ function Page() {
     mutationFn: () => cleanup(),
     onSuccess: (r) => {
       toast.success(
-        r.removed === 0 ? "No non-candidate records found." : `Removed ${r.removed} non-candidate record${r.removed === 1 ? "" : "s"}.`,
+        `Re-scored ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} kept, ${r.review} need review, ${r.rejected} moved out.`,
       );
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+      qc.invalidateQueries({ queryKey: ["email-archive-review"] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Cleanup failed"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Re-scoring failed"),
   });
 
   return (
@@ -318,7 +319,7 @@ function Page() {
             disabled={cleanMut.isPending}
           >
             {cleanMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-            Remove non-candidates
+            Re-score archive
           </Button>
           {[
             { label: "People in archive", value: stats.people },
