@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +29,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { getMyGoogleConnection, startGoogleOAuth } from "@/lib/google-calendar.functions";
 import {
   cancelImportRun,
+  cleanNonCandidates,
   getArchiveResumeUrl,
   getEmailCandidate,
   getImportProgress,
@@ -75,6 +77,14 @@ function lpa(min: number | null, max: number | null) {
   return `${min ?? max} LPA`;
 }
 
+/** AI extraction sometimes stored the literal string "null" — never show it. */
+function txt(v?: string | null) {
+  if (!v) return null;
+  const t = v.trim();
+  if (!t || /^(null|undefined|n\/a|na|none|unknown|-)$/i.test(t)) return null;
+  return t;
+}
+
 function Page() {
   const qc = useQueryClient();
   const fetchConn = useServerFn(getMyGoogleConnection);
@@ -86,6 +96,7 @@ function Page() {
   const pauseRun = useServerFn(cancelImportRun);
   const resumeRun = useServerFn(resumeImportRun);
   const fetchPeople = useServerFn(listEmailCandidates);
+  const cleanup = useServerFn(cleanNonCandidates);
 
   const [search, setSearch] = useState("");
   const [skill, setSkill] = useState("");
@@ -198,6 +209,17 @@ function Page() {
 
   const gmailReady = !!conn.data?.connected && labels.data?.gmail !== false;
 
+  const cleanMut = useMutation({
+    mutationFn: () => cleanup(),
+    onSuccess: (r) => {
+      toast.success(
+        r.removed === 0 ? "No non-candidate records found." : `Removed ${r.removed} non-candidate record${r.removed === 1 ? "" : "s"}.`,
+      );
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Cleanup failed"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -211,6 +233,16 @@ function Page() {
           </p>
         </div>
         <div className="flex gap-2 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-center"
+            onClick={() => cleanMut.mutate()}
+            disabled={cleanMut.isPending}
+          >
+            {cleanMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+            Remove non-candidates
+          </Button>
           {[
             { label: "People in archive", value: stats.people },
             { label: "Resumes", value: stats.resumes },
@@ -251,13 +283,14 @@ function Page() {
               {running ? <Loader2 className="size-4 animate-spin text-primary" /> : <Pause className="size-4" />}
               {running ? "Importing from" : "Import paused —"} {run?.google_email}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               {[
                 ["Emails scanned", run?.emails_scanned ?? 0],
                 ["Resume emails", run?.resume_emails ?? 0],
                 ["People found", run?.people_found ?? 0],
                 ["Profiles enriched", run?.people_enriched ?? 0],
                 ["Duplicates merged", run?.duplicates_merged ?? 0],
+                ["Skipped (not a CV)", run?.skipped_non_resume ?? 0],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg border border-border bg-background px-3 py-2">
                   <div className="text-base font-semibold">{value as number}</div>
@@ -416,15 +449,15 @@ function Page() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                    {p.role && (
+                    {txt(p.role) && (
                       <span className="inline-flex items-center gap-1 truncate">
-                        <Building2 className="size-3" /> {p.role}
-                        {p.current_company ? ` · ${p.current_company}` : ""}
+                        <Building2 className="size-3" /> {txt(p.role)}
+                        {txt(p.current_company) ? ` · ${txt(p.current_company)}` : ""}
                       </span>
                     )}
-                    {p.location && (
+                    {txt(p.location) && (
                       <span className="inline-flex items-center gap-1">
-                        <MapPin className="size-3" /> {p.location}
+                        <MapPin className="size-3" /> {txt(p.location)}
                       </span>
                     )}
                     {lpa(p.salary_min, p.salary_max) && <span>{lpa(p.salary_min, p.salary_max)}</span>}
@@ -489,7 +522,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
         <SheetHeader>
           <SheetTitle>{p?.name}</SheetTitle>
           <SheetDescription>
-            {p?.email ?? "No email"} {p?.phone ? `· ${p.phone}` : ""}
+            {txt(p?.email) ?? "No email"} {txt(p?.phone) ? `· ${txt(p?.phone)}` : ""}
           </SheetDescription>
         </SheetHeader>
 
@@ -518,7 +551,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
                 {p.email_count} email{p.email_count === 1 ? "" : "s"} · {p.resume_count} resume version
                 {p.resume_count === 1 ? "" : "s"}
               </div>
-              {p.notes && <p className="text-xs">{p.notes}</p>}
+              {txt(p.notes) && <p className="text-xs">{txt(p.notes)}</p>}
               {p.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1">
                   {p.skills.map((s) => (

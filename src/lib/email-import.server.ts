@@ -7,11 +7,15 @@ import {
   getMessage,
   header,
   listMessageIds,
+  messageLooksLikeResumeEmail,
   parseAddress,
   parseAddressList,
+  preferResumeAttachments,
+  textLooksLikeResume,
 } from "./gmail.server";
 
 export type Extracted = {
+  is_resume?: boolean | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -24,6 +28,14 @@ export type Extracted = {
   skills?: string[] | null;
   notes?: string | null;
 };
+
+/** AI models happily return the string "null" — treat that as empty. */
+function clean(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (!t || /^(null|undefined|n\/a|na|none|unknown|-)$/i.test(t)) return null;
+  return t;
+}
 
 export async function aiExtract(rawText: string): Promise<Extracted> {
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -38,7 +50,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
           {
             role: "system",
             content:
-              "You extract recruiter-facing candidate fields from a resume/CV. Return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years'. Salary min/max in LPA as numbers when stated; null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
+              "You extract recruiter-facing candidate fields from a document. First decide 'is_resume': true ONLY if the document is a person's resume/CV or job-application profile. Set it to false for bank or brokerage statements, invoices, receipts, transaction or market alerts, newsletters, tickets, policies, contracts and any other non-resume document. When is_resume is false, set every other field to null. Otherwise return ONLY via the extract_candidate tool. Use null for missing fields. Keep values short. 'skills' should be 5-20 individual technologies or competencies. 'experience' like '6 years'. Salary min/max in LPA as numbers when stated; null otherwise. 'notes' is a 1-2 sentence recruiter-facing summary.",
           },
           { role: "user", content: rawText.slice(0, 15_000) },
         ],
@@ -51,6 +63,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
               parameters: {
                 type: "object",
                 properties: {
+                  is_resume: { type: "boolean" },
                   name: { type: ["string", "null"] },
                   email: { type: ["string", "null"] },
                   phone: { type: ["string", "null"] },
@@ -64,7 +77,7 @@ export async function aiExtract(rawText: string): Promise<Extracted> {
                   notes: { type: ["string", "null"] },
                 },
                 required: [
-                  "name","email","phone","role","current_company","experience","location",
+                  "is_resume","name","email","phone","role","current_company","experience","location",
                   "salary_min","salary_max","skills","notes",
                 ],
                 additionalProperties: false,
@@ -114,11 +127,13 @@ type Run = {
   duplicates_merged: number;
   failures: number;
   failure_log: unknown;
+  skipped_non_resume?: number | null;
 };
 
 export type BatchResult = {
   done: boolean;
   scanned: number;
+  skipped: number;
   newPeople: { id: string; name: string; email: string | null }[];
 };
 
@@ -140,6 +155,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   let peopleFound = 0;
   let enriched = 0;
   let merged = 0;
+  let skipped = 0;
 
   for (const ref of page.messages) {
     scanned++;
@@ -153,13 +169,31 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       if (dupe) continue;
 
       const msg = await getMessage(accessToken, ref.id);
-      const attachments = findResumeAttachments(msg);
-      if (attachments.length === 0) continue;
-      resumeEmails++;
+      const allAttachments = findResumeAttachments(msg);
+      if (allAttachments.length === 0) continue;
 
       const from = parseAddress(header(msg, "From"));
+      const subjectRaw = header(msg, "Subject");
+
+      // Layer 2 — header/filename heuristics, before downloading anything.
+      const gate = messageLooksLikeResumeEmail({
+        fromEmail: from.email,
+        subject: subjectRaw,
+        attachments: allAttachments,
+      });
+      if (!gate.keep) {
+        skipped++;
+        continue;
+      }
+      const attachments = preferResumeAttachments(allAttachments);
+      if (attachments.length === 0) {
+        skipped++;
+        continue;
+      }
+      resumeEmails++;
+
       const toList = parseAddressList(header(msg, "To"));
-      const subject = header(msg, "Subject");
+      const subject = subjectRaw;
       const sentAt = msg.internalDate
         ? new Date(Number(msg.internalDate)).toISOString()
         : header(msg, "Date")
@@ -171,13 +205,6 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       // Use the first resume attachment for field extraction.
       const primary = attachments[0];
       const bytes = await getAttachmentBytes(accessToken, ref.id, primary.attachmentId);
-      const safe = primary.filename.replace(/[^\w.\-]+/g, "_");
-      const storagePath = `email-archive/${run.user_id}/${ref.id}-${safe}`;
-      const up = await supabaseAdmin.storage
-        .from("documents")
-        .upload(storagePath, bytes, { upsert: true, contentType: primary.mimeType ?? undefined });
-      if (up.error) throw new Error(up.error.message);
-
       const { extractCvText } = await import("./cv-parse.server");
       let text = "";
       try {
@@ -185,14 +212,38 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       } catch {
         text = "";
       }
+
+      // Layer 3 — content gate. Don't create people from non-resume documents.
+      if (!textLooksLikeResume(text)) {
+        skipped++;
+        continue;
+      }
       const ex = await aiExtract(text);
+      if (ex.is_resume === false) {
+        skipped++;
+        continue;
+      }
+      const exName = clean(ex.name);
+      const exEmail = clean(ex.email);
+      const exSkills = (ex.skills ?? []).map((s) => clean(s)).filter((s): s is string => !!s);
+      if (!exName && !exEmail && exSkills.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      const safe = primary.filename.replace(/[^\w.\-]+/g, "_");
+      const storagePath = `email-archive/${run.user_id}/${ref.id}-${safe}`;
+      const up = await supabaseAdmin.storage
+        .from("documents")
+        .upload(storagePath, bytes, { upsert: true, contentType: primary.mimeType ?? undefined });
+      if (up.error) throw new Error(up.error.message);
 
       const email =
-        (ex.email ?? "").trim().toLowerCase() ||
+        (exEmail ?? "").toLowerCase() ||
         (direction === "inbound" ? from.email : toList[0]) ||
         null;
-      const phoneDigits = digits(ex.phone);
-      const name = (ex.name ?? "").trim() || from.name || niceName(primary.filename, email);
+      const phoneDigits = digits(clean(ex.phone));
+      const name = exName || from.name || niceName(primary.filename, email);
 
       // Dedup inside the archive on email or phone.
       type Person = { id: string; skills: string[] | null; resume_count: number; email_count: number };
@@ -216,8 +267,14 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         person = (data as Person | null) ?? null;
       }
 
-      const skills = (ex.skills ?? []).map((s) => s.trim()).filter(Boolean).slice(0, 30);
-      const blob = [name, email, ex.role, ex.current_company, ex.location, skills.join(" "), subject, text.slice(0, 8000)]
+      const skills = exSkills.slice(0, 30);
+      const exRole = clean(ex.role);
+      const exCompany = clean(ex.current_company);
+      const exLocation = clean(ex.location);
+      const exExperience = clean(ex.experience);
+      const exNotes = clean(ex.notes);
+      const exPhone = clean(ex.phone);
+      const blob = [name, email, exRole, exCompany, exLocation, skills.join(" "), subject, text.slice(0, 8000)]
         .filter(Boolean)
         .join(" \n ");
 
@@ -230,15 +287,15 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .update({
             name,
             email: email ?? undefined,
-            phone: ex.phone ?? undefined,
+            phone: exPhone ?? undefined,
             phone_digits: phoneDigits ?? undefined,
-            location: ex.location ?? undefined,
-            role: ex.role ?? undefined,
-            current_company: ex.current_company ?? undefined,
-            experience: ex.experience ?? undefined,
+            location: exLocation ?? undefined,
+            role: exRole ?? undefined,
+            current_company: exCompany ?? undefined,
+            experience: exExperience ?? undefined,
             salary_min: ex.salary_min ?? undefined,
             salary_max: ex.salary_max ?? undefined,
-            notes: ex.notes ?? undefined,
+            notes: exNotes ?? undefined,
             skills: mergedSkills,
             resume_count: (person.resume_count ?? 0) + 1,
             email_count: (person.email_count ?? 0) + 1,
@@ -254,15 +311,15 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
             user_id: run.user_id,
             name,
             email,
-            phone: ex.phone ?? null,
+            phone: exPhone,
             phone_digits: phoneDigits,
-            location: ex.location ?? null,
-            role: ex.role ?? null,
-            current_company: ex.current_company ?? null,
-            experience: ex.experience ?? null,
+            location: exLocation,
+            role: exRole,
+            current_company: exCompany,
+            experience: exExperience,
             salary_min: ex.salary_min ?? null,
             salary_max: ex.salary_max ?? null,
-            notes: ex.notes ?? null,
+            notes: exNotes,
             skills,
             resume_count: 1,
             email_count: 1,
@@ -344,11 +401,12 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       people_enriched: run.people_enriched + enriched,
       duplicates_merged: run.duplicates_merged + merged,
       failures: run.failures + failures.length,
+      skipped_non_resume: (run.skipped_non_resume ?? 0) + skipped,
       failure_log: [...prevLog, ...failures].slice(-50),
       status: done ? "completed" : "running",
       finished_at: done ? new Date().toISOString() : null,
     })
     .eq("id", run.id);
 
-  return { done, scanned, newPeople };
+  return { done, scanned, skipped, newPeople };
 }

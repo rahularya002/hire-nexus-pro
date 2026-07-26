@@ -15,6 +15,7 @@ export type ImportRun = {
   people_enriched: number;
   duplicates_merged: number;
   failures: number;
+  skipped_non_resume: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -130,7 +131,7 @@ export const processImportBatch = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!run) throw new Error("Import run not found");
-    if (run.status !== "running") return { done: true, scanned: 0, newPeople: [] };
+    if (run.status !== "running") return { done: true, scanned: 0, skipped: 0, newPeople: [] };
 
     const { getValidAccessToken } = await import("./google-calendar.server");
     const conn = await getValidAccessToken(context.userId);
@@ -158,7 +159,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -357,3 +358,44 @@ export const promoteArchivePerson = createServerFn({ method: "POST" })
 
     return { candidateId: created!.id as string, alreadyPromoted: false };
   });
+
+/** Re-score already-imported archive rows and delete obvious non-candidates. */
+export const cleanNonCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_candidates")
+      .select("id,name,email,skills,role,notes,promoted_candidate_id")
+      .limit(2000);
+    if (error) throw new Error(error.message);
+
+    const { senderLooksAutomated } = await import("./gmail.server");
+    const isNoise = (r: {
+      name: string | null;
+      email: string | null;
+      skills: string[] | null;
+      role: string | null;
+      notes: string | null;
+      promoted_candidate_id: string | null;
+    }) => {
+      if (r.promoted_candidate_id) return false;
+      if (senderLooksAutomated(r.email)) return true;
+      const hasSignal =
+        (r.skills?.length ?? 0) > 0 ||
+        !!(r.role && !/^null$/i.test(r.role)) ||
+        !!(r.notes && !/^null$/i.test(r.notes));
+      if (!hasSignal) return true;
+      return false;
+    };
+
+    const doomed = (rows ?? []).filter((r) => isNoise(r as never)).map((r) => r.id as string);
+    if (doomed.length === 0) return { removed: 0 };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
+    await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
+    const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
+    if (dErr) throw new Error(dErr.message);
+    return { removed: doomed.length };
+  });
+

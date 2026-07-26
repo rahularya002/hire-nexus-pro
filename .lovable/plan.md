@@ -1,75 +1,48 @@
-## Email Candidate Intelligence (Gmail, per recruiter)
+## Problem
 
-Turn each recruiter's Gmail history into a **separate** searchable talent archive. It lives in its own section — the existing candidate database is untouched. Only emails carrying a resume/CV are imported.
+The Gmail import treats **any email with a PDF/DOC attachment** as a candidate email. That's why bank/exchange alerts (Paytm statements, `nse_alerts@nse.co.in`, `info@bseindia.in`) land in the archive as "people", and why one card shows `null · null` — the AI extraction returned nothing, but the record was created anyway.
 
-### 1. Connect the mailbox (reuse existing Google connection)
+Three gaps cause this:
 
-The app already has per-recruiter Google OAuth with refresh tokens (used for Calendar). Extend it:
-- Add read-only Gmail permission to the consent screen; existing users get a "Reconnect to enable email import" prompt.
-- An **Email import** card in Settings shows connection state, last scan, and counts.
+1. `findResumeAttachments` in `src/lib/gmail.server.ts` accepts every `.pdf/.docx/.doc/.txt` attachment with no filename or content check.
+2. The Gmail query is only `has:attachment (filename:pdf OR doc OR docx)` — no sender exclusions for automated senders.
+3. `processRunBatch` in `src/lib/email-import.server.ts` inserts a person even when extraction produces no name/email/skills, and writes literal `null` strings into the card.
 
-### 2. New section: "Email Archive"
+## Fix: three-layer filter
 
-A new nav entry with three views:
-- **Import** — setup + live progress
-- **Candidates** — the archive of people discovered from email
-- **Profile** — one archived person with their full email/resume history
+**Layer 1 — Query-level exclusions (cheap, before download)**
 
-Nothing here writes into the main candidate database. A per-record **"Add to candidate database"** action exists so a recruiter can promote someone deliberately (and only then).
+Extend `buildQuery` with default noise exclusions applied on top of the user's own exclusion list:
+- `-from:noreply -from:no-reply -from:donotreply -from:alerts -from:notifications -from:statements -from:billing -from:support`
+- `-category:promotions -category:social -category:updates -label:spam`
 
-### 3. Import setup
+Applied as defaults, still overridable by the run config.
 
-Before scanning, the recruiter picks:
-- Date range (6 / 12 / 24 months, or custom)
-- Gmail labels/folders to include (fetched live from their mailbox)
-- Optional sender/domain exclusions
+**Layer 2 — Attachment + subject heuristics (no AI cost)**
 
-### 4. Scan + extract (background, resumable)
+Before spending an attachment download, score the message:
+- Reject attachment filenames matching statement/invoice/report noise: `statement`, `invoice`, `receipt`, `bill`, `txn`, `transaction`, `policy`, `ticket`, `bank`, `contract note`, `holding`, `nse`, `bse`, `passbook`, `salary slip`, `payslip`.
+- Boost filenames matching `resume`, `cv`, `curriculum`, `profile`, `naukri`, `linkedin`, or a `Firstname_Lastname` shape.
+- Reject known automated sender domains/locals: `nse.co.in`, `bseindia`, `paytm`, `hdfcbank`, `icici`, `sbi`, `zerodha`, plus any local part in `alerts|noreply|no-reply|donotreply|statements|updates|info@`.
+- Skip messages where the sender is a machine AND no filename resume signal exists.
 
-Only messages with a PDF/DOC/DOCX attachment in the chosen range/labels are processed. For each:
-1. Store the resume file in the private `documents` bucket.
-2. Extract text with the existing PDF/DOCX parser.
-3. AI-extract name, email, phone, location, experience, salary, skills.
-4. Attach the email (subject, snippet, date, direction, participants) as a timeline event.
+**Layer 3 — Content gate before creating a person**
 
-Runs in batches with progress persisted, so it survives refreshes and can be paused/resumed.
+After text extraction, require the document to look like a resume before inserting:
+- Text length ≥ ~400 chars, and at least 2 resume section markers (`experience`, `education`, `skills`, `projects`, `certification`, `objective`, `work history`, `employment`).
+- Then run AI extraction with an added `is_resume` boolean field in the tool schema; the model explicitly classifies "is this a candidate resume/CV, not a statement/invoice/newsletter?".
+- If `is_resume` is false, or the extraction produces no name **and** no email **and** no skills, record the message as scanned/skipped (increment a `skipped` counter) and **do not** create an `email_candidates` row or a resume version.
 
-### 5. Progress screen
+## Display cleanup
 
-Live counts: emails scanned, resume emails found, people discovered, records enriched, duplicates merged, failures — plus a running list of newly found people and a review-failures list.
+In `src/routes/email-archive.tsx`, stop rendering literal `null` — the company/role/location line should only render segments that have real values, and hide the whole line when all are empty.
 
-### 6. Dedup (within the archive only)
+## Cleanup of already-imported noise
 
-Auto-merge on matching email or phone **inside the archive**. Same person across many emails = one archive record with multiple resume versions and a longer timeline. Name-only matches stay separate.
+Add a **"Remove non-candidates"** action on the Email Archive page (agency-scoped, admin-visible) that re-scores existing `email_candidates` rows against the same heuristics and deletes the ones that fail, along with their messages and resume versions. This lets you clear the Paytm/NSE/BSE rows already in the archive without a fresh import.
 
-### 7. Archived-person profile
+## Technical notes
 
-Newest-first history:
-- Resume versions (date, source email, download, "latest" marker)
-- Email interactions (subject, date, recruiter, direction)
-- Detected client/company mentions from the thread
-
-Answers "have we worked with them before", "who talked to them", "when was the resume last updated", "how many resume versions".
-
-### 8. Search
-
-Full-text search across resume text and email subjects/snippets, plus filters for skills, location, last-contacted date, and recruiter. Searching "python" returns everyone whose imported CV or email history mentions it, with a match-source chip and one-click CV open.
-
-### 9. Keeping it current
-
-After the backfill, a lightweight periodic check picks up new resume-bearing emails and appends to the same archive records automatically.
-
-### Out of scope
-- Outlook mailboxes
-- Emails without attachments
-- Any automatic write into the main candidate database
-
----
-
-### Technical notes
-
-- **Auth**: add `gmail.readonly` to the existing Google OAuth scope string; reuse `google_calendar_connections` and prompt re-consent when stored scopes lack Gmail.
-- **New tables** (all separate from `candidates`, agency/user scoped, RLS + GRANTs): `email_import_runs` (status, range, labels, counters, cursor), `email_messages` (gmail message/thread id, subject, participants, date, archive_person_id, unique per user+message), `email_candidates` (the archive record: name, email, phone, location, skills, last_seen_at, promoted_candidate_id), `email_resume_versions` (archive_person_id, storage path, source message, extracted text).
-- **Server fns** in `src/lib/email-import.functions.ts`: `listGmailLabels`, `startImportRun`, `processImportBatch` (~20 messages/batch, looped from the client to stay within Worker limits), `getImportProgress`, `cancelImportRun`, `promoteToCandidate`.
-- **Extraction** reuses `src/lib/cv-parse.server.ts` and the existing CV-import AI prompt.
-- **Search**: Postgres full-text index over resume text + email subjects, scoped to the archive tables.
+- Files touched: `src/lib/gmail.server.ts` (query defaults, attachment scoring), `src/lib/email-import.server.ts` (content gate, `is_resume` in the AI tool schema, skip accounting), `src/lib/email-import.functions.ts` (cleanup server fn), `src/routes/email-archive.tsx` (null-safe rendering, cleanup button, skipped-count tile).
+- Migration: add a `skipped_non_resume` integer column to `email_import_runs` so the progress panel can show "X skipped as non-resume".
+- No change to dedup logic or the promotion-to-main-DB flow.
