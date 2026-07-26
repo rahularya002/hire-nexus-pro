@@ -228,6 +228,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
         location: z.string().max(120).optional(),
         contactedWithinDays: z.number().int().positive().max(3650).nullable().optional(),
         mine: z.boolean().optional(),
+        reviewStatus: z.enum(["imported", "needs_review", "rejected", "all"]).optional(),
       })
       .partial()
       .parse(d ?? {}),
@@ -241,6 +242,8 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
 
+    const rs = data.reviewStatus ?? "imported";
+    if (rs !== "all") q = q.eq("review_status", rs);
     if (data.mine) q = q.eq("user_id", context.userId);
     if (data.search?.trim()) {
       const s = data.search.trim().replace(/[%,]/g, " ");
