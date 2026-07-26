@@ -133,6 +133,7 @@ type Run = {
 export type BatchResult = {
   done: boolean;
   scanned: number;
+  skipped: number;
   newPeople: { id: string; name: string; email: string | null }[];
 };
 
@@ -407,5 +408,5 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
     })
     .eq("id", run.id);
 
-  return { done, scanned, newPeople };
+  return { done, scanned, skipped, newPeople };
 }
