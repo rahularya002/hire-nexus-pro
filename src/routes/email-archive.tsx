@@ -209,6 +209,17 @@ function Page() {
 
   const gmailReady = !!conn.data?.connected && labels.data?.gmail !== false;
 
+  const cleanMut = useMutation({
+    mutationFn: () => cleanup(),
+    onSuccess: (r) => {
+      toast.success(
+        r.removed === 0 ? "No non-candidate records found." : `Removed ${r.removed} non-candidate record${r.removed === 1 ? "" : "s"}.`,
+      );
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Cleanup failed"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -222,6 +233,16 @@ function Page() {
           </p>
         </div>
         <div className="flex gap-2 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-center"
+            onClick={() => cleanMut.mutate()}
+            disabled={cleanMut.isPending}
+          >
+            {cleanMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+            Remove non-candidates
+          </Button>
           {[
             { label: "People in archive", value: stats.people },
             { label: "Resumes", value: stats.resumes },
@@ -262,7 +283,7 @@ function Page() {
               {running ? <Loader2 className="size-4 animate-spin text-primary" /> : <Pause className="size-4" />}
               {running ? "Importing from" : "Import paused —"} {run?.google_email}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               {[
                 ["Emails scanned", run?.emails_scanned ?? 0],
                 ["Resume emails", run?.resume_emails ?? 0],
