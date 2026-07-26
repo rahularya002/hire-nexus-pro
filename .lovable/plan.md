@@ -1,48 +1,73 @@
-## Problem
+## What's wrong today
 
-The Gmail import treats **any email with a PDF/DOC attachment** as a candidate email. That's why bank/exchange alerts (Paytm statements, `nse_alerts@nse.co.in`, `info@bseindia.in`) land in the archive as "people", and why one card shows `null · null` — the AI extraction returned nothing, but the record was created anyway.
+The import pipeline decides "is this a candidate?" almost entirely from the attachment. Verified in the current code:
 
-Three gaps cause this:
+- `buildQuery` (src/lib/gmail.server.ts) searches `has:attachment (filename:pdf OR doc OR docx)` plus a fixed blocklist of noisy senders — anything not on the blocklist gets in.
+- `processRunBatch` (src/lib/email-import.server.ts) gates on filename regexes, then `textLooksLikeResume` (length ≥ 400 + 2 section words), then a single AI `is_resume` boolean. It never looks at the email body, the recipient, or the thread.
+- The outcome is binary: a person row is created, or the message is silently counted in `skipped_non_resume`. There is nothing to review, and no score anywhere — `email_candidates` has no confidence/status column today.
 
-1. `findResumeAttachments` in `src/lib/gmail.server.ts` accepts every `.pdf/.docx/.doc/.txt` attachment with no filename or content check.
-2. The Gmail query is only `has:attachment (filename:pdf OR doc OR docx)` — no sender exclusions for automated senders.
-3. `processRunBatch` in `src/lib/email-import.server.ts` inserts a person even when extraction produces no name/email/skills, and writes literal `null` strings into the card.
+So a Paytm/NSE statement whose PDF happens to contain "portfolio", "balance", "career" style words can still pass, and a genuine recruiter forward with a weirdly-named attachment can be silently dropped with no trace.
 
-## Fix: three-layer filter
+## The new model: score, then act
 
-**Layer 1 — Query-level exclusions (cheap, before download)**
+Every message gets a **recruitment confidence score (0–100)** built from many signals, then routed by threshold:
 
-Extend `buildQuery` with default noise exclusions applied on top of the user's own exclusion list:
-- `-from:noreply -from:no-reply -from:donotreply -from:alerts -from:notifications -from:statements -from:billing -from:support`
-- `-category:promotions -category:social -category:updates -label:spam`
+```text
+score >= 80   ->  imported      "94% Recruitment Email  ✓"
+45 - 79       ->  needs review  "61% Recruitment Email  Needs review"
+< 45          ->  skipped       "12% Recruitment Email  Skipped"   (kept as an audit row, no candidate)
+```
 
-Applied as defaults, still overridable by the run config.
+Nothing below 80 ever creates a candidate record automatically.
 
-**Layer 2 — Attachment + subject heuristics (no AI cost)**
+### Signals used (new `src/lib/recruitment-classify.server.ts`)
 
-Before spending an attachment download, score the message:
-- Reject attachment filenames matching statement/invoice/report noise: `statement`, `invoice`, `receipt`, `bill`, `txn`, `transaction`, `policy`, `ticket`, `bank`, `contract note`, `holding`, `nse`, `bse`, `passbook`, `salary slip`, `payslip`.
-- Boost filenames matching `resume`, `cv`, `curriculum`, `profile`, `naukri`, `linkedin`, or a `Firstname_Lastname` shape.
-- Reject known automated sender domains/locals: `nse.co.in`, `bseindia`, `paytm`, `hdfcbank`, `icici`, `sbi`, `zerodha`, plus any local part in `alerts|noreply|no-reply|donotreply|statements|updates|info@`.
-- Skip messages where the sender is a machine AND no filename resume signal exists.
+Cheap heuristics first (no AI cost), producing a pre-score plus a hard-block for obvious noise:
 
-**Layer 3 — Content gate before creating a person**
+- **Sender**: automated local parts / known transactional domains (existing regexes) vs. job-board and ATS domains (naukri, linkedin, indeed, monster, hirist, cutshort, instahyre, workday, greenhouse, lever, zoho recruit) and free-mail senders writing personally.
+- **Recipient**: message addressed *to* the recruiter's own mailbox vs. bulk/undisclosed recipients.
+- **Subject**: recruitment vocabulary (resume, cv, profile, candidate, applying, application for, interview, shortlist, JD, notice period, CTC, opening, position) vs. transactional vocabulary (statement, invoice, receipt, OTP, order, ticket, itinerary, tax, bill).
+- **Body text**: new `getBodyText()` helper in gmail.server.ts to decode `text/plain` / stripped `text/html` parts — currently the body is never read at all. Scored for candidate-submission phrasing, contact blocks, notice period / CTC / experience mentions.
+- **Attachment names**: existing resume vs. noise filename regexes, plus `Firstname_Lastname` shape.
+- **Thread context**: if the Gmail thread already produced an archived person for this user, the thread is treated as recruitment (recruiter↔candidate conversations, interview scheduling, follow-ups).
+- **Document text**: extracted CV text — section markers, contact details, chronology of employers/dates.
 
-After text extraction, require the document to look like a resume before inserting:
-- Text length ≥ ~400 chars, and at least 2 resume section markers (`experience`, `education`, `skills`, `projects`, `certification`, `objective`, `work history`, `employment`).
-- Then run AI extraction with an added `is_resume` boolean field in the tool schema; the model explicitly classifies "is this a candidate resume/CV, not a statement/invoice/newsletter?".
-- If `is_resume` is false, or the extraction produces no name **and** no email **and** no skills, record the message as scanned/skipped (increment a `skipped` counter) and **do not** create an `email_candidates` row or a resume version.
+Then a single AI pass (Lovable AI, Gemini 2.5 Flash) receives the *whole context* — sender, recipients, subject, body excerpt, attachment filenames, thread hint, and the document excerpt — and returns via tool call:
 
-## Display cleanup
+- `is_recruitment` (boolean)
+- `confidence` (0–100)
+- `email_kind` (`candidate_submission` | `resume_forward` | `job_application` | `interview_scheduling` | `recruiter_conversation` | `job_alert` | `bank_statement` | `invoice_receipt` | `travel` | `order_shipping` | `newsletter_promo` | `otp_security` | `other`)
+- `reason` (one short sentence)
+- plus the existing candidate fields (name, email, phone, role, company, experience, location, salary, skills, notes)
 
-In `src/routes/email-archive.tsx`, stop rendering literal `null` — the company/role/location line should only render segments that have real values, and hide the whole line when all are empty.
+Final score = AI confidence adjusted by the heuristic pre-score (heuristic hard-blocks cap the score, strong heuristic evidence lifts a borderline AI answer). `email_kind` in any non-recruitment category caps the score below the skip threshold regardless of what the AI says about confidence.
 
-## Cleanup of already-imported noise
+### Scope change so non-attachment recruitment mail is seen
 
-Add a **"Remove non-candidates"** action on the Email Archive page (agency-scoped, admin-visible) that re-scores existing `email_candidates` rows against the same heuristics and deletes the ones that fail, along with their messages and resume versions. This lets you clear the Paytm/NSE/BSE rows already in the archive without a fresh import.
+The Gmail query becomes a union: attachment-bearing mail **or** mail matching recruitment keywords without an attachment. Attachment-free recruitment mail (interview scheduling, recruiter replies) never creates a person — it is only appended to the timeline of a person already in the archive from the same thread or sender. This gives real conversation history without opening a new false-positive path.
+
+## Review queue and audit trail
+
+- `email_candidates` gains `confidence`, `review_status` (`imported` | `needs_review` | `rejected`), `email_kind`, `classification_reason`, `signals` (jsonb).
+- New `email_import_skips` table stores every non-imported decision: gmail message id + thread id, sender, subject, snippet, attachment names, score, kind, reason, and its own status (`needs_review` | `skipped` | `rescued`). Review-band messages store their extracted fields as a pending payload so approval is one click and needs no re-download.
+- The archive list gets tabs: **People** (imported), **Needs review** (45–79 band), **Skipped** (audit log, searchable, with a "This is a candidate" rescue action that converts the pending payload into a person).
+- Existing `listEmailCandidates` filters to `review_status = 'imported'` so today's People view stays clean.
+
+## UI: confidence everywhere
+
+- Each card and each review row shows the score chip in place of the current plain badge: `94% Recruitment Email ✓` (green), `61% Recruitment Email · Needs review` (amber), `12% Recruitment Email · Skipped` (muted), with the AI's one-line reason as tooltip/subtext.
+- Import progress tiles become: Emails scanned · Imported · Needs review · Skipped · Duplicates merged · Failures, with the review tile linking to the review tab.
+- The detail sheet shows the classification block (score, kind, reason, top signals) above the timeline.
+
+## Backfill for existing rows
+
+The **Remove non-candidates** button becomes **Re-score archive**: it re-runs the classifier over existing `email_candidates` using stored resume text, subject and sender, writes a confidence to each, moves the 45–79 band to Needs review and the <45 band to Rejected (kept, not deleted, so nothing is lost by mistake), with a separate explicit "Delete rejected" action.
 
 ## Technical notes
 
-- Files touched: `src/lib/gmail.server.ts` (query defaults, attachment scoring), `src/lib/email-import.server.ts` (content gate, `is_resume` in the AI tool schema, skip accounting), `src/lib/email-import.functions.ts` (cleanup server fn), `src/routes/email-archive.tsx` (null-safe rendering, cleanup button, skipped-count tile).
-- Migration: add a `skipped_non_resume` integer column to `email_import_runs` so the progress panel can show "X skipped as non-resume".
-- No change to dedup logic or the promotion-to-main-DB flow.
+- New file: `src/lib/recruitment-classify.server.ts` (heuristic signal scoring + AI classification call + score fusion + thresholds).
+- `src/lib/gmail.server.ts`: add `getBodyText()`, recruitment-positive sender/subject vocabularies, keyword branch in `buildQuery`, keep existing noise regexes as signal inputs rather than hard gates.
+- `src/lib/email-import.server.ts`: replace the three hard gates with one classify-then-route step; write imported / review / skip rows accordingly; keep dedup, storage upload and resume-version logic unchanged.
+- `src/lib/email-import.functions.ts`: `listReviewItems`, `approveReviewItem`, `rejectReviewItem`, `rescoreArchive`, `deleteRejected`; progress type extended.
+- `src/routes/email-archive.tsx`: tabs, confidence chips, review actions, updated tiles.
+- One migration: new columns on `email_candidates`, `needs_review`/`skipped` counters on `email_import_runs`, and the `email_import_skips` table with GRANTs and agency-scoped RLS matching the existing archive tables.
