@@ -449,15 +449,15 @@ function Page() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                    {p.role && (
+                    {txt(p.role) && (
                       <span className="inline-flex items-center gap-1 truncate">
-                        <Building2 className="size-3" /> {p.role}
-                        {p.current_company ? ` · ${p.current_company}` : ""}
+                        <Building2 className="size-3" /> {txt(p.role)}
+                        {txt(p.current_company) ? ` · ${txt(p.current_company)}` : ""}
                       </span>
                     )}
-                    {p.location && (
+                    {txt(p.location) && (
                       <span className="inline-flex items-center gap-1">
-                        <MapPin className="size-3" /> {p.location}
+                        <MapPin className="size-3" /> {txt(p.location)}
                       </span>
                     )}
                     {lpa(p.salary_min, p.salary_max) && <span>{lpa(p.salary_min, p.salary_max)}</span>}
@@ -522,7 +522,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
         <SheetHeader>
           <SheetTitle>{p?.name}</SheetTitle>
           <SheetDescription>
-            {p?.email ?? "No email"} {p?.phone ? `· ${p.phone}` : ""}
+            {txt(p?.email) ?? "No email"} {txt(p?.phone) ? `· ${txt(p?.phone)}` : ""}
           </SheetDescription>
         </SheetHeader>
 
@@ -551,7 +551,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
                 {p.email_count} email{p.email_count === 1 ? "" : "s"} · {p.resume_count} resume version
                 {p.resume_count === 1 ? "" : "s"}
               </div>
-              {p.notes && <p className="text-xs">{p.notes}</p>}
+              {txt(p.notes) && <p className="text-xs">{txt(p.notes)}</p>}
               {p.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1">
                   {p.skills.map((s) => (
