@@ -464,6 +464,101 @@ function Page() {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
+        {(
+          [
+            ["archive", "Archive"],
+            ["needs_review", `Needs review${run?.needs_review ? ` (${run.needs_review})` : ""}`],
+            ["skipped", "Skipped"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
+              tab === key ? "bg-secondary font-medium" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== "archive" ? (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {tab === "needs_review"
+              ? "Borderline emails the AI wasn't confident about. Confirm the ones that really are recruitment."
+              : "Emails the AI judged to be non-recruitment. Nothing here was added to the archive."}
+          </p>
+          {reviewQ.isLoading ? (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> Loading…
+            </div>
+          ) : (reviewQ.data ?? []).length === 0 ? (
+            <EmptyState
+              icon={ShieldQuestion}
+              title={tab === "needs_review" ? "Nothing waiting for review" : "Nothing skipped yet"}
+              description="Run an import and the AI will route uncertain emails here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {(reviewQ.data as ReviewItem[]).map((r) => (
+                <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <ConfidenceBadge
+                          score={r.confidence}
+                          state={tab === "needs_review" ? "needs_review" : "skipped"}
+                        />
+                        <span className="text-[11px] text-muted-foreground">
+                          {KIND_LABEL[r.email_kind ?? "other"] ?? "Other"}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium truncate mt-1">{r.subject ?? "(no subject)"}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {txt(r.from_name) ? `${txt(r.from_name)} · ` : ""}
+                        {r.from_email ?? "unknown sender"} · {fmtDate(r.sent_at)}
+                      </div>
+                      {txt(r.reason) && <p className="text-[11px] text-muted-foreground mt-1">{txt(r.reason)}</p>}
+                      {r.attachment_names.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {r.attachment_names.map((n) => (
+                            <span key={n} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary truncate max-w-[200px]">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => approveMut.mutate(r.id)}
+                        disabled={approveMut.isPending || !r.has_payload}
+                        title={r.has_payload ? "Import this email" : "Re-run the import to recover this email"}
+                      >
+                        <Check className="size-3.5" /> It's recruitment
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => rejectMut.mutate(r.id)}
+                        disabled={rejectMut.isPending}
+                      >
+                        <X className="size-3.5" /> Not recruitment
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="relative flex-1 min-w-[220px]">
@@ -555,6 +650,8 @@ function Page() {
             </button>
           ))}
         </div>
+      )}
+      </>
       )}
 
       <PersonSheet person={selected} onClose={() => setSelected(null)} />
