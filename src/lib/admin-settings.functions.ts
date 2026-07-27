@@ -53,7 +53,7 @@ export const getIntegrationStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
     return {
-      apify: Boolean(process.env.APIFY_API_TOKEN),
+      apify: Boolean(process.env.APIFY_API_KEY && process.env.LOVABLE_API_KEY),
       lovableAi: Boolean(process.env.LOVABLE_API_KEY),
     };
   });
