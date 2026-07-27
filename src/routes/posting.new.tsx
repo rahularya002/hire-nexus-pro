@@ -320,10 +320,13 @@ function NewPost() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, action }: { label: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        {action}
+      </div>
       {children}
     </label>
   );
