@@ -320,11 +320,11 @@ function Page() {
   );
 }
 
-function Field({ label, placeholder, type = "text", full, required, value, onChange }: { label: string; placeholder: string; type?: string; full?: boolean; required?: boolean; value: string; onChange: (v: string) => void }) {
+function Field({ label, placeholder, type = "text", full, required, value, onChange, onBlur }: { label: string; placeholder: string; type?: string; full?: boolean; required?: boolean; value: string; onChange: (v: string) => void; onBlur?: () => void }) {
   return (
     <div className={full ? "sm:col-span-2" : ""}>
       <label className="text-xs font-medium">{label} {required && <span className="text-destructive">*</span>}</label>
-      <input type={type} placeholder={placeholder} required={required} value={value} onChange={(e) => onChange(e.target.value)}
+      <input type={type} placeholder={placeholder} required={required} value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur}
         className="mt-1.5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
     </div>
   );
