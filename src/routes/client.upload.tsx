@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import { extractJdWithAi } from "@/lib/jd-extract.functions";
 import { NumberInput } from "@/components/ui/number-input";
+import { useJdAutofill } from "@/hooks/use-jd-autofill";
+import { GenerateDescriptionButton } from "@/components/generate-description-button";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({
@@ -44,6 +46,18 @@ function Page() {
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const jd = useJdAutofill({
+    title: form.jobTitle,
+    description: form.jd,
+    setDescription: (v) => set("jd", v),
+    context: {
+      location: form.location,
+      experience: form.experience,
+      salary: form.salary ? `${form.salary} (${currency})` : null,
+      skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
+    },
+  });
 
   async function handleFile(f: File | null) {
     if (!f) return;
@@ -268,7 +282,7 @@ function Page() {
             <span className="ml-auto text-xs text-muted-foreground">Auto-saved</span>
           </div>
           <div className="p-5 grid sm:grid-cols-2 gap-4">
-            <Field label="Job title" placeholder="e.g. Head of E-commerce" full required value={form.jobTitle} onChange={(v) => set("jobTitle", v)} />
+            <Field label="Job title" placeholder="e.g. Head of E-commerce" full required value={form.jobTitle} onChange={(v) => set("jobTitle", v)} onBlur={jd.onTitleBlur} />
             <Field label="Location" placeholder="Mumbai, Bengaluru..." value={form.location} onChange={(v) => set("location", v)} />
             <Field label="Experience required" placeholder="e.g. 10-15 years" value={form.experience} onChange={(v) => set("experience", v)} />
             <SalaryField currency={currency} onCurrencyChange={setCurrency} value={form.salary} onChange={(v) => set("salary", v)} />
@@ -279,7 +293,15 @@ function Page() {
               value={form.recruitmentModel}
               onChange={(v) => set("recruitmentModel", v)}
             />
-            <Textarea label="Job description" placeholder="Describe the role, responsibilities and ideal candidate..." value={form.jd} onChange={(v) => set("jd", v)} />
+            <Textarea
+              label="Job description"
+              placeholder="Describe the role, responsibilities and ideal candidate..."
+              value={form.jd}
+              onChange={(v) => set("jd", v)}
+              action={
+                <GenerateDescriptionButton onClick={jd.generate} loading={jd.generating} hasDescription={!!form.jd.trim()} />
+              }
+            />
           </div>
         </div>
 
