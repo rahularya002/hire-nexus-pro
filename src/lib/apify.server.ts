@@ -497,7 +497,7 @@ export async function enrichEmails(profiles: NormalizedProfile[], limit = 20): P
           return;
         }
         // Fallback: Apify contact-info-scraper on the profile URL
-        if (p.profile_url && process.env.APIFY_API_TOKEN) {
+        if (p.profile_url && process.env.APIFY_API_KEY) {
           const actor = process.env.APIFY_EMAIL_FINDER_ACTOR ?? "vdrmota~contact-info-scraper";
           const items = await callApifyActor(actor, {
             startUrls: [{ url: p.profile_url }],
