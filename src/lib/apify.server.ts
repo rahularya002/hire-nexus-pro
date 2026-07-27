@@ -118,16 +118,23 @@ export async function callApifyActor(
   input: Record<string, unknown>,
   opts: { timeoutMs?: number } = {},
 ): Promise<unknown[]> {
-  const token = process.env.APIFY_API_TOKEN;
-  if (!token) throw new Error("APIFY_API_TOKEN is not configured");
+  // Apify is reached through the Lovable connector gateway (base already includes /v2).
+  const lovableApiKey = process.env.LOVABLE_API_KEY;
+  if (!lovableApiKey) throw new Error("LOVABLE_API_KEY is not configured");
+  const connectionApiKey = process.env.APIFY_API_KEY;
+  if (!connectionApiKey) throw new Error("APIFY_API_KEY is not configured — connect the Apify connector");
 
   // run-sync-get-dataset-items waits for the actor to finish and returns
   // the dataset items in a single call. Good for small batches (<5 min runs).
-  const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${token}&timeout=${Math.floor((opts.timeoutMs ?? 5 * 60_000) / 1000)}`;
+  const url = `https://connector-gateway.lovable.dev/apify/acts/${actorId}/run-sync-get-dataset-items?timeout=${Math.floor((opts.timeoutMs ?? 5 * 60_000) / 1000)}`;
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${lovableApiKey}`,
+      "X-Connection-Api-Key": connectionApiKey,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(input),
   });
 
