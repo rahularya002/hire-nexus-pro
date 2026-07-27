@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { PriorityBadge, StatusBadge, RecruitmentModelBadge } from "@/components/ui-bits";
+import { useJdAutofill } from "@/hooks/use-jd-autofill";
+import { GenerateDescriptionButton } from "@/components/generate-description-button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -175,6 +177,19 @@ function NewPositionDialog({ open, onOpenChange, clients }: { open: boolean; onO
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const jd = useJdAutofill({
+    title,
+    description,
+    setDescription,
+    context: {
+      companyName: clients.find((c) => c.id === clientId)?.name ?? null,
+      location,
+      experience,
+      salary,
+      skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+    },
+  });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!clientId) { toast.error("Select a client"); return; }
@@ -213,7 +228,7 @@ function NewPositionDialog({ open, onOpenChange, clients }: { open: boolean; onO
           <DialogDescription>Create a new open requirement.</DialogDescription>
         </DialogHeader>
         <form className="space-y-3" onSubmit={handleSubmit}>
-          <div className="space-y-1.5"><Label>Title</Label><Input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Senior Frontend Engineer" /></div>
+          <div className="space-y-1.5"><Label>Title</Label><Input required value={title} onChange={(e) => setTitle(e.target.value)} onBlur={jd.onTitleBlur} placeholder="Senior Frontend Engineer" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Client</Label>
@@ -239,7 +254,10 @@ function NewPositionDialog({ open, onOpenChange, clients }: { open: boolean; onO
           </div>
           <div className="space-y-1.5"><Label>Skills (comma-separated)</Label><Input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, TypeScript, Design Systems" /></div>
           <div className="space-y-1.5">
-            <Label>Description</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Description</Label>
+              <GenerateDescriptionButton onClick={jd.generate} loading={jd.generating} hasDescription={!!description.trim()} />
+            </div>
             <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the role entails…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
           </div>
           <DialogFooter>

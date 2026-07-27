@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { parseJdFile, extractFieldsFromJd } from "@/lib/parse-jd";
 import { extractJdWithAi } from "@/lib/jd-extract.functions";
 import { NumberInput } from "@/components/ui/number-input";
+import { useJdAutofill } from "@/hooks/use-jd-autofill";
+import { GenerateDescriptionButton } from "@/components/generate-description-button";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/client/upload")({
@@ -44,6 +46,18 @@ function Page() {
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const jd = useJdAutofill({
+    title: form.jobTitle,
+    description: form.jd,
+    setDescription: (v) => set("jd", v),
+    context: {
+      location: form.location,
+      experience: form.experience,
+      salary: form.salary ? `${form.salary} (${currency})` : null,
+      skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
+    },
+  });
 
   async function handleFile(f: File | null) {
     if (!f) return;
@@ -268,7 +282,7 @@ function Page() {
             <span className="ml-auto text-xs text-muted-foreground">Auto-saved</span>
           </div>
           <div className="p-5 grid sm:grid-cols-2 gap-4">
-            <Field label="Job title" placeholder="e.g. Head of E-commerce" full required value={form.jobTitle} onChange={(v) => set("jobTitle", v)} />
+            <Field label="Job title" placeholder="e.g. Head of E-commerce" full required value={form.jobTitle} onChange={(v) => set("jobTitle", v)} onBlur={jd.onTitleBlur} />
             <Field label="Location" placeholder="Mumbai, Bengaluru..." value={form.location} onChange={(v) => set("location", v)} />
             <Field label="Experience required" placeholder="e.g. 10-15 years" value={form.experience} onChange={(v) => set("experience", v)} />
             <SalaryField currency={currency} onCurrencyChange={setCurrency} value={form.salary} onChange={(v) => set("salary", v)} />
@@ -279,7 +293,15 @@ function Page() {
               value={form.recruitmentModel}
               onChange={(v) => set("recruitmentModel", v)}
             />
-            <Textarea label="Job description" placeholder="Describe the role, responsibilities and ideal candidate..." value={form.jd} onChange={(v) => set("jd", v)} />
+            <Textarea
+              label="Job description"
+              placeholder="Describe the role, responsibilities and ideal candidate..."
+              value={form.jd}
+              onChange={(v) => set("jd", v)}
+              action={
+                <GenerateDescriptionButton onClick={jd.generate} loading={jd.generating} hasDescription={!!form.jd.trim()} />
+              }
+            />
           </div>
         </div>
 
@@ -298,11 +320,11 @@ function Page() {
   );
 }
 
-function Field({ label, placeholder, type = "text", full, required, value, onChange }: { label: string; placeholder: string; type?: string; full?: boolean; required?: boolean; value: string; onChange: (v: string) => void }) {
+function Field({ label, placeholder, type = "text", full, required, value, onChange, onBlur }: { label: string; placeholder: string; type?: string; full?: boolean; required?: boolean; value: string; onChange: (v: string) => void; onBlur?: () => void }) {
   return (
     <div className={full ? "sm:col-span-2" : ""}>
       <label className="text-xs font-medium">{label} {required && <span className="text-destructive">*</span>}</label>
-      <input type={type} placeholder={placeholder} required={required} value={value} onChange={(e) => onChange(e.target.value)}
+      <input type={type} placeholder={placeholder} required={required} value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur}
         className="mt-1.5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
     </div>
   );
@@ -430,10 +452,13 @@ function RecruitmentModelPicker({
   );
 }
 
-function Textarea({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+function Textarea({ label, placeholder, value, onChange, action }: { label: string; placeholder: string; value: string; onChange: (v: string) => void; action?: React.ReactNode }) {
   return (
     <div className="sm:col-span-2">
-      <label className="text-xs font-medium">{label}</label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-medium">{label}</label>
+        {action}
+      </div>
       <textarea rows={5} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
         className="mt-1.5 w-full rounded-md border border-input bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
     </div>
