@@ -7,6 +7,8 @@ import { Loader2, Megaphone, ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { listPositions } from "@/lib/positions.functions";
 import { createJobPost, publishJobPostChannels, type JobPostChannel } from "@/lib/posting.functions";
+import { useJdAutofill } from "@/hooks/use-jd-autofill";
+import { GenerateDescriptionButton } from "@/components/generate-description-button";
 
 export const Route = createFileRoute("/posting/new")({
   component: () => (
@@ -52,6 +54,20 @@ function NewPost() {
     () => positions.find((p) => p.id === positionId),
     [positions, positionId],
   );
+
+  const jd = useJdAutofill({
+    title,
+    description,
+    setDescription,
+    context: {
+      companyName: selectedPosition?.client?.name ?? null,
+      location,
+      experience,
+      employmentType: employment,
+      salary: compMin || compMax ? `${compMin || "?"}–${compMax || "?"} ${currency === "INR" ? "LPA" : currency}` : null,
+      skills: tags.split(",").map((t) => t.trim()).filter(Boolean),
+    },
+  });
 
   function applyPositionPrefill(id: string) {
     setPositionId(id);
@@ -173,6 +189,7 @@ function NewPost() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={jd.onTitleBlur}
               placeholder="Senior Backend Engineer"
               className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
             />
@@ -239,7 +256,12 @@ function NewPost() {
           </Field>
         </div>
 
-        <Field label="Description">
+        <Field
+          label="Description"
+          action={
+            <GenerateDescriptionButton onClick={jd.generate} loading={jd.generating} hasDescription={!!description.trim()} />
+          }
+        >
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
