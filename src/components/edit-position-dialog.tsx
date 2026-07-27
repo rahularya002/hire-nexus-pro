@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updatePosition, type PositionRow } from "@/lib/positions.functions";
+import { useJdAutofill } from "@/hooks/use-jd-autofill";
+import { GenerateDescriptionButton } from "@/components/generate-description-button";
 
 export function EditPositionDialog({
   open,
@@ -36,6 +38,13 @@ export function EditPositionDialog({
   const [description, setDescription] = useState(position.description ?? "");
   const [skills, setSkills] = useState<string[]>(position.skills ?? []);
   const [skillInput, setSkillInput] = useState("");
+
+  const jd = useJdAutofill({
+    title,
+    description,
+    setDescription,
+    context: { location, experience, salary, skills },
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -99,7 +108,7 @@ export function EditPositionDialog({
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
             <Label htmlFor="ep-title">Title</Label>
-            <Input id="ep-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Senior Backend Engineer" />
+            <Input id="ep-title" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={jd.onTitleBlur} placeholder="Senior Backend Engineer" />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -146,7 +155,10 @@ export function EditPositionDialog({
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="ep-desc">Description</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="ep-desc">Description</Label>
+              <GenerateDescriptionButton onClick={jd.generate} loading={jd.generating} hasDescription={!!description.trim()} />
+            </div>
             <Textarea id="ep-desc" rows={6} value={description} onChange={(e) => setDescription(e.target.value)}
               placeholder="Role responsibilities, must-haves, etc." />
           </div>
