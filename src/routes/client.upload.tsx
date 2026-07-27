@@ -452,10 +452,13 @@ function RecruitmentModelPicker({
   );
 }
 
-function Textarea({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+function Textarea({ label, placeholder, value, onChange, action }: { label: string; placeholder: string; value: string; onChange: (v: string) => void; action?: React.ReactNode }) {
   return (
     <div className="sm:col-span-2">
-      <label className="text-xs font-medium">{label}</label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-medium">{label}</label>
+        {action}
+      </div>
       <textarea rows={5} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
         className="mt-1.5 w-full rounded-md border border-input bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
     </div>
