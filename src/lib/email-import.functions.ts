@@ -598,3 +598,44 @@ export const deleteRejectedArchive = createServerFn({ method: "POST" })
     return { removed: doomed.length };
   });
 
+/** Recruiter override: move an archived person back (or out) of the main archive list. */
+export const setArchiveReviewStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        reviewStatus: z.enum(["imported", "needs_review", "rejected"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_candidates")
+      .update({ review_status: data.reviewStatus })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+const _unusedDeleteRejectedArchive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_candidates")
+      .select("id")
+      .eq("review_status", "rejected")
+      .is("promoted_candidate_id", null)
+      .limit(2000);
+    if (error) throw new Error(error.message);
+    const doomed = (rows ?? []).map((r) => r.id as string);
+    if (doomed.length === 0) return { removed: 0 };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
+    await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
+    const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
+    if (dErr) throw new Error(dErr.message);
+    return { removed: doomed.length };
+  });
+
