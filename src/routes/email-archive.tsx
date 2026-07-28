@@ -44,6 +44,7 @@ import {
   promoteArchivePerson,
   rejectReviewItem,
   resumeImportRun,
+  setArchiveReviewStatus,
   startImportRun,
   type ArchivePerson,
   type ReviewItem,
@@ -157,6 +158,7 @@ function Page() {
   const [recentOnly, setRecentOnly] = useState(false);
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
   const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
+  const [archiveStatus, setArchiveStatus] = useState<"imported" | "needs_review" | "rejected" | "all">("imported");
 
   const conn = useQuery({ queryKey: ["google-connection"], queryFn: () => fetchConn() });
   const labels = useQuery({
@@ -169,7 +171,7 @@ function Page() {
     queryFn: () => fetchProgress(),
   });
   const people = useQuery({
-    queryKey: ["email-archive-people", search, skill, location, recentOnly],
+    queryKey: ["email-archive-people", search, skill, location, recentOnly, archiveStatus],
     queryFn: () =>
       fetchPeople({
         data: {
@@ -177,6 +179,7 @@ function Page() {
           skill: skill.trim() || undefined,
           location: location.trim() || undefined,
           contactedWithinDays: recentOnly ? 90 : null,
+          reviewStatus: archiveStatus,
         },
       }),
   });
@@ -290,7 +293,7 @@ function Page() {
     mutationFn: () => cleanup(),
     onSuccess: (r) => {
       toast.success(
-        `Re-scored ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} kept, ${r.review} need review, ${r.rejected} moved out.`,
+        `Re-scored ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} kept, ${r.review} flagged for review, ${r.rejected} marked low confidence. Nothing was deleted — switch the archive filter to see them.`,
       );
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
@@ -586,6 +589,17 @@ function Page() {
         <Button variant={recentOnly ? "default" : "outline"} onClick={() => setRecentOnly((v) => !v)}>
           Contacted in 90 days
         </Button>
+        <select
+          value={archiveStatus}
+          onChange={(e) => setArchiveStatus(e.target.value as typeof archiveStatus)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Archive confidence filter"
+        >
+          <option value="imported">Confident matches</option>
+          <option value="needs_review">Flagged for review</option>
+          <option value="rejected">Low confidence</option>
+          <option value="all">Everyone</option>
+        </select>
       </div>
 
       {/* People */}
@@ -596,8 +610,12 @@ function Page() {
       ) : rows.length === 0 ? (
         <EmptyState
           icon={Mail}
-          title="Nothing in the archive yet"
-          description="Connect your mailbox and run an import to surface candidates you already know."
+          title={archiveStatus === "imported" ? "Nothing in the archive yet" : "No people with this status"}
+          description={
+            archiveStatus === "imported"
+              ? "Connect your mailbox and run an import to surface candidates you already know. If you just re-scored, check the other status filters."
+              : "Try another status filter — re-scored people are never deleted."
+          }
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -622,7 +640,16 @@ function Page() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
                   <div className="mt-1.5">
-                    <ConfidenceBadge score={p.confidence} state="imported" />
+                    <ConfidenceBadge
+                      score={p.confidence}
+                      state={
+                        p.review_status === "needs_review"
+                          ? "needs_review"
+                          : p.review_status === "rejected"
+                            ? "skipped"
+                            : "imported"
+                      }
+                    />
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                     {txt(p.role) && (
@@ -668,6 +695,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
   const fetchDetail = useServerFn(getEmailCandidate);
   const resumeUrl = useServerFn(getArchiveResumeUrl);
   const promote = useServerFn(promoteArchivePerson);
+  const setStatus = useServerFn(setArchiveReviewStatus);
 
   const detail = useQuery({
     queryKey: ["email-archive-person", person?.id],
@@ -684,6 +712,16 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
       qc.invalidateQueries({ queryKey: ["candidates"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not add candidate"),
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: () => setStatus({ data: { id: person!.id, reviewStatus: "imported" } }),
+    onSuccess: () => {
+      toast.success("Restored to the archive.");
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+      qc.invalidateQueries({ queryKey: ["email-archive-person", person?.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not restore this person"),
   });
 
   const openResume = async (id: string) => {
@@ -707,7 +745,16 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
         {p && (
           <div className="mt-4 space-y-5 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <ConfidenceBadge score={p.confidence} state="imported" />
+              <ConfidenceBadge
+                score={p.confidence}
+                state={
+                  p.review_status === "needs_review"
+                    ? "needs_review"
+                    : p.review_status === "rejected"
+                      ? "skipped"
+                      : "imported"
+                }
+              />
               <span className="text-[11px] text-muted-foreground">
                 {KIND_LABEL[p.email_kind ?? "other"] ?? "Other"}
               </span>
@@ -716,6 +763,11 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
               <p className="text-[11px] text-muted-foreground -mt-3">{txt(p.classification_reason)}</p>
             )}
             <div className="flex flex-wrap gap-2">
+              {p.review_status !== "imported" && (
+                <Button variant="outline" onClick={() => restoreMut.mutate()} disabled={restoreMut.isPending}>
+                  <CheckCircle2 className="size-4" /> Restore to archive
+                </Button>
+              )}
               <Button
                 onClick={() => promoteMut.mutate()}
                 disabled={promoteMut.isPending || !!p.promoted_candidate_id}
