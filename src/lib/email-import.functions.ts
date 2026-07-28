@@ -617,25 +617,3 @@ export const setArchiveReviewStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-
-const _unusedDeleteRejectedArchive = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: rows, error } = await context.supabase
-      .from("email_candidates")
-      .select("id")
-      .eq("review_status", "rejected")
-      .is("promoted_candidate_id", null)
-      .limit(2000);
-    if (error) throw new Error(error.message);
-    const doomed = (rows ?? []).map((r) => r.id as string);
-    if (doomed.length === 0) return { removed: 0 };
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
-    await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
-    const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
-    if (dErr) throw new Error(dErr.message);
-    return { removed: doomed.length };
-  });
-
