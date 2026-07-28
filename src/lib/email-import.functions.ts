@@ -598,3 +598,22 @@ export const deleteRejectedArchive = createServerFn({ method: "POST" })
     return { removed: doomed.length };
   });
 
+/** Recruiter override: move an archived person back (or out) of the main archive list. */
+export const setArchiveReviewStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        reviewStatus: z.enum(["imported", "needs_review", "rejected"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_candidates")
+      .update({ review_status: data.reviewStatus })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
