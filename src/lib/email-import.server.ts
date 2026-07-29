@@ -48,6 +48,10 @@ type Run = {
   skipped_non_resume?: number | null;
   needs_review?: number | null;
   skipped_noise?: number | null;
+  ai_calls?: number | null;
+  cache_hits?: number | null;
+  auto_imported?: number | null;
+  tokens_estimated?: number | null;
 };
 
 export type BatchResult = {
@@ -565,6 +569,10 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       skipped_non_resume: (run.skipped_non_resume ?? 0) + skipped,
       skipped_noise: (run.skipped_noise ?? 0) + skipped,
       needs_review: (run.needs_review ?? 0) + needsReview,
+      ai_calls: (run.ai_calls ?? 0) + metrics.aiCalls,
+      cache_hits: (run.cache_hits ?? 0) + metrics.cacheHits,
+      auto_imported: (run.auto_imported ?? 0) + metrics.autoImported,
+      tokens_estimated: (run.tokens_estimated ?? 0) + metrics.tokensEstimated,
       failure_log: [...prevLog, ...failures].slice(-50),
       status: done ? "completed" : "running",
       finished_at: done ? new Date().toISOString() : null,
