@@ -379,6 +379,23 @@ function Page() {
                 </div>
               ))}
             </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span>
+                Decided by rules:{" "}
+                <span className="font-medium text-foreground">
+                  {Math.max(0, (run?.emails_scanned ?? 0) - (run?.ai_calls ?? 0))}
+                </span>
+              </span>
+              <span>
+                AI calls: <span className="font-medium text-foreground">{run?.ai_calls ?? 0}</span>
+              </span>
+              <span>
+                Cache hits: <span className="font-medium text-foreground">{run?.cache_hits ?? 0}</span>
+              </span>
+              <span>
+                Auto-imported: <span className="font-medium text-foreground">{run?.auto_imported ?? 0}</span>
+              </span>
+            </div>
             <div className="flex gap-2">
               {running ? (
                 <Button
