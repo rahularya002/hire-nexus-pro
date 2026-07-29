@@ -269,6 +269,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   let merged = 0;
   let skipped = 0;
   let needsReview = 0;
+  const metrics = emptyMetrics();
 
   const mine = (run.google_email ?? "").toLowerCase() || null;
 
@@ -292,16 +293,13 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       if (seenMsg || seenSkip) continue;
 
       const msg = await getMessage(accessToken, ref.id);
-      const attachments = findResumeAttachments(msg);
-      const from = parseAddress(header(msg, "From"));
-      const subject = header(msg, "Subject");
-      const toList = parseAddressList(header(msg, "To"));
-      const bodyText = getBodyText(msg);
-      const sentAt = msg.internalDate
-        ? new Date(Number(msg.internalDate)).toISOString()
-        : header(msg, "Date")
-          ? new Date(header(msg, "Date")!).toISOString()
-          : null;
+      const raw = gmailMessageToRawItem(msg, ref.threadId ?? null);
+      const attachments = raw.attachments;
+      const from = { email: raw.fromEmail, name: raw.fromName };
+      const subject = raw.subject;
+      const toList = raw.toEmails;
+      const bodyText = cleanBodyText(raw.bodyText);
+      const sentAt = raw.sentAt;
       const direction = from.email && mine && from.email === mine ? "outbound" : "inbound";
 
       // Has this thread already produced recruitment mail for this user?
@@ -317,7 +315,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         threadKnown = !!t;
       }
 
-      const attNames = attachments.map((a) => a.filename);
+      const attNames = attachments.map((a) => a.fileName);
       const baseSignal = {
         fromEmail: from.email,
         fromName: from.name,
@@ -359,10 +357,11 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         });
       };
 
-      // Cheapest gate: obvious noise never gets downloaded or sent to the AI.
+      // Cheapest gate of all: obvious noise is never even downloaded.
       const pre = heuristicScore(baseSignal);
       if (pre.score <= 12) {
         skipped++;
+        metrics.rulesSkipped++;
         await recordSkip({
           confidence: pre.score,
           kind: "other",
@@ -373,21 +372,53 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         continue;
       }
 
-      // Download + read the primary attachment (if any) for full-context scoring.
+      // NORMALIZATION — download, hash, and read the primary attachment. Identical
+      // resume bytes we have parsed before reuse the stored text instead of parsing again.
       let docText = "";
       let primaryBytes: Uint8Array | null = null;
+      let primaryHash: string | null = null;
       const primary = attachments[0] ?? null;
       if (primary) {
         try {
-          primaryBytes = await getAttachmentBytes(accessToken, ref.id, primary.attachmentId);
-          const { extractCvText } = await import("./cv-parse.server");
-          docText = await extractCvText(primaryBytes, primary.filename, primary.mimeType);
+          primaryBytes = await getAttachmentBytes(accessToken, ref.id, primary.externalId);
+          primaryHash = await sha256Bytes(primaryBytes);
+          const { data: known } = await supabaseAdmin
+            .from("email_resume_versions")
+            .select("extracted_text")
+            .eq("user_id", run.user_id)
+            .eq("content_sha256", primaryHash)
+            .not("extracted_text", "is", null)
+            .limit(1)
+            .maybeSingle();
+          if (known?.extracted_text) {
+            docText = known.extracted_text as string;
+            metrics.cacheHits++;
+          } else {
+            const { extractCvText } = await import("./cv-parse.server");
+            docText = await extractCvText(primaryBytes, primary.fileName, primary.mimeType);
+          }
         } catch {
           docText = "";
         }
       }
 
-      const cls: Classification = await classifyEmail({ ...baseSignal, docText });
+      const det = extractDeterministic({
+        fromEmail: from.email,
+        fromName: from.name,
+        cleanBody: bodyText,
+        docText,
+        primaryFileName: primary?.fileName ?? null,
+      });
+
+      // CLASSIFICATION — rules, then cache, then (rarely) the model.
+      const cls = await classifyItem({
+        userId: run.user_id,
+        signal: { ...baseSignal, docText },
+        deterministic: det.fields,
+        gaps: det.gaps,
+        attachmentHashes: primaryHash ? [primaryHash] : [],
+        metrics,
+      });
 
       if (cls.decision === "skip") {
         skipped++;
@@ -406,11 +437,14 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       // Store attachments so both "import" and later "approve" keep the files.
       const stored: StoredAttachment[] = [];
       for (const att of attachments) {
-        const safe = att.filename.replace(/[^\w.\-]+/g, "_");
+        const safe = att.fileName.replace(/[^\w.\-]+/g, "_");
         const path = `email-archive/${run.user_id}/${ref.id}-${safe}`;
-        const isPrimary = primary && att.attachmentId === primary.attachmentId;
+        const isPrimary = primary && att.externalId === primary.externalId;
+        let hash = isPrimary ? primaryHash : null;
         try {
-          const bytes = isPrimary && primaryBytes ? primaryBytes : await getAttachmentBytes(accessToken, ref.id, att.attachmentId);
+          const bytes =
+            isPrimary && primaryBytes ? primaryBytes : await getAttachmentBytes(accessToken, ref.id, att.externalId);
+          if (!hash) hash = await sha256Bytes(bytes);
           const up = await supabaseAdmin.storage
             .from("documents")
             .upload(path, bytes, { upsert: true, contentType: att.mimeType ?? undefined });
@@ -420,9 +454,10 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         }
         stored.push({
           path,
-          file_name: att.filename,
+          file_name: att.fileName,
           mime: att.mimeType,
           size: att.size,
+          content_sha256: hash,
           extracted_text: isPrimary ? docText : null,
         });
       }
@@ -445,7 +480,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         signals: cls.signals,
         extracted: cls.extracted,
         attachments: stored,
-        body_text: bodyText.slice(0, 4000),
+        body_text: bodyText,
       };
 
       if (cls.decision === "review") {
