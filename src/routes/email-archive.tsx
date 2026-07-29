@@ -713,6 +713,7 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
   const resumeUrl = useServerFn(getArchiveResumeUrl);
   const promote = useServerFn(promoteArchivePerson);
   const setStatus = useServerFn(setArchiveReviewStatus);
+  const enrich = useServerFn(enrichArchivePerson);
 
   const detail = useQuery({
     queryKey: ["email-archive-person", person?.id],
@@ -739,6 +740,16 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
       qc.invalidateQueries({ queryKey: ["email-archive-person", person?.id] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not restore this person"),
+  });
+
+  const enrichMut = useMutation({
+    mutationFn: (force: boolean) => enrich({ data: { id: person!.id, force } }),
+    onSuccess: (r) => {
+      toast.success(r.cached ? "Showing the saved summary." : "Summary ready.");
+      qc.invalidateQueries({ queryKey: ["email-archive-person", person?.id] });
+      qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not generate a summary"),
   });
 
   const openResume = async (id: string) => {
@@ -779,6 +790,28 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
             {txt(p.classification_reason) && (
               <p className="text-[11px] text-muted-foreground -mt-3">{txt(p.classification_reason)}</p>
             )}
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold">AI summary</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => enrichMut.mutate(!!p.ai_summary)}
+                  disabled={enrichMut.isPending}
+                >
+                  {enrichMut.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-3.5" />
+                  )}
+                  {p.ai_summary ? "Regenerate" : "Generate"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground whitespace-pre-line">
+                {txt(p.ai_summary) ??
+                  "No summary yet. Summaries are only written when you ask, so imports stay fast and cheap."}
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {p.review_status !== "imported" && (
                 <Button variant="outline" onClick={() => restoreMut.mutate()} disabled={restoreMut.isPending}>
