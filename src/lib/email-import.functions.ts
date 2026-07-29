@@ -18,6 +18,10 @@ export type ImportRun = {
   skipped_non_resume: number;
   needs_review: number;
   skipped_noise: number;
+  ai_calls: number;
+  cache_hits: number;
+  auto_imported: number;
+  tokens_estimated: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -46,6 +50,8 @@ export type ArchivePerson = {
   review_status: string;
   email_kind: string | null;
   classification_reason: string | null;
+  ai_summary?: string | null;
+  enriched_at?: string | null;
 };
 
 export type ReviewItem = {
@@ -182,7 +188,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,ai_calls,cache_hits,auto_imported,tokens_estimated,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -237,7 +243,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("email_candidates")
       .select(
-        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
+        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
       )
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
@@ -269,7 +275,7 @@ export const getEmailCandidate = createServerFn({ method: "GET" })
       supabase
         .from("email_candidates")
         .select(
-          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason",
+          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
         )
         .eq("id", data.id)
         .maybeSingle(),
@@ -503,8 +509,11 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
     .limit(300);
   if (error) throw new Error(error.message);
 
-  const { classifyEmail } = await import("./recruitment-classify.server");
+  const { classifyItem } = await import("./pipeline/classify.server");
+  const { cleanBodyText, extractDeterministic, sha256Text } = await import("./pipeline/normalize.server");
+  const { emptyMetrics } = await import("./pipeline/types");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const metrics = emptyMetrics();
 
   let imported = 0;
   let review = 0;
@@ -521,7 +530,7 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
         .limit(5),
       context.supabase
         .from("email_resume_versions")
-        .select("file_name,extracted_text")
+        .select("file_name,extracted_text,content_sha256")
         .eq("email_candidate_id", id)
         .order("received_at", { ascending: false })
         .limit(2),
@@ -530,23 +539,46 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
     const first = (msgs ?? [])[0] as
       | { subject: string | null; snippet: string | null; from_email: string | null; from_name: string | null; to_emails: string[] | null }
       | undefined;
-    const bodyText = ((msgs ?? []) as any[])
-      .map((m) => `${m.subject ?? ""}\n${m.snippet ?? ""}`)
-      .join("\n\n");
+    const bodyText = cleanBodyText(
+      ((msgs ?? []) as any[]).map((m) => `${m.subject ?? ""}\n${m.snippet ?? ""}`).join("\n\n"),
+    );
+    const docText = ((resumes ?? []) as any[])
+      .map((x) => (x.extracted_text as string | null) ?? "")
+      .join("\n");
+    const attachmentNames = ((resumes ?? []) as any[]).map((x) => x.file_name as string);
+    const hashes: string[] = [];
+    for (const x of (resumes ?? []) as any[]) {
+      const h = (x.content_sha256 as string | null) ?? null;
+      if (h) hashes.push(h);
+    }
+    if (!hashes.length && docText) hashes.push(await sha256Text(docText.slice(0, 4000)));
 
-    const cls = await classifyEmail({
-      fromEmail: first?.from_email ?? (r.email as string | null),
+    const fromEmail = first?.from_email ?? (r.email as string | null);
+    const det = extractDeterministic({
+      fromEmail,
       fromName: first?.from_name ?? (r.name as string | null),
-      toEmails: first?.to_emails ?? [],
-      myEmail: null,
-      subject: first?.subject ?? null,
-      bodyText,
-      attachmentNames: ((resumes ?? []) as any[]).map((x) => x.file_name as string),
-      docText: ((resumes ?? []) as any[])
-        .map((x) => (x.extracted_text as string | null) ?? "")
-        .join("\n")
-        .slice(0, 12000),
-      threadKnown: false,
+      cleanBody: bodyText,
+      docText,
+      primaryFileName: attachmentNames[0] ?? null,
+    });
+
+    const cls = await classifyItem({
+      userId: context.userId,
+      signal: {
+        fromEmail,
+        fromName: first?.from_name ?? (r.name as string | null),
+        toEmails: first?.to_emails ?? [],
+        myEmail: null,
+        subject: first?.subject ?? null,
+        bodyText,
+        attachmentNames,
+        docText,
+        threadKnown: false,
+      },
+      deterministic: det.fields,
+      gaps: det.gaps,
+      attachmentHashes: hashes.slice(0, 1),
+      metrics,
     });
 
     const status =
@@ -573,7 +605,15 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
       .eq("id", id);
   }
 
-  return { scored: (rows ?? []).length, imported, review, rejected, removed: rejected };
+  return {
+    scored: (rows ?? []).length,
+    imported,
+    review,
+    rejected,
+    removed: rejected,
+    aiCalls: metrics.aiCalls,
+    cacheHits: metrics.cacheHits,
+  };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -596,6 +636,82 @@ export const deleteRejectedArchive = createServerFn({ method: "POST" })
     const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
     if (dErr) throw new Error(dErr.message);
     return { removed: doomed.length };
+  });
+
+/**
+ * ENRICHMENT — explicit only. Never runs during import and never on profile open;
+ * a recruiter has to ask for it, and the result is stored so it never repeats.
+ */
+export const enrichArchivePerson = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), force: z.boolean().optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: person, error } = await context.supabase
+      .from("email_candidates")
+      .select("id,name,role,current_company,experience,location,skills,notes,ai_summary,enriched_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!person) throw new Error("Archived person not found");
+    if (person.ai_summary && !data.force) {
+      return { summary: person.ai_summary as string, cached: true };
+    }
+
+    const { data: resumes } = await context.supabase
+      .from("email_resume_versions")
+      .select("extracted_text")
+      .eq("email_candidate_id", data.id)
+      .order("received_at", { ascending: false })
+      .limit(1);
+    const docText = ((resumes ?? [])[0]?.extracted_text as string | null) ?? "";
+
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("AI is not configured for this workspace.");
+
+    const { AI_MAX_DOC_CHARS } = await import("./pipeline/config");
+    const profile = [
+      `Name: ${person.name ?? ""}`,
+      `Role: ${person.role ?? ""}`,
+      `Company: ${person.current_company ?? ""}`,
+      `Experience: ${person.experience ?? ""}`,
+      `Location: ${person.location ?? ""}`,
+      `Skills: ${((person.skills as string[] | null) ?? []).join(", ")}`,
+      "",
+      "--- RESUME TEXT ---",
+      docText.slice(0, AI_MAX_DOC_CHARS),
+    ].join("\n");
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3.6-flash",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Write a tight recruiter-facing summary of this candidate in 3-4 sentences: seniority, core strengths, domain, and anything a recruiter should watch out for. Plain prose, no headings, no bullet points, no invented facts.",
+          },
+          { role: "user", content: profile },
+        ],
+      }),
+    });
+    if (res.status === 429) throw new Error("AI rate limit reached. Try again in a moment.");
+    if (res.status === 402) throw new Error("AI credits exhausted. Add credits to continue.");
+    if (!res.ok) throw new Error(`AI request failed (${res.status}).`);
+    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const summary = (json.choices?.[0]?.message?.content ?? "").trim();
+    if (!summary) throw new Error("The model returned an empty summary.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("email_candidates")
+      .update({ ai_summary: summary, enriched_at: new Date().toISOString() })
+      .eq("id", data.id);
+
+    return { summary, cached: false };
   });
 
 /** Recruiter override: move an archived person back (or out) of the main archive list. */
