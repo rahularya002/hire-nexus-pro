@@ -45,6 +45,7 @@ import {
   rejectReviewItem,
   resumeImportRun,
   setArchiveReviewStatus,
+  enrichArchivePerson,
   startImportRun,
   type ArchivePerson,
   type ReviewItem,
