@@ -144,6 +144,33 @@ export type Database = {
           },
         ]
       }
+      ai_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          user_id: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json
+          user_id: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           agency_id: string
@@ -731,6 +758,7 @@ export type Database = {
       email_candidates: {
         Row: {
           agency_id: string
+          ai_summary: string | null
           classification_reason: string | null
           companies_mentioned: string[]
           confidence: number
@@ -739,6 +767,7 @@ export type Database = {
           email: string | null
           email_count: number
           email_kind: string | null
+          enriched_at: string | null
           experience: string | null
           first_email_at: string | null
           id: string
@@ -762,6 +791,7 @@ export type Database = {
         }
         Insert: {
           agency_id: string
+          ai_summary?: string | null
           classification_reason?: string | null
           companies_mentioned?: string[]
           confidence?: number
@@ -770,6 +800,7 @@ export type Database = {
           email?: string | null
           email_count?: number
           email_kind?: string | null
+          enriched_at?: string | null
           experience?: string | null
           first_email_at?: string | null
           id?: string
@@ -793,6 +824,7 @@ export type Database = {
         }
         Update: {
           agency_id?: string
+          ai_summary?: string | null
           classification_reason?: string | null
           companies_mentioned?: string[]
           confidence?: number
@@ -801,6 +833,7 @@ export type Database = {
           email?: string | null
           email_count?: number
           email_kind?: string | null
+          enriched_at?: string | null
           experience?: string | null
           first_email_at?: string | null
           id?: string
@@ -842,6 +875,9 @@ export type Database = {
       email_import_runs: {
         Row: {
           agency_id: string
+          ai_calls: number
+          auto_imported: number
+          cache_hits: number
           created_at: string
           date_from: string | null
           date_to: string | null
@@ -863,11 +899,15 @@ export type Database = {
           skipped_noise: number
           skipped_non_resume: number
           status: string
+          tokens_estimated: number
           updated_at: string
           user_id: string
         }
         Insert: {
           agency_id: string
+          ai_calls?: number
+          auto_imported?: number
+          cache_hits?: number
           created_at?: string
           date_from?: string | null
           date_to?: string | null
@@ -889,11 +929,15 @@ export type Database = {
           skipped_noise?: number
           skipped_non_resume?: number
           status?: string
+          tokens_estimated?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           agency_id?: string
+          ai_calls?: number
+          auto_imported?: number
+          cache_hits?: number
           created_at?: string
           date_from?: string | null
           date_to?: string | null
@@ -915,6 +959,7 @@ export type Database = {
           skipped_noise?: number
           skipped_non_resume?: number
           status?: string
+          tokens_estimated?: number
           updated_at?: string
           user_id?: string
         }
@@ -1084,6 +1129,7 @@ export type Database = {
       email_resume_versions: {
         Row: {
           agency_id: string
+          content_sha256: string | null
           created_at: string
           email_candidate_id: string
           email_message_id: string | null
@@ -1098,6 +1144,7 @@ export type Database = {
         }
         Insert: {
           agency_id: string
+          content_sha256?: string | null
           created_at?: string
           email_candidate_id: string
           email_message_id?: string | null
@@ -1112,6 +1159,7 @@ export type Database = {
         }
         Update: {
           agency_id?: string
+          content_sha256?: string | null
           created_at?: string
           email_candidate_id?: string
           email_message_id?: string | null
