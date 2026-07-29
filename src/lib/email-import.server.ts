@@ -2,21 +2,18 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   buildQuery,
-  findResumeAttachments,
   getAttachmentBytes,
-  getBodyText,
   getMessage,
-  header,
   listMessageIds,
-  parseAddress,
-  parseAddressList,
 } from "./gmail.server";
 import {
-  classifyEmail,
   heuristicScore,
-  type Classification,
   type Extracted,
 } from "./recruitment-classify.server";
+import { gmailMessageToRawItem } from "./gmail-discovery.server";
+import { classifyItem } from "./pipeline/classify.server";
+import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
+import { emptyMetrics } from "./pipeline/types";
 
 export type { Extracted };
 
@@ -67,6 +64,7 @@ export type StoredAttachment = {
   mime: string | null;
   size: number;
   extracted_text?: string | null;
+  content_sha256?: string | null;
 };
 
 /** Everything needed to turn a classified email into an archive person. */
@@ -242,6 +240,7 @@ export async function upsertPersonFromPayload(
       file_name: att.file_name,
       mime: att.mime,
       size_bytes: att.size,
+      content_sha256: att.content_sha256 ?? null,
       extracted_text: att.extracted_text ? att.extracted_text.slice(0, 200_000) : null,
       received_at: payload.sent_at,
     });
