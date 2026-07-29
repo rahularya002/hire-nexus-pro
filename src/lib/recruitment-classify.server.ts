@@ -46,8 +46,7 @@ export type Classification = {
   extracted: Extracted;
 };
 
-export const IMPORT_THRESHOLD = 80;
-export const REVIEW_THRESHOLD = 45;
+// Thresholds now live in src/lib/pipeline/config.ts (env-tunable).
 
 /* ----------------------------- vocabularies ----------------------------- */
 
@@ -206,14 +205,7 @@ export function heuristicScore(i: SignalInput): HeuristicResult {
   return { score: Math.max(0, Math.min(100, score)), hits, blocks, hardBlock };
 }
 
-/* ------------------------------- AI pass ------------------------------- */
-
-type AiResult = {
-  is_recruitment?: boolean | null;
-  confidence?: number | null;
-  email_kind?: string | null;
-  reason?: string | null;
-} & Extracted;
+/* --------------------------- shared field cleanup --------------------------- */
 
 function cleanStr(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -238,167 +230,3 @@ export function cleanExtracted(e: Extracted): Extracted {
   };
 }
 
-async function aiClassify(i: SignalInput): Promise<AiResult | null> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) return null;
-
-  const context = [
-    `From: ${i.fromName ?? ""} <${i.fromEmail ?? "unknown"}>`,
-    `To: ${i.toEmails.slice(0, 10).join(", ")}`,
-    `Subject: ${i.subject ?? ""}`,
-    `Attachments: ${i.attachmentNames.join(", ") || "none"}`,
-    i.threadKnown ? "Thread context: earlier messages in this thread were recruitment-related." : "",
-    "",
-    "--- EMAIL BODY ---",
-    i.bodyText.slice(0, 4000),
-    "",
-    "--- ATTACHED DOCUMENT TEXT ---",
-    (i.docText ?? "").slice(0, 12000),
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You classify a recruiter's email. Use the WHOLE context: sender, recipients, subject, body, attachment names, thread hint and attached document text. Decide whether this email is part of recruitment/hiring work (a candidate resume or CV, a candidate submission or forward, a job application, interview scheduling, or a recruiter/candidate conversation). Emails about bank or brokerage statements, invoices, receipts, payments, utility bills, taxes, OTP or security codes, orders, shipping, travel tickets, newsletters and promotions are NOT recruitment. Never call a document a resume just because it is a PDF. Return confidence 0-100 as how certain you are that this is recruitment-related, and be conservative: use 40-70 when genuinely ambiguous. Extract candidate fields only when a person's resume/profile is present, else leave them null. Reply ONLY through the classify_email tool.",
-          },
-          { role: "user", content: context },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "classify_email",
-              description: "Classify a recruiter email and extract candidate fields when present.",
-              parameters: {
-                type: "object",
-                properties: {
-                  is_recruitment: { type: "boolean" },
-                  confidence: { type: "number" },
-                  email_kind: {
-                    type: "string",
-                    enum: [
-                      "candidate_submission",
-                      "resume_forward",
-                      "job_application",
-                      "interview_scheduling",
-                      "recruiter_conversation",
-                      "job_alert",
-                      "bank_statement",
-                      "invoice_receipt",
-                      "travel",
-                      "order_shipping",
-                      "newsletter_promo",
-                      "otp_security",
-                      "other",
-                    ],
-                  },
-                  reason: { type: "string" },
-                  name: { type: ["string", "null"] },
-                  email: { type: ["string", "null"] },
-                  phone: { type: ["string", "null"] },
-                  role: { type: ["string", "null"] },
-                  current_company: { type: ["string", "null"] },
-                  experience: { type: ["string", "null"] },
-                  location: { type: ["string", "null"] },
-                  salary_min: { type: ["number", "null"] },
-                  salary_max: { type: ["number", "null"] },
-                  skills: { type: ["array", "null"], items: { type: "string" } },
-                  notes: { type: ["string", "null"] },
-                },
-                required: [
-                  "is_recruitment","confidence","email_kind","reason","name","email","phone","role",
-                  "current_company","experience","location","salary_min","salary_max","skills","notes",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "classify_email" } },
-      }),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
-    };
-    const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    return args ? (JSON.parse(args) as AiResult) : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeKind(v: unknown): EmailKind {
-  const k = typeof v === "string" ? (v as EmailKind) : "other";
-  const all: EmailKind[] = [...RECRUITMENT_KINDS, "job_alert", "bank_statement", "invoice_receipt", "travel", "order_shipping", "newsletter_promo", "otp_security", "other"];
-  return all.includes(k) ? k : "other";
-}
-
-/** Fuse heuristics + AI into a single score and routing decision. */
-export async function classifyEmail(i: SignalInput): Promise<Classification> {
-  const h = heuristicScore(i);
-
-  // Obvious noise: don't spend an AI call at all.
-  if (h.score <= 12) {
-    return {
-      confidence: h.score,
-      kind: "other",
-      reason: h.blocks[0] ? `Looks like non-recruitment mail — ${h.blocks[0]}.` : "No recruitment signals found.",
-      decision: "skip",
-      signals: { heuristic: h.score, ai: null, hits: h.hits, blocks: h.blocks },
-      extracted: cleanExtracted({}),
-    };
-  }
-
-  const ai = await aiClassify(i);
-  const kind = normalizeKind(ai?.email_kind);
-  const isRecruitKind = RECRUITMENT_KINDS.includes(kind);
-  const aiConf =
-    typeof ai?.confidence === "number" ? Math.max(0, Math.min(100, Math.round(ai.confidence))) : null;
-
-  let score: number;
-  if (aiConf == null) {
-    // No AI verdict — heuristics alone can never clear the import bar.
-    score = Math.min(h.score, IMPORT_THRESHOLD - 1);
-  } else {
-    score = Math.round(aiConf * 0.7 + h.score * 0.3);
-    if (ai?.is_recruitment === false) score = Math.min(score, 30);
-    if (!isRecruitKind) score = Math.min(score, kind === "job_alert" ? 40 : 25);
-    if (h.blocks.length >= 2) score = Math.min(score, 55);
-    // Transactional sender: cap well below the import bar — a bank or wallet
-    // never applies for a job, and its statements are not resumes.
-    if (h.hardBlock) score = Math.min(score, 30);
-    if (h.hits.length >= 3 && isRecruitKind) score = Math.min(100, score + 5);
-  }
-  score = Math.max(0, Math.min(100, score));
-
-  const extracted = cleanExtracted(ai ?? {});
-  const hasPerson = !!extracted.name || !!extracted.email || (extracted.skills?.length ?? 0) > 0;
-
-  let decision: Classification["decision"] =
-    score >= IMPORT_THRESHOLD ? "import" : score >= REVIEW_THRESHOLD ? "review" : "skip";
-  // Never auto-create a person we know nothing about.
-  if (decision === "import" && !hasPerson) decision = "review";
-
-  const reason =
-    cleanStr(ai?.reason) ??
-    (h.hits[0] ? `Recruitment signals: ${h.hits.slice(0, 2).join(", ")}.` : "Not enough recruitment evidence.");
-
-  return {
-    confidence: score,
-    kind,
-    reason,
-    decision,
-    signals: { heuristic: h.score, ai: aiConf, hits: h.hits, blocks: h.blocks },
-    extracted,
-  };
-}
