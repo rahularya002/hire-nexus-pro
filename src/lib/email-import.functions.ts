@@ -18,6 +18,10 @@ export type ImportRun = {
   skipped_non_resume: number;
   needs_review: number;
   skipped_noise: number;
+  ai_calls: number;
+  cache_hits: number;
+  auto_imported: number;
+  tokens_estimated: number;
   failure_log: { message: string }[];
   created_at: string;
   finished_at: string | null;
@@ -46,6 +50,8 @@ export type ArchivePerson = {
   review_status: string;
   email_kind: string | null;
   classification_reason: string | null;
+  ai_summary?: string | null;
+  enriched_at?: string | null;
 };
 
 export type ReviewItem = {
@@ -182,7 +188,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,ai_calls,cache_hits,auto_imported,tokens_estimated,failure_log,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
