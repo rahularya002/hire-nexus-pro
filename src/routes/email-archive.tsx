@@ -538,6 +538,7 @@ function Page() {
           [
             ["archive", "Archive"],
             ["needs_review", `Needs review${run?.needs_review ? ` (${run.needs_review})` : ""}`],
+            ["context", "Recruitment context"],
             ["skipped", "Skipped"],
           ] as const
         ).map(([key, label]) => (
@@ -557,8 +558,10 @@ function Page() {
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             {tab === "needs_review"
-              ? "Borderline emails the AI wasn't confident about. Confirm the ones that really are recruitment."
-              : "Emails the AI judged to be non-recruitment. Nothing here was added to the archive."}
+              ? "Only emails where we genuinely can't tell whether an importable candidate is inside — a resume pasted in the body, an unreadable scan, or mixed attachments."
+              : tab === "context"
+                ? "Recruitment conversations, job descriptions and interview feedback. These are kept as context — they contain no candidate to import, so they never need your review."
+                : "Emails with no candidate in them. Nothing here created a profile."}
           </p>
           {reviewQ.isLoading ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
@@ -567,8 +570,14 @@ function Page() {
           ) : (reviewQ.data ?? []).length === 0 ? (
             <EmptyState
               icon={ShieldQuestion}
-              title={tab === "needs_review" ? "Nothing waiting for review" : "Nothing skipped yet"}
-              description="Run an import and the AI will route uncertain emails here."
+              title={
+                tab === "needs_review"
+                  ? "Nothing waiting for review"
+                  : tab === "context"
+                    ? "No recruitment context stored yet"
+                    : "Nothing skipped yet"
+              }
+              description="Run an import and each email is routed by what it actually contains."
             />
           ) : (
             <div className="space-y-2">
@@ -577,7 +586,8 @@ function Page() {
                   <div className="flex items-start gap-3 flex-wrap">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <ConfidenceBadge
+                        <OutcomeBadge
+                          artifact={r.artifact_type}
                           score={r.confidence}
                           state={tab === "needs_review" ? "needs_review" : "skipped"}
                         />
@@ -606,9 +616,9 @@ function Page() {
                         size="sm"
                         onClick={() => approveMut.mutate(r.id)}
                         disabled={approveMut.isPending || !r.has_payload}
-                        title={r.has_payload ? "Import this email" : "Re-run the import to recover this email"}
+                        title={r.has_payload ? "Import the candidate in this email" : "Re-run the import to recover this email"}
                       >
-                        <Check className="size-3.5" /> It's recruitment
+                        <Check className="size-3.5" /> Import candidate
                       </Button>
                       <Button
                         size="sm"
@@ -616,7 +626,7 @@ function Page() {
                         onClick={() => rejectMut.mutate(r.id)}
                         disabled={rejectMut.isPending}
                       >
-                        <X className="size-3.5" /> Not recruitment
+                        <X className="size-3.5" /> No candidate here
                       </Button>
                     </div>
                   </div>
