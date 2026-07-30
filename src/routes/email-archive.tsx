@@ -843,7 +843,8 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
         {p && (
           <div className="mt-4 space-y-5 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <ConfidenceBadge
+              <OutcomeBadge
+                artifact={p.artifact_type}
                 score={p.confidence}
                 state={
                   p.review_status === "needs_review"
