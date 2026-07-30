@@ -198,6 +198,7 @@ function Page() {
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
   const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
   const [archiveStatus, setArchiveStatus] = useState<"imported" | "needs_review" | "rejected" | "all">("imported");
+  const [artifact, setArtifact] = useState<string>("all");
 
   const conn = useQuery({ queryKey: ["google-connection"], queryFn: () => fetchConn() });
   const labels = useQuery({
@@ -210,7 +211,7 @@ function Page() {
     queryFn: () => fetchProgress(),
   });
   const people = useQuery({
-    queryKey: ["email-archive-people", search, skill, location, recentOnly, archiveStatus],
+    queryKey: ["email-archive-people", search, skill, location, recentOnly, archiveStatus, artifact],
     queryFn: () =>
       fetchPeople({
         data: {
@@ -219,12 +220,19 @@ function Page() {
           location: location.trim() || undefined,
           contactedWithinDays: recentOnly ? 90 : null,
           reviewStatus: archiveStatus,
+          artifact,
         },
       }),
   });
   const reviewQ = useQuery({
     queryKey: ["email-archive-review", tab],
-    queryFn: () => fetchReview({ data: { status: tab === "skipped" ? "skipped" : "needs_review" } }),
+    queryFn: () =>
+      fetchReview({
+        data:
+          tab === "context"
+            ? { status: "skipped" as const, contextOnly: true }
+            : { status: tab === "skipped" ? ("skipped" as const) : ("needs_review" as const) },
+      }),
     enabled: tab !== "archive",
   });
 
