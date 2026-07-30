@@ -341,6 +341,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       const recordSkip = async (c: {
         confidence: number;
         kind: string;
+        artifact?: string | null;
         reason: string;
         signals: unknown;
         status: "skipped" | "needs_review";
@@ -359,6 +360,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           attachment_names: attNames,
           confidence: c.confidence,
           email_kind: c.kind,
+          artifact_type: c.artifact ?? null,
           reason: c.reason,
           signals: c.signals as never,
           pending_payload: (c.payload ?? null) as never,
@@ -369,14 +371,16 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
 
       // Cheapest gate of all: obvious noise is never even downloaded.
       const pre = heuristicScore(baseSignal);
-      if (pre.score <= 12) {
+      const preEv = candidateEvidence(baseSignal);
+      if (pre.score <= 12 && preEv.score <= 12 && !preEv.uncertainty) {
         skipped++;
         metrics.rulesSkipped++;
         await recordSkip({
-          confidence: pre.score,
+          confidence: preEv.score,
           kind: "other",
-          reason: pre.blocks[0] ? `Non-recruitment mail — ${pre.blocks[0]}.` : "No recruitment signals found.",
-          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks },
+          artifact: preEv.artifact,
+          reason: pre.blocks[0] ? `No candidate found — ${pre.blocks[0]}.` : "No candidate profile found in this email.",
+          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks, candidateEvidence: preEv.score },
           status: "skipped",
         });
         continue;
@@ -435,6 +439,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         await recordSkip({
           confidence: cls.confidence,
           kind: cls.kind,
+          artifact: cls.artifact,
           reason: cls.reason,
           signals: cls.signals,
           status: "skipped",
