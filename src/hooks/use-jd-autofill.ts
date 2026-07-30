@@ -76,6 +76,9 @@ export function useJdAutofill({
           },
         });
         lastTitleRef.current = t;
+        // The user may have started typing while the request was in flight —
+        // never clobber their text on an auto-run.
+        if (auto && descRef.current.trim()) return;
         setDescription(text);
         if (toastId) toast.success("Description drafted — edit as needed", { id: toastId });
         else toast.success("Description drafted from the title — edit as needed");
