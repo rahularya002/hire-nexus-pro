@@ -7,9 +7,13 @@ function num(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** At or above this heuristic score the item is imported without any AI call. */
+/** At or above this candidate-confidence the item is imported without any AI call. */
+export const CANDIDATE_IMPORT_THRESHOLD = num("PIPELINE_CANDIDATE_IMPORT_THRESHOLD", 75);
+/** At or below this candidate-confidence there is no candidate worth chasing. */
+export const CANDIDATE_SKIP_THRESHOLD = num("PIPELINE_CANDIDATE_SKIP_THRESHOLD", 25);
+
+/** Legacy aliases — recruitment-noise gating still uses these bands. */
 export const AUTO_IMPORT_THRESHOLD = num("PIPELINE_AUTO_IMPORT_THRESHOLD", 92);
-/** At or below this heuristic score the item is skipped without any AI call. */
 export const SKIP_THRESHOLD = num("PIPELINE_SKIP_THRESHOLD", 25);
 
 /** Hard caps on what we are willing to send to the model. */
