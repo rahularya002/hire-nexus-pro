@@ -418,18 +418,27 @@ export const listReviewItems = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
-      .object({ status: z.enum(["needs_review", "skipped"]).default("needs_review") })
+      .object({
+        status: z.enum(["needs_review", "skipped"]).default("needs_review"),
+        artifact: z.string().max(40).optional(),
+        contextOnly: z.boolean().optional(),
+      })
       .partial()
       .parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
+    let query = context.supabase
       .from("email_import_skips")
       .select(
         "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,artifact_type,reason,status,sent_at,created_at,pending_payload",
       )
-      .eq("status", data.status ?? "needs_review")
-      .order("confidence", { ascending: false })
+      .eq("status", data.status ?? "needs_review");
+    if (data.artifact && data.artifact !== "all") query = query.eq("artifact_type", data.artifact);
+    if (data.contextOnly) {
+      query = query.in("artifact_type", ["recruitment_conversation", "job_description", "interview_feedback"]);
+    }
+    const { data: rows, error } = await query
+      .order("sent_at", { ascending: false, nullsFirst: false })
       .limit(200);
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r) => ({
