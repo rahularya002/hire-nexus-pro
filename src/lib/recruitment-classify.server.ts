@@ -37,12 +37,49 @@ export type Extracted = {
   notes?: string | null;
 };
 
+/** What the email primarily *contains*, which is what decides importability. */
+export type ArtifactType =
+  | "candidate_profile"
+  | "candidate_plus_conversation"
+  | "recruitment_conversation"
+  | "job_description"
+  | "interview_feedback"
+  | "administrative";
+
+export const ARTIFACT_TYPES: ArtifactType[] = [
+  "candidate_profile",
+  "candidate_plus_conversation",
+  "recruitment_conversation",
+  "job_description",
+  "interview_feedback",
+  "administrative",
+];
+
+export function isCandidateArtifact(a: ArtifactType | null | undefined) {
+  return a === "candidate_profile" || a === "candidate_plus_conversation";
+}
+
+export function normalizeArtifact(v: unknown): ArtifactType {
+  return typeof v === "string" && (ARTIFACT_TYPES as string[]).includes(v)
+    ? (v as ArtifactType)
+    : "administrative";
+}
+
 export type Classification = {
+  /** Candidate confidence: how sure we are an importable candidate profile exists. */
   confidence: number;
   kind: EmailKind;
+  artifact: ArtifactType;
   reason: string;
   decision: "import" | "review" | "skip";
-  signals: { heuristic: number; ai: number | null; hits: string[]; blocks: string[] };
+  signals: {
+    heuristic: number;
+    ai: number | null;
+    hits: string[];
+    blocks: string[];
+    candidateEvidence?: number;
+    uncertainty?: string | null;
+  };
   extracted: Extracted;
 };
 
