@@ -8,6 +8,9 @@ import {
 } from "./gmail.server";
 import {
   heuristicScore,
+  candidateEvidence,
+  isCandidateArtifact,
+  type ArtifactType,
   type Extracted,
 } from "./recruitment-classify.server";
 import { gmailMessageToRawItem } from "./gmail-discovery.server";
@@ -86,6 +89,7 @@ export type CandidatePayload = {
   sent_at: string | null;
   confidence: number;
   email_kind: string;
+  artifact_type?: ArtifactType | string | null;
   reason: string;
   signals: unknown;
   extracted: Extracted;
@@ -170,6 +174,7 @@ export async function upsertPersonFromPayload(
         confidence: payload.confidence,
         review_status: "imported",
         email_kind: payload.email_kind,
+        artifact_type: (payload.artifact_type as string | null) ?? null,
         classification_reason: payload.reason,
         signals: payload.signals as never,
         search_blob: blob.slice(0, 20_000),
@@ -200,6 +205,7 @@ export async function upsertPersonFromPayload(
         confidence: payload.confidence,
         review_status: "imported",
         email_kind: payload.email_kind,
+        artifact_type: (payload.artifact_type as string | null) ?? null,
         classification_reason: payload.reason,
         signals: payload.signals as never,
         search_blob: blob.slice(0, 20_000),
@@ -335,6 +341,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       const recordSkip = async (c: {
         confidence: number;
         kind: string;
+        artifact?: string | null;
         reason: string;
         signals: unknown;
         status: "skipped" | "needs_review";
@@ -353,6 +360,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           attachment_names: attNames,
           confidence: c.confidence,
           email_kind: c.kind,
+          artifact_type: c.artifact ?? null,
           reason: c.reason,
           signals: c.signals as never,
           pending_payload: (c.payload ?? null) as never,
@@ -363,14 +371,16 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
 
       // Cheapest gate of all: obvious noise is never even downloaded.
       const pre = heuristicScore(baseSignal);
-      if (pre.score <= 12) {
+      const preEv = candidateEvidence(baseSignal);
+      if (pre.score <= 12 && preEv.score <= 12 && !preEv.uncertainty) {
         skipped++;
         metrics.rulesSkipped++;
         await recordSkip({
-          confidence: pre.score,
+          confidence: preEv.score,
           kind: "other",
-          reason: pre.blocks[0] ? `Non-recruitment mail — ${pre.blocks[0]}.` : "No recruitment signals found.",
-          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks },
+          artifact: preEv.artifact,
+          reason: pre.blocks[0] ? `No candidate found — ${pre.blocks[0]}.` : "No candidate profile found in this email.",
+          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks, candidateEvidence: preEv.score },
           status: "skipped",
         });
         continue;
@@ -429,6 +439,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         await recordSkip({
           confidence: cls.confidence,
           kind: cls.kind,
+          artifact: cls.artifact,
           reason: cls.reason,
           signals: cls.signals,
           status: "skipped",
@@ -480,6 +491,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         sent_at: sentAt,
         confidence: cls.confidence,
         email_kind: cls.kind,
+        artifact_type: cls.artifact,
         reason: cls.reason,
         signals: cls.signals,
         extracted: cls.extracted,
@@ -492,6 +504,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         await recordSkip({
           confidence: cls.confidence,
           kind: cls.kind,
+          artifact: cls.artifact,
           reason: cls.reason,
           signals: cls.signals,
           status: "needs_review",
@@ -500,7 +513,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         continue;
       }
 
-      // Attachment-free recruitment mail only enriches a known person's timeline.
+      // Attachment-free mail only enriches a known person's timeline. If we cannot
+      // attach it to anyone, it is recruitment context — logged, never reviewed,
+      // unless the evidence says a profile is sitting in the body.
       if (stored.length === 0) {
         const { data: existing } = await supabaseAdmin
           .from("email_messages")
@@ -511,14 +526,20 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .limit(1)
           .maybeSingle();
         if (!existing?.email_candidate_id) {
-          needsReview++;
+          const uncertain = !!(cls.signals as { uncertainty?: string | null })?.uncertainty;
+          const reviewable = uncertain && isCandidateArtifact(cls.artifact);
+          if (reviewable) needsReview++;
+          else skipped++;
           await recordSkip({
             confidence: cls.confidence,
             kind: cls.kind,
-            reason: `${cls.reason} No resume attached, so no profile was created.`,
+            artifact: reviewable ? cls.artifact : "recruitment_conversation",
+            reason: reviewable
+              ? `${cls.reason} No resume attached — confirm whether a profile is in the body.`
+              : "Recruitment conversation with no candidate profile — stored in the archive.",
             signals: cls.signals,
-            status: "needs_review",
-            payload,
+            status: reviewable ? "needs_review" : "skipped",
+            payload: reviewable ? payload : null,
           });
           continue;
         }

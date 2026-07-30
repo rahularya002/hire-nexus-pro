@@ -49,6 +49,7 @@ export type ArchivePerson = {
   confidence: number;
   review_status: string;
   email_kind: string | null;
+  artifact_type?: string | null;
   classification_reason: string | null;
   ai_summary?: string | null;
   enriched_at?: string | null;
@@ -63,6 +64,7 @@ export type ReviewItem = {
   attachment_names: string[];
   confidence: number;
   email_kind: string | null;
+  artifact_type?: string | null;
   reason: string | null;
   status: string;
   sent_at: string | null;
@@ -235,6 +237,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
         contactedWithinDays: z.number().int().positive().max(3650).nullable().optional(),
         mine: z.boolean().optional(),
         reviewStatus: z.enum(["imported", "needs_review", "rejected", "all"]).optional(),
+        artifact: z.string().max(40).optional(),
       })
       .partial()
       .parse(d ?? {}),
@@ -243,13 +246,14 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("email_candidates")
       .select(
-        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
+        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at,artifact_type",
       )
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
 
     const rs = data.reviewStatus ?? "imported";
     if (rs !== "all") q = q.eq("review_status", rs);
+    if (data.artifact && data.artifact !== "all") q = q.eq("artifact_type", data.artifact);
     if (data.mine) q = q.eq("user_id", context.userId);
     if (data.search?.trim()) {
       const s = data.search.trim().replace(/[%,]/g, " ");
@@ -275,7 +279,7 @@ export const getEmailCandidate = createServerFn({ method: "GET" })
       supabase
         .from("email_candidates")
         .select(
-          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
+          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at,artifact_type",
         )
         .eq("id", data.id)
         .maybeSingle(),
@@ -414,18 +418,27 @@ export const listReviewItems = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
-      .object({ status: z.enum(["needs_review", "skipped"]).default("needs_review") })
+      .object({
+        status: z.enum(["needs_review", "skipped"]).default("needs_review"),
+        artifact: z.string().max(40).optional(),
+        contextOnly: z.boolean().optional(),
+      })
       .partial()
       .parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
+    let query = context.supabase
       .from("email_import_skips")
       .select(
-        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,reason,status,sent_at,created_at,pending_payload",
+        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,artifact_type,reason,status,sent_at,created_at,pending_payload",
       )
-      .eq("status", data.status ?? "needs_review")
-      .order("confidence", { ascending: false })
+      .eq("status", data.status ?? "needs_review");
+    if (data.artifact && data.artifact !== "all") query = query.eq("artifact_type", data.artifact);
+    if (data.contextOnly) {
+      query = query.in("artifact_type", ["recruitment_conversation", "job_description", "interview_feedback"]);
+    }
+    const { data: rows, error } = await query
+      .order("sent_at", { ascending: false, nullsFirst: false })
       .limit(200);
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r) => ({
@@ -437,6 +450,7 @@ export const listReviewItems = createServerFn({ method: "GET" })
       attachment_names: (r.attachment_names as string[] | null) ?? [],
       confidence: (r.confidence as number) ?? 0,
       email_kind: r.email_kind as string | null,
+      artifact_type: r.artifact_type as string | null,
       reason: r.reason as string | null,
       status: r.status as string,
       sent_at: r.sent_at as string | null,
@@ -599,6 +613,7 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
         confidence: r.promoted_candidate_id ? Math.max(cls.confidence, 80) : cls.confidence,
         review_status: status,
         email_kind: cls.kind,
+        artifact_type: cls.artifact,
         classification_reason: cls.reason,
         signals: cls.signals as never,
       })

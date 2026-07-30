@@ -110,29 +110,67 @@ const KIND_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-/** "98% Recruitment Email ✓" style confidence chip. */
-function ConfidenceBadge({
+const ARTIFACT_FILTERS = [
+  ["all", "All outcomes"],
+  ["candidate_profile", "Candidate detected"],
+  ["candidate_plus_conversation", "Candidate + conversation"],
+  ["recruitment_conversation", "Recruitment conversation"],
+  ["job_description", "Job description"],
+  ["interview_feedback", "Interview feedback"],
+  ["administrative", "No candidate found"],
+] as const;
+
+/**
+ * Outcome chip: says what the email actually produced, not how "recruitment-y"
+ * it looked. Candidate confidence only shows when a candidate was detected.
+ */
+function OutcomeBadge({
+  artifact,
   score,
   state,
 }: {
-  score: number | null | undefined;
+  artifact?: string | null;
+  score?: number | null;
   state: "imported" | "needs_review" | "skipped";
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(score ?? 0)));
-  const tone =
-    state === "imported"
-      ? "bg-success/10 text-success border-success/25"
-      : state === "needs_review"
-        ? "bg-warning/10 text-warning border-warning/30"
-        : "bg-destructive/10 text-destructive border-destructive/25";
-  const suffix = state === "imported" ? "✓" : state === "needs_review" ? "Needs review" : "Skipped";
+  const a = artifact ?? (state === "imported" ? "candidate_profile" : "administrative");
+  const isCandidate = a === "candidate_profile" || a === "candidate_plus_conversation";
+
+  let label: string;
+  let tone: string;
+  if (state === "needs_review") {
+    label = "Possible candidate — needs a look";
+    tone = "bg-warning/10 text-warning border-warning/30";
+  } else if (isCandidate) {
+    label = a === "candidate_plus_conversation" ? "Candidate + conversation" : "Candidate detected";
+    tone = "bg-success/10 text-success border-success/25";
+  } else if (a === "job_description") {
+    label = "Job description — stored as requirement";
+    tone = "bg-primary/10 text-primary border-primary/25";
+  } else if (a === "recruitment_conversation") {
+    label = "Recruitment conversation — stored in archive";
+    tone = "bg-secondary text-muted-foreground border-border";
+  } else if (a === "interview_feedback") {
+    label = "Interview feedback — stored in history";
+    tone = "bg-secondary text-muted-foreground border-border";
+  } else {
+    label = "No candidate found";
+    tone = "bg-muted text-muted-foreground border-border";
+  }
+
   return (
     <span
       className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${tone}`}
-      title={`AI confidence that this is a recruitment email: ${pct}%`}
+      title={
+        isCandidate || state === "needs_review"
+          ? `Candidate confidence — how sure we are this email holds an importable profile: ${pct}%`
+          : "This email holds no importable candidate profile."
+      }
     >
-      <span className="font-semibold">{pct}%</span> Recruitment Email
-      <span className="opacity-80">{suffix}</span>
+      {(isCandidate || state === "needs_review") && <span className="font-semibold">{pct}%</span>}
+      {label}
+      {state === "imported" && isCandidate ? <span className="opacity-80">· ready to import</span> : null}
     </span>
   );
 }
@@ -158,8 +196,9 @@ function Page() {
   const [location, setLocation] = useState("");
   const [recentOnly, setRecentOnly] = useState(false);
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
-  const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
+  const [tab, setTab] = useState<"archive" | "needs_review" | "context" | "skipped">("archive");
   const [archiveStatus, setArchiveStatus] = useState<"imported" | "needs_review" | "rejected" | "all">("imported");
+  const [artifact, setArtifact] = useState<string>("all");
 
   const conn = useQuery({ queryKey: ["google-connection"], queryFn: () => fetchConn() });
   const labels = useQuery({
@@ -172,7 +211,7 @@ function Page() {
     queryFn: () => fetchProgress(),
   });
   const people = useQuery({
-    queryKey: ["email-archive-people", search, skill, location, recentOnly, archiveStatus],
+    queryKey: ["email-archive-people", search, skill, location, recentOnly, archiveStatus, artifact],
     queryFn: () =>
       fetchPeople({
         data: {
@@ -181,12 +220,19 @@ function Page() {
           location: location.trim() || undefined,
           contactedWithinDays: recentOnly ? 90 : null,
           reviewStatus: archiveStatus,
+          artifact,
         },
       }),
   });
   const reviewQ = useQuery({
     queryKey: ["email-archive-review", tab],
-    queryFn: () => fetchReview({ data: { status: tab === "skipped" ? "skipped" : "needs_review" } }),
+    queryFn: () =>
+      fetchReview({
+        data:
+          tab === "context"
+            ? { status: "skipped" as const, contextOnly: true }
+            : { status: tab === "skipped" ? ("skipped" as const) : ("needs_review" as const) },
+      }),
     enabled: tab !== "archive",
   });
 
@@ -294,7 +340,7 @@ function Page() {
     mutationFn: () => cleanup(),
     onSuccess: (r) => {
       toast.success(
-        `Re-scored ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} kept, ${r.review} flagged for review, ${r.rejected} marked low confidence. Nothing was deleted — switch the archive filter to see them.`,
+        `Re-checked ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} hold an importable candidate, ${r.review} need a look, ${r.rejected} contain no candidate. Nothing was deleted — switch the outcome filter to see them.`,
       );
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
@@ -492,6 +538,7 @@ function Page() {
           [
             ["archive", "Archive"],
             ["needs_review", `Needs review${run?.needs_review ? ` (${run.needs_review})` : ""}`],
+            ["context", "Recruitment context"],
             ["skipped", "Skipped"],
           ] as const
         ).map(([key, label]) => (
@@ -511,8 +558,10 @@ function Page() {
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             {tab === "needs_review"
-              ? "Borderline emails the AI wasn't confident about. Confirm the ones that really are recruitment."
-              : "Emails the AI judged to be non-recruitment. Nothing here was added to the archive."}
+              ? "Only emails where we genuinely can't tell whether an importable candidate is inside — a resume pasted in the body, an unreadable scan, or mixed attachments."
+              : tab === "context"
+                ? "Recruitment conversations, job descriptions and interview feedback. These are kept as context — they contain no candidate to import, so they never need your review."
+                : "Emails with no candidate in them. Nothing here created a profile."}
           </p>
           {reviewQ.isLoading ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
@@ -521,8 +570,14 @@ function Page() {
           ) : (reviewQ.data ?? []).length === 0 ? (
             <EmptyState
               icon={ShieldQuestion}
-              title={tab === "needs_review" ? "Nothing waiting for review" : "Nothing skipped yet"}
-              description="Run an import and the AI will route uncertain emails here."
+              title={
+                tab === "needs_review"
+                  ? "Nothing waiting for review"
+                  : tab === "context"
+                    ? "No recruitment context stored yet"
+                    : "Nothing skipped yet"
+              }
+              description="Run an import and each email is routed by what it actually contains."
             />
           ) : (
             <div className="space-y-2">
@@ -531,7 +586,8 @@ function Page() {
                   <div className="flex items-start gap-3 flex-wrap">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <ConfidenceBadge
+                        <OutcomeBadge
+                          artifact={r.artifact_type}
                           score={r.confidence}
                           state={tab === "needs_review" ? "needs_review" : "skipped"}
                         />
@@ -560,9 +616,9 @@ function Page() {
                         size="sm"
                         onClick={() => approveMut.mutate(r.id)}
                         disabled={approveMut.isPending || !r.has_payload}
-                        title={r.has_payload ? "Import this email" : "Re-run the import to recover this email"}
+                        title={r.has_payload ? "Import the candidate in this email" : "Re-run the import to recover this email"}
                       >
-                        <Check className="size-3.5" /> It's recruitment
+                        <Check className="size-3.5" /> Import candidate
                       </Button>
                       <Button
                         size="sm"
@@ -570,7 +626,7 @@ function Page() {
                         onClick={() => rejectMut.mutate(r.id)}
                         disabled={rejectMut.isPending}
                       >
-                        <X className="size-3.5" /> Not recruitment
+                        <X className="size-3.5" /> No candidate here
                       </Button>
                     </div>
                   </div>
@@ -613,10 +669,22 @@ function Page() {
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           aria-label="Archive confidence filter"
         >
-          <option value="imported">Confident matches</option>
+          <option value="imported">Imported candidates</option>
           <option value="needs_review">Flagged for review</option>
-          <option value="rejected">Low confidence</option>
+          <option value="rejected">No candidate detected</option>
           <option value="all">Everyone</option>
+        </select>
+        <select
+          value={artifact}
+          onChange={(e) => setArtifact(e.target.value)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Archive outcome filter"
+        >
+          {ARTIFACT_FILTERS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -658,7 +726,8 @@ function Page() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
                   <div className="mt-1.5">
-                    <ConfidenceBadge
+                    <OutcomeBadge
+                      artifact={p.artifact_type}
                       score={p.confidence}
                       state={
                         p.review_status === "needs_review"
@@ -774,7 +843,8 @@ function PersonSheet({ person, onClose }: { person: ArchivePerson | null; onClos
         {p && (
           <div className="mt-4 space-y-5 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <ConfidenceBadge
+              <OutcomeBadge
+                artifact={p.artifact_type}
                 score={p.confidence}
                 state={
                   p.review_status === "needs_review"

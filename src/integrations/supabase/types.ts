@@ -759,6 +759,7 @@ export type Database = {
         Row: {
           agency_id: string
           ai_summary: string | null
+          artifact_type: string | null
           classification_reason: string | null
           companies_mentioned: string[]
           confidence: number
@@ -792,6 +793,7 @@ export type Database = {
         Insert: {
           agency_id: string
           ai_summary?: string | null
+          artifact_type?: string | null
           classification_reason?: string | null
           companies_mentioned?: string[]
           confidence?: number
@@ -825,6 +827,7 @@ export type Database = {
         Update: {
           agency_id?: string
           ai_summary?: string | null
+          artifact_type?: string | null
           classification_reason?: string | null
           companies_mentioned?: string[]
           confidence?: number
@@ -976,6 +979,7 @@ export type Database = {
       email_import_skips: {
         Row: {
           agency_id: string
+          artifact_type: string | null
           attachment_names: string[]
           confidence: number
           created_at: string
@@ -998,6 +1002,7 @@ export type Database = {
         }
         Insert: {
           agency_id: string
+          artifact_type?: string | null
           attachment_names?: string[]
           confidence?: number
           created_at?: string
@@ -1020,6 +1025,7 @@ export type Database = {
         }
         Update: {
           agency_id?: string
+          artifact_type?: string | null
           attachment_names?: string[]
           confidence?: number
           created_at?: string
