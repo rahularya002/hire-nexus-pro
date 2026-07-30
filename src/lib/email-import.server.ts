@@ -491,6 +491,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         sent_at: sentAt,
         confidence: cls.confidence,
         email_kind: cls.kind,
+        artifact_type: cls.artifact,
         reason: cls.reason,
         signals: cls.signals,
         extracted: cls.extracted,
@@ -503,6 +504,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         await recordSkip({
           confidence: cls.confidence,
           kind: cls.kind,
+          artifact: cls.artifact,
           reason: cls.reason,
           signals: cls.signals,
           status: "needs_review",
@@ -511,7 +513,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         continue;
       }
 
-      // Attachment-free recruitment mail only enriches a known person's timeline.
+      // Attachment-free mail only enriches a known person's timeline. If we cannot
+      // attach it to anyone, it is recruitment context — logged, never reviewed,
+      // unless the evidence says a profile is sitting in the body.
       if (stored.length === 0) {
         const { data: existing } = await supabaseAdmin
           .from("email_messages")
@@ -522,14 +526,20 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .limit(1)
           .maybeSingle();
         if (!existing?.email_candidate_id) {
-          needsReview++;
+          const uncertain = !!(cls.signals as { uncertainty?: string | null })?.uncertainty;
+          const reviewable = uncertain && isCandidateArtifact(cls.artifact);
+          if (reviewable) needsReview++;
+          else skipped++;
           await recordSkip({
             confidence: cls.confidence,
             kind: cls.kind,
-            reason: `${cls.reason} No resume attached, so no profile was created.`,
+            artifact: reviewable ? cls.artifact : "recruitment_conversation",
+            reason: reviewable
+              ? `${cls.reason} No resume attached — confirm whether a profile is in the body.`
+              : "Recruitment conversation with no candidate profile — stored in the archive.",
             signals: cls.signals,
-            status: "needs_review",
-            payload,
+            status: reviewable ? "needs_review" : "skipped",
+            payload: reviewable ? payload : null,
           });
           continue;
         }
