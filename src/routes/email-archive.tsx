@@ -340,7 +340,7 @@ function Page() {
     mutationFn: () => cleanup(),
     onSuccess: (r) => {
       toast.success(
-        `Re-scored ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} kept, ${r.review} flagged for review, ${r.rejected} marked low confidence. Nothing was deleted — switch the archive filter to see them.`,
+        `Re-checked ${r.scored} record${r.scored === 1 ? "" : "s"} — ${r.imported} hold an importable candidate, ${r.review} need a look, ${r.rejected} contain no candidate. Nothing was deleted — switch the outcome filter to see them.`,
       );
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
