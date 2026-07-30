@@ -110,29 +110,67 @@ const KIND_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-/** "98% Recruitment Email ✓" style confidence chip. */
-function ConfidenceBadge({
+const ARTIFACT_FILTERS = [
+  ["all", "All outcomes"],
+  ["candidate_profile", "Candidate detected"],
+  ["candidate_plus_conversation", "Candidate + conversation"],
+  ["recruitment_conversation", "Recruitment conversation"],
+  ["job_description", "Job description"],
+  ["interview_feedback", "Interview feedback"],
+  ["administrative", "No candidate found"],
+] as const;
+
+/**
+ * Outcome chip: says what the email actually produced, not how "recruitment-y"
+ * it looked. Candidate confidence only shows when a candidate was detected.
+ */
+function OutcomeBadge({
+  artifact,
   score,
   state,
 }: {
-  score: number | null | undefined;
+  artifact?: string | null;
+  score?: number | null;
   state: "imported" | "needs_review" | "skipped";
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(score ?? 0)));
-  const tone =
-    state === "imported"
-      ? "bg-success/10 text-success border-success/25"
-      : state === "needs_review"
-        ? "bg-warning/10 text-warning border-warning/30"
-        : "bg-destructive/10 text-destructive border-destructive/25";
-  const suffix = state === "imported" ? "✓" : state === "needs_review" ? "Needs review" : "Skipped";
+  const a = artifact ?? (state === "imported" ? "candidate_profile" : "administrative");
+  const isCandidate = a === "candidate_profile" || a === "candidate_plus_conversation";
+
+  let label: string;
+  let tone: string;
+  if (state === "needs_review") {
+    label = "Possible candidate — needs a look";
+    tone = "bg-warning/10 text-warning border-warning/30";
+  } else if (isCandidate) {
+    label = a === "candidate_plus_conversation" ? "Candidate + conversation" : "Candidate detected";
+    tone = "bg-success/10 text-success border-success/25";
+  } else if (a === "job_description") {
+    label = "Job description — stored as requirement";
+    tone = "bg-primary/10 text-primary border-primary/25";
+  } else if (a === "recruitment_conversation") {
+    label = "Recruitment conversation — stored in archive";
+    tone = "bg-secondary text-muted-foreground border-border";
+  } else if (a === "interview_feedback") {
+    label = "Interview feedback — stored in history";
+    tone = "bg-secondary text-muted-foreground border-border";
+  } else {
+    label = "No candidate found";
+    tone = "bg-muted text-muted-foreground border-border";
+  }
+
   return (
     <span
       className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${tone}`}
-      title={`AI confidence that this is a recruitment email: ${pct}%`}
+      title={
+        isCandidate || state === "needs_review"
+          ? `Candidate confidence — how sure we are this email holds an importable profile: ${pct}%`
+          : "This email holds no importable candidate profile."
+      }
     >
-      <span className="font-semibold">{pct}%</span> Recruitment Email
-      <span className="opacity-80">{suffix}</span>
+      {(isCandidate || state === "needs_review") && <span className="font-semibold">{pct}%</span>}
+      {label}
+      {state === "imported" && isCandidate ? <span className="opacity-80">· ready to import</span> : null}
     </span>
   );
 }
