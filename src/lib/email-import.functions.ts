@@ -245,7 +245,7 @@ export const listEmailCandidates = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("email_candidates")
       .select(
-        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
+        "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at,artifact_type",
       )
       .order("last_email_at", { ascending: false, nullsFirst: false })
       .limit(300);
@@ -277,7 +277,7 @@ export const getEmailCandidate = createServerFn({ method: "GET" })
       supabase
         .from("email_candidates")
         .select(
-          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at",
+          "id,name,email,phone,location,role,current_company,experience,skills,salary_min,salary_max,notes,resume_count,email_count,first_email_at,last_email_at,promoted_candidate_id,created_at,confidence,review_status,email_kind,classification_reason,ai_summary,enriched_at,artifact_type",
         )
         .eq("id", data.id)
         .maybeSingle(),
@@ -424,7 +424,7 @@ export const listReviewItems = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("email_import_skips")
       .select(
-        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,reason,status,sent_at,created_at,pending_payload",
+        "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,artifact_type,reason,status,sent_at,created_at,pending_payload",
       )
       .eq("status", data.status ?? "needs_review")
       .order("confidence", { ascending: false })
@@ -439,6 +439,7 @@ export const listReviewItems = createServerFn({ method: "GET" })
       attachment_names: (r.attachment_names as string[] | null) ?? [],
       confidence: (r.confidence as number) ?? 0,
       email_kind: r.email_kind as string | null,
+      artifact_type: r.artifact_type as string | null,
       reason: r.reason as string | null,
       status: r.status as string,
       sent_at: r.sent_at as string | null,
