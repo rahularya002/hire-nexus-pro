@@ -1,100 +1,57 @@
-## Revised plan — Email Archive cost architecture
+## Goal
 
-Incorporating all six pieces of feedback. Notably: **enrichment is never automatic**, thresholds are named constants, and the pipeline is restructured into named stages so future importers reuse it.
+Stop asking "is this a recruitment email?" and start asking "does this email contain a candidate we can import?". Recruiter chatter, JDs and interview feedback stay in the archive as logged context, but never land in the recruiter's review queue.
 
-Unchanged correction from before: resume text extraction is already AI-free (`unpdf` + `mammoth` in `src/lib/cv-parse.server.ts`), and there is one LLM call per email, not two — `classifyEmail` classifies and extracts in a single Gemini 2.5 Flash request.
+## Artifact model
 
-## Stage architecture
-
-Restructure into four named stages, each with one responsibility, so LinkedIn / Drive / ATS importers can later plug in at Discovery:
+Every scanned email is labelled with one primary artifact:
 
 ```text
-DISCOVERY      Gmail → RawItem { source, external_id, metadata, attachments }
-NORMALIZATION  hash attachments → text extraction → deterministic field extraction
-CLASSIFICATION rules → bands → (cache lookup) → Gemini only when ambiguous
-ENRICHMENT     never during import; on explicit demand only
+candidate_profile          -> import / review as candidate
+candidate_plus_conversation-> import candidate, keep the mail in history
+recruitment_conversation   -> logged as recruitment memory, no candidate
+job_description            -> logged as requirement intelligence, no candidate
+interview_feedback         -> logged, no candidate
+administrative             -> skipped
 ```
 
-New file layout:
-- `src/lib/pipeline/types.ts` — `RawItem`, `NormalizedItem`, `ClassifiedItem`, `FieldCoverage`
-- `src/lib/pipeline/normalize.server.ts` — hashing, text extraction, deterministic extraction
-- `src/lib/pipeline/classify.server.ts` — rules, bands, cache, Gemini fallback
-- `src/lib/pipeline/config.ts` — all tunable constants
-- `src/lib/gmail-discovery.server.ts` — Gmail → `RawItem` (the only Gmail-specific file)
-- `src/lib/email-import.server.ts` becomes a thin orchestrator
+Non-candidate artifacts are stored lightweight, in the existing skip/log table, with the artifact label and a browsable tab — no new tables.
 
-## 1. Tunable configuration (`pipeline/config.ts`)
+## Candidate evidence (deterministic, before any AI)
 
-```ts
-export const AUTO_IMPORT_THRESHOLD = 92;
-export const SKIP_THRESHOLD = 25;
-export const AI_MAX_BODY_CHARS = 1200;
-export const AI_MAX_DOC_CHARS = 3000;
-export const CACHE_TTL_DAYS = 180;
-export const COVERAGE_TARGETS = { identity: 70, contact: 70, experience: 60, skills: 50 };
-```
+- Resume-style attachment (.pdf/.doc/.docx) with a filename hit on resume / cv / profile / candidate / biodata, or a person-shaped filename
+- Attachment text that parses as a resume (2+ resume sections, contact block)
+- Body phrases: "please find attached", "attached is the candidate", "sharing profile", "kindly find the resume", "candidate details"
+- Resume-shaped body text (contact block + experience/education headings) when there is no attachment
+- Negative evidence: JD phrasing ("we are hiring", "job description", "openings", "share profiles for"), interview feedback phrasing, pure conversation with no contact block
 
-Each constant reads an optional `process.env` override at module load, so thresholds can be tuned without a code change.
+## Scoring and routing
 
-## 2. Deterministic extraction with per-facet coverage
+`confidence` becomes **candidate confidence** — how sure we are an importable candidate profile exists.
 
-`normalize.server.ts` extracts from plain text via regex/rules and returns fields plus a `FieldCoverage` breakdown instead of a single score:
+- Strong candidate evidence, deterministic identity present -> auto-import, no AI call
+- Zero candidate evidence but clear recruitment wording -> artifact is conversation / JD / feedback, logged, `skipped` status, **never** review
+- Clear administrative or transactional -> skipped (existing hard blocks stay)
+- Genuinely uncertain only -> AI call, then review queue
 
-| Facet | Extracted from | Typical hit rate |
-|---|---|---|
-| contact | email regex, phone regex (IN + intl), LinkedIn URL | very high |
-| identity | header lines, filename fallback, email local-part | high |
-| experience | "X years", date-range summing, company keywords near "at/@" | medium |
-| skills | curated dictionary match against the text | medium |
+Review queue is reserved for: resume pasted in the body, unreadable/scanned PDF, mixed attachment types, corrupted document, or attachment parsed but identity ambiguous.
 
-AI is then asked **only for the facets below their target** — the tool schema is built dynamically from the gaps, so a resume missing only skills sends a one-property schema.
+## Technical changes
 
-## 3. Classification bands
+1. **Migration** — add `artifact_type text` to `email_candidates` and `email_import_skips` (nullable, default null); add an index on `email_import_skips(user_id, artifact_type)`. Backfill runs via re-score, not SQL.
+2. **`src/lib/recruitment-classify.server.ts`** — split `heuristicScore` into two scores: `recruitmentScore` (kept for noise rejection) and a new `candidateEvidence` (0–100 plus hit list, driven by the evidence rules above). Add JD / feedback / conversation detectors.
+3. **`src/lib/pipeline/classify.server.ts`** — AI tool schema swaps `is_recruitment`/`confidence` for `artifact_type` + `candidate_confidence` + `reason`; prompt is rewritten to pick the primary artifact. Fusion logic routes on artifact, not on recruitment score. AI is only called in the uncertain band, same cost architecture.
+4. **`src/lib/pipeline/config.ts`** — thresholds renamed to candidate-confidence bands (`CANDIDATE_IMPORT_THRESHOLD`, `CANDIDATE_SKIP_THRESHOLD`), still env-tunable.
+5. **`src/lib/email-import.server.ts`** — persist `artifact_type` on both people and skip rows; the "recruitment mail with no attachment" branch no longer defaults to review — it becomes a logged conversation unless resume-in-body evidence exists.
+6. **`src/lib/email-import.functions.ts`** — return `artifact_type` from the archive/review queries; rewrite `rescoreImpl` to re-classify existing rows under the new model and re-route them (conversations/JDs move out of the candidate list into the logged tab; nothing is deleted; promoted people are never demoted).
+7. **`src/routes/email-archive.tsx`** — replace `ConfidenceBadge` with an outcome chip:
+   - `Candidate detected — ready to import` (green, with % candidate confidence)
+   - `Candidate + conversation`
+   - `Recruitment conversation — stored in archive`
+   - `Job description — stored as requirement`
+   - `No candidate found`
+   Review tab shows only genuine uncertainty with the specific reason ("resume looks pasted in the body", "attachment could not be read"). Add an artifact filter to the archive tab, and a "Recruitment context" tab listing logged conversations/JDs/feedback (read-only, with a promote-to-candidate escape hatch).
 
-- `score >= AUTO_IMPORT_THRESHOLD` → import, no AI. Gated on resume-structured document text plus a contact detail.
-- `score <= SKIP_THRESHOLD` → skip, logged to `email_import_skips` (today's cutoff is 12, so a lot of junk currently reaches Gemini).
-- otherwise → cache lookup, then Gemini.
+## Rollout
 
-## 4. Two-level cache (resume hash **and** email hash)
-
-Migration adds:
-- `content_sha256` on `email_resume_versions`, indexed on `(user_id, content_sha256)`
-- `ai_cache` table: `user_id`, `cache_key` (SHA-256), `kind` (`resume` | `email`), `payload jsonb` (extracted text, fields, classification verdict), `created_at`, unique on `(user_id, cache_key)`
-
-Keys:
-- **Resume key** — SHA-256 of the attachment bytes. Hit skips parsing *and* classification.
-- **Email key** — SHA-256 of `from_email | subject | resume hashes | cleaned-body prefix`. Hit means the exact same prompt would be sent, so the stored verdict is reused. This makes `rescoreArchive` almost free on unchanged mail.
-
-Invalidation: a changed attachment or changed body produces a different key naturally; entries older than `CACHE_TTL_DAYS` are ignored.
-
-## 5. Body preprocessing
-
-New helper strips HTML, quoted replies (`On … wrote:`, `>` blocks, `-----Original Message-----`), signature blocks, legal/confidentiality disclaimers, tracking pixels and unsubscribe footers, then truncates to `AI_MAX_BODY_CHARS`. Document text is capped at `AI_MAX_DOC_CHARS` — identity fields live in the resume header, not in project history.
-
-## 6. Enrichment — explicit only
-
-No enrichment during import. No enrichment on profile open. A new `enrichArchivePerson` server function runs only when:
-1. the recruiter clicks **Generate AI summary** in the person sheet,
-2. the person is matched against a JD,
-3. an AI-powered search touches them.
-
-`email_candidates` gets `enriched_at` and `ai_summary` so the result persists and never re-runs on its own. The person sheet shows deterministic fields immediately with a "Generate AI summary" call-to-action where the summary would be.
-
-## 7. Instrumentation
-
-`email_import_runs` gains `ai_calls`, `cache_hits`, `auto_imported`, `tokens_estimated`. The run card in `src/routes/email-archive.tsx` shows the funnel:
-
-```text
-6,000 scanned → 5,890 skipped by rules → 51 cache hits → 74 AI calls
-```
-
-## Not in this plan
-
-The local ONNX classifier before Gemini — agreed it's the right v2 move, but it isn't worth the model-hosting and bundle weight until the funnel metrics from step 7 show the 26–91 band is actually large.
-
-## Technical notes
-
-- Hashing uses Web Crypto (`crypto.subtle.digest`), available in the Worker runtime — no new dependency.
-- Files touched: `src/lib/email-import.server.ts`, `src/lib/email-import.functions.ts`, `src/lib/recruitment-classify.server.ts` (logic moves into `pipeline/classify.server.ts`, file kept as a re-export so existing imports don't break), `src/lib/gmail.server.ts`, `src/routes/email-archive.tsx`; new `src/lib/pipeline/*`; one migration.
-- `unpdf` / `mammoth` stay as-is. Tika / Docling are JVM- and Python-based and cannot run in this runtime.
-- Existing archive rows are untouched; the cache starts cold and fills on the next run.
+After the migration, the existing "Re-score archive" button applies the new model to everything already imported, so the current false-positive rows (Paytm, NSE etc.) get relabelled as administrative and the recruiter conversations drop out of the review queue.
