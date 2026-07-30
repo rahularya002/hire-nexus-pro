@@ -1,24 +1,56 @@
-// CLASSIFICATION stage — rules first, cache second, model only for what is left.
+// CLASSIFICATION stage — "does this email contain an importable candidate?"
+// Rules first, cache second, model only for the genuinely uncertain middle.
 import {
+  ARTIFACT_TYPES,
+  candidateEvidence,
   cleanExtracted,
   heuristicScore,
+  isCandidateArtifact,
+  normalizeArtifact,
+  type ArtifactType,
+  type CandidateEvidence,
   type Classification,
   type EmailKind,
   type Extracted,
   type SignalInput,
 } from "../recruitment-classify.server";
 import { emailCacheKey, readCache, resumeCacheKey, writeCache } from "./cache.server";
-import { AI_MAX_BODY_CHARS, AI_MAX_DOC_CHARS, AUTO_IMPORT_THRESHOLD, SKIP_THRESHOLD, type Facet } from "./config";
+import {
+  AI_MAX_BODY_CHARS,
+  AI_MAX_DOC_CHARS,
+  CANDIDATE_IMPORT_THRESHOLD,
+  CANDIDATE_SKIP_THRESHOLD,
+  type Facet,
+} from "./config";
 import { mergeFields } from "./normalize.server";
 import type { PipelineMetrics } from "./types";
 
-const RECRUITMENT_KINDS: EmailKind[] = [
-  "candidate_submission",
-  "resume_forward",
-  "job_application",
-  "interview_scheduling",
-  "recruiter_conversation",
-];
+/** Legacy email_kind kept for display continuity, derived from the artifact. */
+function kindForArtifact(a: ArtifactType, hasAttachment: boolean): EmailKind {
+  switch (a) {
+    case "candidate_profile":
+      return hasAttachment ? "candidate_submission" : "job_application";
+    case "candidate_plus_conversation":
+      return "resume_forward";
+    case "recruitment_conversation":
+      return "recruiter_conversation";
+    case "job_description":
+      return "job_alert";
+    case "interview_feedback":
+      return "interview_scheduling";
+    default:
+      return "other";
+  }
+}
+
+export const ARTIFACT_LABEL: Record<ArtifactType, string> = {
+  candidate_profile: "Candidate detected",
+  candidate_plus_conversation: "Candidate + conversation",
+  recruitment_conversation: "Recruitment conversation",
+  job_description: "Job description",
+  interview_feedback: "Interview feedback",
+  administrative: "No candidate found",
+};
 
 type FacetSchema = { property: string; type: "string" | "number" | "array" };
 
@@ -39,19 +71,11 @@ const FACET_FIELDS: Record<Facet, FacetSchema[]> = {
 
 function buildSchema(gaps: Facet[]) {
   const properties: Record<string, unknown> = {
-    is_recruitment: { type: "boolean" },
-    confidence: { type: "number" },
-    email_kind: {
-      type: "string",
-      enum: [
-        "candidate_submission","resume_forward","job_application","interview_scheduling",
-        "recruiter_conversation","job_alert","bank_statement","invoice_receipt","travel",
-        "order_shipping","newsletter_promo","otp_security","other",
-      ],
-    },
+    artifact_type: { type: "string", enum: ARTIFACT_TYPES },
+    candidate_confidence: { type: "number" },
     reason: { type: "string" },
   };
-  const required = ["is_recruitment", "confidence", "email_kind", "reason"];
+  const required = ["artifact_type", "candidate_confidence", "reason"];
 
   for (const facet of gaps) {
     for (const f of FACET_FIELDS[facet]) {
@@ -66,20 +90,10 @@ function buildSchema(gaps: Facet[]) {
 }
 
 type AiResult = {
-  is_recruitment?: boolean | null;
-  confidence?: number | null;
-  email_kind?: string | null;
+  artifact_type?: string | null;
+  candidate_confidence?: number | null;
   reason?: string | null;
 } & Partial<Extracted>;
-
-function normalizeKind(v: unknown): EmailKind {
-  const k = typeof v === "string" ? (v as EmailKind) : "other";
-  const all: EmailKind[] = [
-    ...RECRUITMENT_KINDS,"job_alert","bank_statement","invoice_receipt","travel",
-    "order_shipping","newsletter_promo","otp_security","other",
-  ];
-  return all.includes(k) ? k : "other";
-}
 
 async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiResult | null; chars: number }> {
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -101,7 +115,7 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
     .join("\n");
 
   const gapNote = gaps.length
-    ? `Also fill only these missing fields: ${gaps.join(", ")}. Leave anything you are unsure about null.`
+    ? `If (and only if) the artifact contains a candidate, also fill these missing fields: ${gaps.join(", ")}. Leave anything you are unsure about null.`
     : "Do not extract any candidate fields; only classify.";
 
   try {
@@ -114,7 +128,17 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
           {
             role: "system",
             content:
-              "You classify a recruiter's email using sender, subject, body, attachment names and attached document text. Recruitment means a candidate resume or CV, a candidate submission or forward, a job application, interview scheduling, or a recruiter/candidate conversation. Bank or brokerage statements, invoices, receipts, payments, bills, taxes, OTP or security codes, orders, shipping, travel and newsletters are NOT recruitment. Never call a document a resume just because it is a PDF. Return confidence 0-100 and be conservative: use 40-70 when genuinely ambiguous. " +
+              "You decide what recruitment artifact an email primarily CONTAINS, so a recruiter database can import candidates. " +
+              "Pick exactly one artifact_type: " +
+              "candidate_profile (a specific person's resume/CV/profile is attached or written out), " +
+              "candidate_plus_conversation (a candidate profile plus recruiter discussion), " +
+              "recruitment_conversation (recruiter/candidate/client discussion, follow-ups, scheduling — NO importable profile), " +
+              "job_description (a role, requirement or JD being shared — describes a job, not a person), " +
+              "interview_feedback (evaluation of an interview), " +
+              "administrative (anything else: statements, invoices, payments, OTP, orders, travel, newsletters, job alerts). " +
+              "candidate_confidence (0-100) answers ONLY: how confident are you that this email contains a candidate profile that can be imported as a person record? " +
+              "An email can be 100% recruitment related and still have candidate_confidence 0 — that is normal and correct for JDs and conversations. " +
+              "Never call a document a resume just because it is a PDF. Be conservative: use 40-70 when genuinely ambiguous. " +
               gapNote +
               " Reply ONLY through the classify_email tool.",
           },
@@ -125,7 +149,7 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
             type: "function",
             function: {
               name: "classify_email",
-              description: "Classify a recruiter email and fill only the requested missing fields.",
+              description: "Identify the primary recruitment artifact in an email and how importable a candidate it holds.",
               parameters: buildSchema(gaps),
             },
           },
@@ -161,32 +185,56 @@ export async function classifyItem(
 ): Promise<Classification & { route: "rules-import" | "rules-skip" | "cache" | "ai" }> {
   const { signal, metrics } = ctx;
   const h = heuristicScore(signal);
+  const ev = candidateEvidence(signal);
   const det = cleanExtracted(ctx.deterministic);
   const hasPerson = !!det.name && (!!det.email || !!det.phone);
+  const hasAttachment = signal.attachmentNames.length > 0;
 
-  // Band 1 — confident enough on rules alone, and we already know who this is.
-  if (h.score >= AUTO_IMPORT_THRESHOLD && hasPerson && !h.hardBlock) {
+  const sig = (ai: number | null) => ({
+    heuristic: h.score,
+    ai,
+    hits: [...ev.hits, ...h.hits],
+    blocks: [...ev.against, ...h.blocks],
+    candidateEvidence: ev.score,
+    uncertainty: ev.uncertainty,
+  });
+
+  // Band 1 — a candidate is plainly here and we already know who it is.
+  if (ev.score >= CANDIDATE_IMPORT_THRESHOLD && hasPerson && !h.hardBlock && !ev.uncertainty) {
     metrics.autoImported++;
     return {
-      confidence: h.score,
-      kind: "candidate_submission",
-      reason: `Clear recruitment mail — ${h.hits.slice(0, 2).join(", ") || "strong resume signals"}.`,
+      confidence: ev.score,
+      kind: kindForArtifact(ev.artifact, hasAttachment),
+      artifact: ev.artifact,
+      reason: `Candidate detected — ${ev.hits.slice(0, 2).join(", ") || "resume evidence"}.`,
       decision: "import",
-      signals: { heuristic: h.score, ai: null, hits: h.hits, blocks: h.blocks },
+      signals: sig(null),
       extracted: det,
       route: "rules-import",
     };
   }
 
-  // Band 3 — obvious noise never gets a model call.
-  if (h.score <= SKIP_THRESHOLD) {
+  // Band 3 — no candidate evidence and nothing ambiguous. Log the artifact, never
+  // ask a human: recruitment conversations and JDs are stored, not reviewed.
+  if (ev.score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty) {
     metrics.rulesSkipped++;
+    const reason =
+      ev.artifact === "job_description"
+        ? "Job description / hiring requirement — stored as requirement intelligence."
+        : ev.artifact === "interview_feedback"
+          ? "Interview feedback — stored in recruitment history."
+          : ev.artifact === "recruitment_conversation"
+            ? "Recruitment conversation with no candidate profile — stored in the archive."
+            : h.blocks[0]
+              ? `No candidate found — ${h.blocks[0]}.`
+              : "No candidate profile found in this email.";
     return {
-      confidence: h.score,
-      kind: "other",
-      reason: h.blocks[0] ? `Looks like non-recruitment mail — ${h.blocks[0]}.` : "No recruitment signals found.",
+      confidence: ev.score,
+      kind: kindForArtifact(ev.artifact, hasAttachment),
+      artifact: ev.artifact,
+      reason,
       decision: "skip",
-      signals: { heuristic: h.score, ai: null, hits: h.hits, blocks: h.blocks },
+      signals: sig(null),
       extracted: cleanExtracted({}),
       route: "rules-skip",
     };
@@ -205,7 +253,7 @@ export async function classifyItem(
     const cached = await readCache<AiResult>(ctx.userId, key);
     if (cached) {
       metrics.cacheHits++;
-      return { ...fuse(h, cached, det), route: "cache" };
+      return { ...fuse(h, ev, cached, det, hasAttachment), route: "cache" };
     }
   }
 
@@ -218,52 +266,77 @@ export async function classifyItem(
     if (resumeKey) await writeCache(ctx.userId, resumeKey, "resume", result);
   }
 
-  return { ...fuse(h, result, det), route: "ai" };
+  return { ...fuse(h, ev, result, det, hasAttachment), route: "ai" };
 }
 
 function fuse(
   h: ReturnType<typeof heuristicScore>,
+  ev: CandidateEvidence,
   ai: AiResult | null,
   deterministic: Extracted,
+  hasAttachment: boolean,
 ): Classification {
-  const kind = normalizeKind(ai?.email_kind);
-  const isRecruitKind = RECRUITMENT_KINDS.includes(kind);
-  const aiConf = typeof ai?.confidence === "number" ? Math.max(0, Math.min(100, Math.round(ai.confidence))) : null;
+  const aiConf =
+    typeof ai?.candidate_confidence === "number"
+      ? Math.max(0, Math.min(100, Math.round(ai.candidate_confidence)))
+      : null;
+  const artifact: ArtifactType = ai?.artifact_type ? normalizeArtifact(ai.artifact_type) : ev.artifact;
+  const candidateArtifact = isCandidateArtifact(artifact);
 
   let score: number;
   if (aiConf == null) {
-    score = Math.min(h.score, AUTO_IMPORT_THRESHOLD - 1);
+    score = Math.min(ev.score, CANDIDATE_IMPORT_THRESHOLD - 1);
   } else {
-    score = Math.round(aiConf * 0.7 + h.score * 0.3);
-    if (ai?.is_recruitment === false) score = Math.min(score, 30);
-    if (!isRecruitKind) score = Math.min(score, kind === "job_alert" ? 40 : 25);
-    if (h.blocks.length >= 2) score = Math.min(score, 55);
-    if (h.hardBlock) score = Math.min(score, 30);
-    if (h.hits.length >= 3 && isRecruitKind) score = Math.min(100, score + 5);
+    score = Math.round(aiConf * 0.7 + ev.score * 0.3);
+    if (!candidateArtifact) score = Math.min(score, CANDIDATE_SKIP_THRESHOLD);
+    if (h.hardBlock) score = Math.min(score, 20);
   }
   score = Math.max(0, Math.min(100, score));
 
   const extracted = cleanExtracted(mergeFields(deterministic, ai ?? {}));
-  const hasPerson = !!extracted.name || !!extracted.email || (extracted.skills?.length ?? 0) > 0;
+  const hasPerson = !!extracted.name && (!!extracted.email || !!extracted.phone || (extracted.skills?.length ?? 0) > 0);
 
-  let decision: Classification["decision"] =
-    score >= AUTO_IMPORT_THRESHOLD ? "import" : score > SKIP_THRESHOLD ? "review" : "skip";
-  // AI-confirmed recruitment mail with a real person should not need a human.
-  if (decision === "review" && aiConf != null && aiConf >= 80 && isRecruitKind && hasPerson && !h.hardBlock) {
+  let decision: Classification["decision"];
+  if (!candidateArtifact) {
+    // Recruitment context without a person never costs a recruiter a review.
+    decision = "skip";
+  } else if (score >= CANDIDATE_IMPORT_THRESHOLD && hasPerson && !ev.uncertainty && !h.hardBlock) {
     decision = "import";
+  } else if (score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty) {
+    decision = "skip";
+  } else {
+    // Genuine uncertainty about whether an importable candidate is in here.
+    decision = "review";
   }
-  if (decision === "import" && !hasPerson) decision = "review";
 
-  const reason =
-    (typeof ai?.reason === "string" && ai.reason.trim()) ||
-    (h.hits[0] ? `Recruitment signals: ${h.hits.slice(0, 2).join(", ")}.` : "Not enough recruitment evidence.");
+  const fallbackReason = candidateArtifact
+    ? ev.uncertainty
+      ? `Possible candidate — ${ev.uncertainty}.`
+      : `Candidate signals: ${ev.hits.slice(0, 2).join(", ") || "resume evidence"}.`
+    : artifact === "job_description"
+      ? "Job description / hiring requirement — stored as requirement intelligence."
+      : artifact === "interview_feedback"
+        ? "Interview feedback — stored in recruitment history."
+        : artifact === "recruitment_conversation"
+          ? "Recruitment conversation with no candidate profile — stored in the archive."
+          : "No candidate profile found in this email.";
+
+  const reason = (typeof ai?.reason === "string" && ai.reason.trim()) || fallbackReason;
 
   return {
     confidence: score,
-    kind,
+    kind: kindForArtifact(artifact, hasAttachment),
+    artifact,
     reason,
     decision,
-    signals: { heuristic: h.score, ai: aiConf, hits: h.hits, blocks: h.blocks },
+    signals: {
+      heuristic: h.score,
+      ai: aiConf,
+      hits: [...ev.hits, ...h.hits],
+      blocks: [...ev.against, ...h.blocks],
+      candidateEvidence: ev.score,
+      uncertainty: ev.uncertainty,
+    },
     extracted,
   };
 }
