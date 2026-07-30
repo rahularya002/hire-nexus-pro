@@ -602,6 +602,7 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
         confidence: r.promoted_candidate_id ? Math.max(cls.confidence, 80) : cls.confidence,
         review_status: status,
         email_kind: cls.kind,
+        artifact_type: cls.artifact,
         classification_reason: cls.reason,
         signals: cls.signals as never,
       })
