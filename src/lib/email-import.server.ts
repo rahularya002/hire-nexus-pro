@@ -8,6 +8,9 @@ import {
 } from "./gmail.server";
 import {
   heuristicScore,
+  candidateEvidence,
+  isCandidateArtifact,
+  type ArtifactType,
   type Extracted,
 } from "./recruitment-classify.server";
 import { gmailMessageToRawItem } from "./gmail-discovery.server";
@@ -86,6 +89,7 @@ export type CandidatePayload = {
   sent_at: string | null;
   confidence: number;
   email_kind: string;
+  artifact_type?: ArtifactType | string | null;
   reason: string;
   signals: unknown;
   extracted: Extracted;
@@ -170,6 +174,7 @@ export async function upsertPersonFromPayload(
         confidence: payload.confidence,
         review_status: "imported",
         email_kind: payload.email_kind,
+        artifact_type: (payload.artifact_type as string | null) ?? null,
         classification_reason: payload.reason,
         signals: payload.signals as never,
         search_blob: blob.slice(0, 20_000),
@@ -200,6 +205,7 @@ export async function upsertPersonFromPayload(
         confidence: payload.confidence,
         review_status: "imported",
         email_kind: payload.email_kind,
+        artifact_type: (payload.artifact_type as string | null) ?? null,
         classification_reason: payload.reason,
         signals: payload.signals as never,
         search_blob: blob.slice(0, 20_000),
