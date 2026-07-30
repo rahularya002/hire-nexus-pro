@@ -669,10 +669,22 @@ function Page() {
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           aria-label="Archive confidence filter"
         >
-          <option value="imported">Confident matches</option>
+          <option value="imported">Imported candidates</option>
           <option value="needs_review">Flagged for review</option>
-          <option value="rejected">Low confidence</option>
+          <option value="rejected">No candidate detected</option>
           <option value="all">Everyone</option>
+        </select>
+        <select
+          value={artifact}
+          onChange={(e) => setArtifact(e.target.value)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Archive outcome filter"
+        >
+          {ARTIFACT_FILTERS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -714,7 +726,8 @@ function Page() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">{p.email ?? "No email"}</div>
                   <div className="mt-1.5">
-                    <ConfidenceBadge
+                    <OutcomeBadge
+                      artifact={p.artifact_type}
                       score={p.confidence}
                       state={
                         p.review_status === "needs_review"
