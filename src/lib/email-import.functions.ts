@@ -49,6 +49,7 @@ export type ArchivePerson = {
   confidence: number;
   review_status: string;
   email_kind: string | null;
+  artifact_type?: string | null;
   classification_reason: string | null;
   ai_summary?: string | null;
   enriched_at?: string | null;
@@ -63,6 +64,7 @@ export type ReviewItem = {
   attachment_names: string[];
   confidence: number;
   email_kind: string | null;
+  artifact_type?: string | null;
   reason: string | null;
   status: string;
   sent_at: string | null;
