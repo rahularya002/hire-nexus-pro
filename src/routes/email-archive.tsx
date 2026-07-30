@@ -196,7 +196,7 @@ function Page() {
   const [location, setLocation] = useState("");
   const [recentOnly, setRecentOnly] = useState(false);
   const [selected, setSelected] = useState<ArchivePerson | null>(null);
-  const [tab, setTab] = useState<"archive" | "needs_review" | "skipped">("archive");
+  const [tab, setTab] = useState<"archive" | "needs_review" | "context" | "skipped">("archive");
   const [archiveStatus, setArchiveStatus] = useState<"imported" | "needs_review" | "rejected" | "all">("imported");
   const [artifact, setArtifact] = useState<string>("all");
 
