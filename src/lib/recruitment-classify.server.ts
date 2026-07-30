@@ -111,6 +111,26 @@ const NOISE_FILENAME =
 const RESUME_FILENAME =
   /(resume|resum|cv[\s_.\-]|[\s_.\-]cv|curriculum|vitae|naukri|linkedin|profile|candidate|biodata|bio[\s_-]?data)/i;
 
+const RESUME_EXT = /\.(pdf|docx?|rtf|odt)$/i;
+
+/** Phrases that mean "a candidate is attached / included here". */
+const CANDIDATE_SHARE_PHRASE =
+  /(please find (my |the |attached)|pfa\b|attached (is |herewith |please find )?(the |my )?(resume|cv|profile|candidate)|sharing (my |the |his |her )?(resume|cv|profile|candidate)|kindly find (the |my )?(resume|cv|profile)|candidate (profile|details|summary)|submitting (my |the )?(resume|cv|profile|candidature)|forwarding (the |his |her )?(resume|cv|profile)|herewith my (resume|cv)|enclosed (is )?(my )?(resume|cv))/i;
+
+/** Phrases that mean "this is a requirement/JD", not a person. */
+const JD_PHRASE =
+  /(we are hiring|job description|\bjd\b|hiring for|urgent(ly)? (require|hiring|opening)|open(ing)?s? (for|at)\b|requirement[s]? (for|:)|please share (profiles|resumes|candidates)|looking for candidates|position[s]? (open|available)|roles? and responsibilities|desired candidate profile|no of (openings|positions))/i;
+
+/** Phrases typical of interview feedback / evaluation mails. */
+const FEEDBACK_PHRASE =
+  /(interview feedback|feedback (on|for) the (candidate|interview)|round \d (feedback|result)|(selected|rejected|on hold) (in|after) the (interview|round)|evaluation (form|summary)|technical round feedback|not a (good )?fit for (this|the) role)/i;
+
+/** Conversation-only recruiter chatter. */
+const CONVERSATION_PHRASE =
+  /(following up|any update|gentle reminder|thanks for (your|the) (mail|reply|update)|as discussed|scheduled (the|an) interview|available slot|please confirm the (slot|time)|shall we connect|call you at)/i;
+
+const BODY_CONTACT_BLOCK = /@[\w.-]+\.\w{2,}/.source;
+
 const RESUME_SECTIONS = [
   /\bwork experience\b/i,
   /\bprofessional experience\b/i,
@@ -143,6 +163,137 @@ export type SignalInput = {
 };
 
 export type HeuristicResult = { score: number; hits: string[]; blocks: string[]; hardBlock: boolean };
+
+export type CandidateEvidence = {
+  /** 0-100: how strongly this email looks like it contains an importable candidate. */
+  score: number;
+  hits: string[];
+  against: string[];
+  /** Best deterministic guess at the artifact, before any AI. */
+  artifact: ArtifactType;
+  /** Set when we genuinely cannot tell whether a candidate is in here. */
+  uncertainty: string | null;
+};
+
+function resumeSectionCount(doc: string) {
+  return RESUME_SECTIONS.filter((re) => re.test(doc)).length;
+}
+
+/**
+ * The core question: does this email contain a candidate profile we can import?
+ * Deliberately independent of "is this recruitment related" — a JD or a recruiter
+ * conversation is recruitment, but produces no candidate.
+ */
+export function candidateEvidence(i: SignalInput): CandidateEvidence {
+  const hits: string[] = [];
+  const against: string[] = [];
+  let score = 0;
+  let uncertainty: string | null = null;
+
+  const subject = i.subject ?? "";
+  const body = i.bodyText ?? "";
+  const doc = i.docText ?? "";
+  const names = i.attachmentNames ?? [];
+
+  const docAttachments = names.filter((n) => RESUME_EXT.test(n));
+  const resumeNamed = docAttachments.filter((n) => RESUME_FILENAME.test(n));
+  const personNamed = docAttachments.filter((n) => nameishFile(n));
+  const noiseNamed = names.filter((n) => NOISE_FILENAME.test(n));
+
+  if (resumeNamed.length) {
+    score += 45;
+    hits.push("resume-named document attached");
+  } else if (personNamed.length) {
+    score += 32;
+    hits.push("person-named document attached");
+  } else if (docAttachments.length) {
+    score += 12;
+    hits.push("document attached");
+  }
+  if (noiseNamed.length && noiseNamed.length === names.length && names.length) {
+    score -= 40;
+    against.push("attachments look like statements or invoices");
+  }
+
+  // Parsed attachment text is the strongest evidence of an actual resume.
+  if (doc.length > 400) {
+    const sections = resumeSectionCount(doc);
+    const hasContact = new RegExp(BODY_CONTACT_BLOCK).test(doc) && /\b(?:\+?\d[\d\s\-()]{8,})\b/.test(doc);
+    if (sections >= 3) {
+      score += 35;
+      hits.push("attachment parses as a resume");
+    } else if (sections === 2 && hasContact) {
+      score += 22;
+      hits.push("attachment partially resume-shaped");
+    } else if (sections <= 1) {
+      score -= 18;
+      against.push("attachment has no resume structure");
+    }
+    if (hasContact) {
+      score += 10;
+      hits.push("attachment carries personal contact details");
+    }
+  } else if (docAttachments.length && doc.trim().length < 120) {
+    // We have a document we could not read — a scanned or corrupted CV is exactly
+    // the case a human should look at.
+    uncertainty = "attachment could not be read (possibly scanned or corrupted)";
+    against.push("attachment text unreadable");
+  }
+
+  if (CANDIDATE_SHARE_PHRASE.test(body) || CANDIDATE_SHARE_PHRASE.test(subject)) {
+    score += 22;
+    hits.push("email says a candidate/resume is included");
+  }
+
+  // Resume pasted straight into the body, no attachment at all.
+  const bodySections = resumeSectionCount(body);
+  const bodyContact =
+    new RegExp(BODY_CONTACT_BLOCK).test(body) && /\b(?:\+?\d[\d\s\-()]{8,})\b/.test(body);
+  if (!docAttachments.length && bodySections >= 3 && bodyContact) {
+    score += 30;
+    hits.push("resume appears pasted into the email body");
+    uncertainty = uncertainty ?? "resume looks pasted into the body rather than attached";
+  } else if (!docAttachments.length && bodySections >= 2 && bodyContact) {
+    score += 16;
+    uncertainty = uncertainty ?? "possible profile written in the email body";
+  }
+
+  const jd = JD_PHRASE.test(subject) || JD_PHRASE.test(body.slice(0, 2500));
+  const feedback = FEEDBACK_PHRASE.test(subject) || FEEDBACK_PHRASE.test(body.slice(0, 2500));
+  const chatter = CONVERSATION_PHRASE.test(body.slice(0, 2500));
+
+  if (jd && score < 40) {
+    score -= 18;
+    against.push("reads like a job description / requirement");
+  }
+  if (feedback && score < 40) {
+    score -= 15;
+    against.push("reads like interview feedback");
+  }
+
+  score = Math.max(0, Math.min(100, score));
+
+  // Deterministic artifact guess.
+  let artifact: ArtifactType;
+  if (score >= 55) {
+    artifact = chatter || jd || feedback ? "candidate_plus_conversation" : "candidate_profile";
+  } else if (feedback) {
+    artifact = "interview_feedback";
+  } else if (jd) {
+    artifact = "job_description";
+  } else if (RECRUIT_SUBJECT.test(subject) || RECRUIT_BODY.test(body) || chatter || i.threadKnown) {
+    artifact = "recruitment_conversation";
+  } else {
+    artifact = "administrative";
+  }
+
+  // Mixed attachment types are ambiguous on purpose.
+  if (names.length > 1 && resumeNamed.length && names.length !== docAttachments.length) {
+    uncertainty = uncertainty ?? "mixed attachment types — unclear which is the CV";
+  }
+
+  return { score, hits, against, artifact, uncertainty };
+}
 
 /** Cheap multi-signal pre-score in the 0-100 range. */
 export function heuristicScore(i: SignalInput): HeuristicResult {
