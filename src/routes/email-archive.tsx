@@ -366,9 +366,17 @@ function RecruitmentMemoryPage() {
   }, [running, batchFn, progressFn, qc]);
 
   const startMut = useMutation({
-    mutationFn: (o: { months: number | null; labels: string[]; exclusions: string[] }) => {
-      const dateFrom =
-        o.months == null ? null : new Date(Date.now() - o.months * 30 * 86_400_000).toISOString().slice(0, 10);
+    mutationFn: (o: {
+      months: number | null;
+      dateFrom?: string | null;
+      labels: string[];
+      exclusions: string[];
+    }) => {
+      const dateFrom = o.dateFrom
+        ? o.dateFrom.slice(0, 10)
+        : o.months == null
+          ? null
+          : new Date(Date.now() - o.months * 30 * 86_400_000).toISOString().slice(0, 10);
       return startFn({ data: { dateFrom, dateTo: null, labels: o.labels, exclusions: o.exclusions } });
     },
     onSuccess: () => {
@@ -536,6 +544,7 @@ function RecruitmentMemoryPage() {
           run={run.data ?? null}
           labels={conn.data?.labels ?? []}
           starting={startMut.isPending}
+          coverage={coverage}
           onConnect={connect}
           onStart={(o) => startMut.mutate(o)}
           onPause={() => lifecycle.mutate("pause")}
