@@ -505,6 +505,220 @@ export const cleanNonCandidates = createServerFn({ method: "POST" })
     return rescoreImpl(context);
   });
 
+const BANDS = {
+  likely: { min: 70, max: 100 },
+  borderline: { min: 40, max: 69 },
+  weak: { min: 0, max: 39 },
+} as const;
+export type ReviewBand = keyof typeof BANDS;
+
+/**
+ * Paginated, filterable review queue. Sorted strongest-first by default so a
+ * recruiter with 15 minutes spends them on the items most likely to be people.
+ */
+export const listReviewQueue = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        search: z.string().max(200).optional(),
+        band: z.string().max(20).optional(),
+        artifact: z.string().max(40).optional(),
+        hasResume: z.boolean().optional(),
+        mine: z.boolean().optional(),
+        withinDays: z.number().optional(),
+        sort: z.string().max(20).optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      })
+      .partial()
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const limit = Math.max(1, Math.min(200, Math.round(data.limit ?? 50)));
+    const offset = Math.max(0, Math.round(data.offset ?? 0));
+    const sort = data.sort === "newest" || data.sort === "oldest" ? data.sort : "confidence";
+
+    const base = () => {
+      let q = context.supabase
+        .from("email_import_skips")
+        .select(
+          "id,subject,snippet,from_email,from_name,attachment_names,confidence,email_kind,artifact_type,reason,status,sent_at,created_at,pending_payload,gmail_thread_id",
+          { count: "exact" },
+        )
+        .eq("status", "needs_review");
+      const band = data.band && data.band !== "all" ? BANDS[data.band as ReviewBand] : null;
+      if (band) q = q.gte("confidence", band.min).lte("confidence", band.max);
+      if (data.artifact && data.artifact !== "all") q = q.eq("artifact_type", data.artifact);
+      if (data.hasResume) q = q.not("attachment_names", "eq", "{}");
+      if (data.mine) q = q.eq("user_id", context.userId);
+      if (data.withinDays && data.withinDays > 0) {
+        q = q.gte("sent_at", new Date(Date.now() - data.withinDays * 86_400_000).toISOString());
+      }
+      const s = (data.search ?? "").trim();
+      if (s) {
+        const like = `%${s.replace(/[%,]/g, " ")}%`;
+        q = q.or(
+          `subject.ilike.${like},from_email.ilike.${like},from_name.ilike.${like},snippet.ilike.${like}`,
+        );
+      }
+      return q;
+    };
+
+    let query = base();
+    query =
+      sort === "newest"
+        ? query.order("sent_at", { ascending: false, nullsFirst: false })
+        : sort === "oldest"
+          ? query.order("sent_at", { ascending: true, nullsFirst: false })
+          : query.order("confidence", { ascending: false }).order("sent_at", { ascending: false, nullsFirst: false });
+
+    const { data: rows, error, count } = await query.range(offset, offset + limit - 1);
+    if (error) throw new Error(error.message);
+
+    // Exact band counts (head-only), so the tab can say "12 likely of 204".
+    const countFor = async (min?: number, max?: number) => {
+      let q = context.supabase
+        .from("email_import_skips")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "needs_review");
+      if (min != null) q = q.gte("confidence", min);
+      if (max != null) q = q.lte("confidence", max);
+      const { count: c } = await q;
+      return c ?? 0;
+    };
+    const [likely, borderline, weak, total] = await Promise.all([
+      countFor(BANDS.likely.min, BANDS.likely.max),
+      countFor(BANDS.borderline.min, BANDS.borderline.max),
+      countFor(BANDS.weak.min, BANDS.weak.max),
+      countFor(),
+    ]);
+    const bandCounts = { likely, borderline, weak, total };
+
+    const items = (rows ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      subject: (r.subject as string | null) ?? null,
+      snippet: (r.snippet as string | null) ?? null,
+      from_email: (r.from_email as string | null) ?? null,
+      from_name: (r.from_name as string | null) ?? null,
+      attachment_names: (r.attachment_names as string[] | null) ?? [],
+      confidence: (r.confidence as number) ?? 0,
+      email_kind: (r.email_kind as string | null) ?? null,
+      artifact_type: (r.artifact_type as string | null) ?? null,
+      reason: (r.reason as string | null) ?? null,
+      status: r.status as string,
+      sent_at: (r.sent_at as string | null) ?? null,
+      created_at: r.created_at as string,
+      has_payload: !!r.pending_payload,
+      thread_id: (r.gmail_thread_id as string | null) ?? null,
+    })) as (ReviewItem & { thread_id: string | null })[];
+
+    return { items, matched: count ?? items.length, bands: bandCounts };
+  });
+
+/** Approve or dismiss many review items in one action. */
+export const bulkReviewDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ ids: z.array(z.string().uuid()).max(500), approve: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    if (!data.ids.length) return { approved: 0, dismissed: 0, failed: 0 };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    if (!data.approve) {
+      const { error } = await context.supabase
+        .from("email_import_skips")
+        .update({ status: "rejected", pending_payload: null })
+        .in("id", data.ids);
+      if (error) throw new Error(error.message);
+      return { approved: 0, dismissed: data.ids.length, failed: 0 };
+    }
+
+    const { data: rows, error } = await context.supabase
+      .from("email_import_skips")
+      .select("id,pending_payload")
+      .in("id", data.ids);
+    if (error) throw new Error(error.message);
+
+    const { upsertPersonFromPayload } = await import("./email-import.server");
+    let approved = 0;
+    let failed = 0;
+    for (const row of (rows ?? []) as { id: string; pending_payload: Record<string, unknown> | null }[]) {
+      if (!row.pending_payload) {
+        failed++;
+        continue;
+      }
+      try {
+        await upsertPersonFromPayload(
+          Object.assign({}, row.pending_payload, { user_id: context.userId }) as never,
+        );
+        await supabaseAdmin
+          .from("email_import_skips")
+          .update({ status: "approved", pending_payload: null })
+          .eq("id", row.id);
+        approved++;
+      } catch {
+        failed++;
+      }
+    }
+    return { approved, dismissed: 0, failed };
+  });
+
+/**
+ * Re-decide every queued item against the current thresholds using the payload
+ * we already stored — no Gmail calls, no AI calls. Anything that now clears the
+ * auto-accept bar is imported so the queue shrinks to genuine judgement calls.
+ */
+export const retriageReviewQueue = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_import_skips")
+      .select("id,confidence,artifact_type,attachment_names,pending_payload")
+      .eq("status", "needs_review")
+      .limit(1000);
+    if (error) throw new Error(error.message);
+
+    const { CANDIDATE_AUTO_ACCEPT_THRESHOLD } = await import("./pipeline/config");
+    const { upsertPersonFromPayload } = await import("./email-import.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let imported = 0;
+    let kept = 0;
+    for (const r of (rows ?? []) as {
+      id: string;
+      confidence: number | null;
+      artifact_type: string | null;
+      attachment_names: string[] | null;
+      pending_payload: Record<string, unknown> | null;
+    }[]) {
+      const candidateArtifact =
+        r.artifact_type === "candidate_profile" || r.artifact_type === "candidate_plus_conversation";
+      const payload = r.pending_payload;
+      const extracted = (payload?.extracted ?? null) as { name?: string | null } | null;
+      const trusted =
+        candidateArtifact &&
+        (r.confidence ?? 0) >= CANDIDATE_AUTO_ACCEPT_THRESHOLD &&
+        (!!extracted?.name || (r.attachment_names ?? []).length > 0);
+      if (!payload || !trusted) {
+        kept++;
+        continue;
+      }
+      try {
+        await upsertPersonFromPayload(Object.assign({}, payload, { user_id: context.userId }) as never);
+        await supabaseAdmin
+          .from("email_import_skips")
+          .update({ status: "approved", pending_payload: null })
+          .eq("id", r.id);
+        imported++;
+      } catch {
+        kept++;
+      }
+    }
+    return { imported, kept };
+  });
+
 /**
  * Re-read the stored mail (sender, subject, snippets) plus the extracted resume
  * text for every archived person and re-score them with the classifier, so rows

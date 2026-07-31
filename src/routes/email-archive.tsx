@@ -49,6 +49,7 @@ import {
 import { RecoveryPanel } from "@/components/email-archive/recovery-panel";
 import { HistorySheet } from "@/components/email-archive/history-sheet";
 import { PersonSheet } from "@/components/email-archive/person-sheet";
+import { ReviewQueue } from "@/components/email-archive/review-queue";
 import { KIND_LABEL, OutcomeBadge, lpa, relTime, txt } from "@/components/email-archive/shared";
 import {
   approveReviewItem,
@@ -59,6 +60,7 @@ import {
   listGmailLabels,
   listImportRuns,
   listReviewItems,
+  listReviewQueue,
   processImportBatch,
   promoteArchivePerson,
   rejectReviewItem,
@@ -254,6 +256,7 @@ function RecruitmentMemoryPage() {
   const disconnectFn = useServerFn(disconnectGoogle);
   const peopleFn = useServerFn(listEmailCandidates);
   const reviewFn = useServerFn(listReviewItems);
+  const reviewQueueFn = useServerFn(listReviewQueue);
   const promoteFn = useServerFn(promoteArchivePerson);
   const approveFn = useServerFn(approveReviewItem);
   const rejectFn = useServerFn(rejectReviewItem);
@@ -321,8 +324,8 @@ function RecruitmentMemoryPage() {
   });
 
   const reviewItems = useQuery({
-    queryKey: ["email-archive-review"],
-    queryFn: () => reviewFn({ data: { status: "needs_review" } }),
+    queryKey: ["email-archive-review", "count"],
+    queryFn: () => reviewQueueFn({ data: { limit: 1 } }),
   });
   const contextItems = useQuery({
     queryKey: ["email-archive-context"],
@@ -476,7 +479,7 @@ function RecruitmentMemoryPage() {
   const counts = {
     recovered: people.data?.length ?? 0,
     imported: (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
-    review: reviewItems.data?.length ?? 0,
+    review: reviewItems.data?.bands.total ?? 0,
     conversations: run.data?.skipped_noise ?? 0,
   };
   const connected = !!conn.data?.connected;
@@ -484,7 +487,7 @@ function RecruitmentMemoryPage() {
 
   const toggleChip = (k: string) => setChips((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
 
-  const items = tab === "review" ? reviewItems : tab === "history" ? contextItems : noCandidate;
+  const items = tab === "history" ? contextItems : noCandidate;
 
   return (
     <AppShell>
@@ -687,6 +690,8 @@ function RecruitmentMemoryPage() {
               </div>
             )}
           </section>
+        ) : tab === "review" ? (
+          <ReviewQueue />
         ) : (
           <section className="space-y-3">
             {items.isLoading ? (
@@ -695,20 +700,12 @@ function RecruitmentMemoryPage() {
               </div>
             ) : (items.data ?? []).length === 0 ? (
               <EmptyState
-                icon={tab === "review" ? CheckCircle2 : tab === "history" ? Building2 : XCircle}
-                title={
-                  tab === "review"
-                    ? "Nothing needs your call"
-                    : tab === "history"
-                      ? "No recruiting history stored yet"
-                      : "Nothing was set aside"
-                }
+                icon={tab === "history" ? Building2 : XCircle}
+                title={tab === "history" ? "No recruiting history stored yet" : "Nothing was set aside"}
                 description={
-                  tab === "review"
-                    ? "When we are unsure whether an email holds a real candidate, it lands here for a quick yes or no."
-                    : tab === "history"
-                      ? "Recruiter conversations, job descriptions and interview notes we found are kept here as context."
-                      : "Emails with no importable candidate profile are logged here so you can audit what we skipped."
+                  tab === "history"
+                    ? "Recruiter conversations, job descriptions and interview notes we found are kept here as context."
+                    : "Emails with no importable candidate profile are logged here so you can audit what we skipped."
                 }
               />
             ) : (
@@ -737,25 +734,6 @@ function RecruitmentMemoryPage() {
                     )}
                   </div>
                   {txt(it.reason) && <p className="text-[11px] text-muted-foreground">{txt(it.reason)}</p>}
-                  {tab === "review" && (
-                    <div className="flex gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        disabled={reviewMut.isPending || !it.has_payload}
-                        onClick={() => reviewMut.mutate({ id: it.id, approve: true })}
-                      >
-                        <CheckCircle2 className="size-3.5" /> Yes, it's a candidate
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={reviewMut.isPending}
-                        onClick={() => reviewMut.mutate({ id: it.id, approve: false })}
-                      >
-                        <XCircle className="size-3.5" /> No candidate
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ))
             )}
