@@ -157,6 +157,9 @@ export function RecoveryPanel({
     exclusions.trim() ? "custom exclusions" : "no exclusions"
   }`;
 
+  /** Incremental runs only look at mail newer than the last recovery. */
+  const shownEst = isIncremental ? estimate(incrementalMonths) : est;
+
   const shell = "rounded-2xl border border-border bg-card p-6 sm:p-7";
 
   /* ---------------------------------------------------- not connected */
