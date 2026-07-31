@@ -51,7 +51,10 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
                   <span className="text-[11px] text-muted-foreground">{relTime(r.created_at)}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {r.date_from ? `From ${fmtDate(r.date_from)}` : "Entire mailbox"} · {r.google_email ?? "—"}
+                  {r.date_from
+                    ? `${fmtDate(r.date_from)} → ${r.date_to ? fmtDate(r.date_to) : "today"}`
+                    : "Entire mailbox"}{" "}
+                  · {r.google_email ?? "—"}
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                   <span>
@@ -64,6 +67,7 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
                     <span className="font-medium text-foreground">{r.needs_review}</span> to review
                   </span>
                   {!!r.failures && <span>{r.failures} unreadable</span>}
+                  {!!r.duplicates_merged && <span>{r.duplicates_merged} duplicates skipped</span>}
                 </div>
               </div>
             ))

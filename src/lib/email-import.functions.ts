@@ -770,7 +770,7 @@ export const listImportRuns = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,emails_scanned,people_found,people_enriched,needs_review,skipped_noise,failures,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,emails_scanned,people_found,people_enriched,duplicates_merged,needs_review,skipped_noise,failures,created_at,finished_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -785,6 +785,7 @@ export const listImportRuns = createServerFn({ method: "GET" })
       emails_scanned: number;
       people_found: number;
       people_enriched: number;
+      duplicates_merged: number;
       needs_review: number;
       skipped_noise: number;
       failures: number;
