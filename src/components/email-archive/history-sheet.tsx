@@ -22,8 +22,8 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Recovery history</SheetTitle>
-          <SheetDescription>Every recovery run on this mailbox, newest first.</SheetDescription>
+          <SheetTitle>Import history</SheetTitle>
+          <SheetDescription>Every import run on this mailbox, newest first.</SheetDescription>
         </SheetHeader>
 
         <div className="mt-5 space-y-2">
@@ -34,8 +34,8 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
           ) : (runs.data ?? []).length === 0 ? (
             <EmptyState
               icon={History}
-              title="No recovery runs yet"
-              description="Once you recover your recruitment memory, every run shows up here with what it found."
+              title="No import runs yet"
+              description="Once you import your recruitment memory, every run shows up here with what it found."
             />
           ) : (
             (runs.data ?? []).map((r) => (
@@ -61,7 +61,7 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
                     <span className="font-medium text-foreground">{r.emails_scanned}</span> scanned
                   </span>
                   <span>
-                    <span className="font-medium text-foreground">{r.people_found}</span> recovered
+                    <span className="font-medium text-foreground">{r.people_found}</span> imported
                   </span>
                   <span>
                     <span className="font-medium text-foreground">{r.needs_review}</span> to review

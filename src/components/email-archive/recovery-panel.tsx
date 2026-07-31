@@ -22,15 +22,15 @@ import type { ImportRun } from "@/lib/email-import.functions";
 
 type Window = { key: string; label: string; months: number | null; recommended?: boolean };
 
-/** What history has already been recovered, derived from past runs. */
+/** What history has already been imported, derived from past runs. */
 export type Coverage = {
   hasRuns: boolean;
   /** true when a past run scanned the whole mailbox (no date_from). */
   entireMailbox: boolean;
-  /** oldest date we have recovered from (ISO date), null when entire mailbox. */
+  /** oldest date we have imported from (ISO date), null when entire mailbox. */
   oldestFrom: string | null;
-  /** we have recovered mail up to this point (ISO datetime). */
-  recoveredThrough: string | null;
+  /** we have imported mail up to this point (ISO datetime). */
+  importedThrough: string | null;
   lastRunAt: string | null;
   emailsScanned: number;
 };
@@ -42,7 +42,7 @@ const WINDOWS: Window[] = [
   { key: "all", label: "Entire mailbox", months: null, recommended: true },
 ];
 
-/** Rough, clearly-labelled forecast so nobody starts a recovery blind. */
+/** Rough, clearly-labelled forecast so nobody starts an import blind. */
 function estimate(months: number | null) {
   const m = months ?? 72;
   const emails = Math.round(m * 420);
@@ -109,7 +109,7 @@ export function RecoveryPanel({
   onBrowse: () => void;
   onReview: () => void;
 }) {
-  const incrementalAvailable = coverage.hasRuns && !!coverage.recoveredThrough;
+  const incrementalAvailable = coverage.hasRuns && !!coverage.importedThrough;
   const [win, setWin] = useState(incrementalAvailable ? "since" : "all");
   const [advanced, setAdvanced] = useState(false);
   const [selLabels, setSelLabels] = useState<string[]>([]);
@@ -138,26 +138,26 @@ export function RecoveryPanel({
       ? Math.max(0, (Date.now() - new Date(coverage.oldestFrom).getTime()) / (30 * 86_400_000))
       : 0;
 
-  const incrementalMonths = coverage.recoveredThrough
+  const incrementalMonths = coverage.importedThrough
     ? Math.max(
         0.05,
-        (Date.now() - new Date(coverage.recoveredThrough).getTime()) / (30 * 86_400_000),
+        (Date.now() - new Date(coverage.importedThrough).getTime()) / (30 * 86_400_000),
       )
     : 0;
 
   const coverageLine = !coverage.hasRuns
     ? null
     : coverage.entireMailbox
-      ? `Entire mailbox already recovered${coverage.recoveredThrough ? ` · up to ${fmtDate(coverage.recoveredThrough)}` : ""}`
+      ? `Entire mailbox already imported${coverage.importedThrough ? ` · up to ${fmtDate(coverage.importedThrough)}` : ""}`
       : coverage.oldestFrom
-        ? `Already recovered: ${fmtDate(coverage.oldestFrom)} → ${fmtDate(coverage.recoveredThrough)}`
-        : `Last recovery finished ${fmtDate(coverage.recoveredThrough)}`;
+        ? `Already imported: ${fmtDate(coverage.oldestFrom)} → ${fmtDate(coverage.importedThrough)}`
+        : `Last import finished ${fmtDate(coverage.importedThrough)}`;
 
   const advancedSummary = `${selLabels.length ? `${selLabels.length} folder${selLabels.length === 1 ? "" : "s"}` : "All folders"} · ${
     exclusions.trim() ? "custom exclusions" : "no exclusions"
   }`;
 
-  /** Incremental runs only look at mail newer than the last recovery. */
+  /** Incremental runs only look at mail newer than the last import. */
   const shownEst = isIncremental ? estimate(incrementalMonths) : est;
 
   const shell = "rounded-2xl border border-border bg-card p-6 sm:p-7";
@@ -172,7 +172,7 @@ export function RecoveryPanel({
           </div>
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
-              {connected ? "One more permission and we can begin" : "Recover the candidates you already know"}
+              {connected ? "One more permission and we can begin" : "Import the candidates you already know"}
             </h2>
             <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
               {connected
@@ -204,7 +204,7 @@ export function RecoveryPanel({
             )}
             <div>
               <div className="text-sm font-semibold">
-                {running ? "Recovering your recruitment memory" : "Recovery paused"}
+                {running ? "Importing your recruitment memory" : "Import paused"}
               </div>
               <div className="text-xs text-muted-foreground">{run?.google_email}</div>
             </div>
@@ -237,7 +237,7 @@ export function RecoveryPanel({
 
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
-          <Metric value={run?.people_found ?? 0} label="Candidates recovered" />
+          <Metric value={run?.people_found ?? 0} label="Candidates imported" />
           <Metric value={run?.people_enriched ?? 0} label="Profiles enriched" />
           <Metric value={run?.needs_review ?? 0} label="Need your call" />
           <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
@@ -289,7 +289,7 @@ export function RecoveryPanel({
 
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
-          <Metric value={run?.people_found ?? 0} label="Candidates recovered" />
+          <Metric value={run?.people_found ?? 0} label="Candidates imported" />
           <Metric value={run?.people_enriched ?? 0} label="Profiles enriched" />
           <Metric value={run?.needs_review ?? 0} label="Need your call" />
           <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
@@ -297,7 +297,7 @@ export function RecoveryPanel({
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button onClick={onBrowse}>
-            <Search className="size-4" /> Browse recovered candidates
+            <Search className="size-4" /> Browse imported candidates
           </Button>
           {!!run?.needs_review && (
             <Button variant="outline" onClick={onReview}>
@@ -305,7 +305,7 @@ export function RecoveryPanel({
             </Button>
           )}
           <Button variant="ghost" onClick={() => setSetupAgain(true)}>
-            Recover more history
+            Import more history
           </Button>
         </div>
       </div>
@@ -317,7 +317,7 @@ export function RecoveryPanel({
     <div className={shell}>
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="max-w-xl">
-          <h2 className="text-lg font-semibold tracking-tight">Recover Recruitment Memory</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Import Recruitment Memory</h2>
           <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
             We read your recruiting history in {email ? <span className="text-foreground">{email}</span> : "Gmail"},
             detect the emails that actually contain a candidate profile, and build a searchable archive — separate
@@ -341,7 +341,7 @@ export function RecoveryPanel({
       </div>
 
       <div className="mt-6 space-y-3">
-        <Label className="text-xs text-muted-foreground">How much history should we recover?</Label>
+        <Label className="text-xs text-muted-foreground">How much history should we import?</Label>
         {coverageLine && (
           <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-xs text-muted-foreground">
             <div className="text-foreground font-medium">{coverageLine}</div>
@@ -358,9 +358,9 @@ export function RecoveryPanel({
               win === "since" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 bg-background"
             }`}
           >
-            <div className="text-sm font-medium">New mail since last recovery</div>
+            <div className="text-sm font-medium">New mail since last import</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              Fastest — only looks at mail after {fmtDate(coverage.recoveredThrough)}
+              Fastest — only looks at mail after {fmtDate(coverage.importedThrough)}
             </div>
           </button>
         )}
@@ -391,7 +391,7 @@ export function RecoveryPanel({
                   <span className="truncate">{w.label}</span>
                   {fullyCovered && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-success/25 bg-success/10 text-success shrink-0">
-                      Recovered
+                      Imported
                     </span>
                   )}
                 </div>
@@ -414,7 +414,7 @@ export function RecoveryPanel({
           <Metric value={shownEst.duration} label="Time to finish (est.)" />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Estimates only — recovery runs in the background and you can pause or stop it at any time.
+          Estimates only — import runs in the background and you can pause or stop it at any time.
         </p>
       </div>
 
@@ -466,7 +466,7 @@ export function RecoveryPanel({
           onClick={() =>
             onStart({
               months: chosen.months,
-              dateFrom: isIncremental ? (coverage.recoveredThrough ?? null) : undefined,
+              dateFrom: isIncremental ? (coverage.importedThrough ?? null) : undefined,
               labels: selLabels,
               exclusions: exclusions
                 .split(/[\n,]/)
@@ -476,7 +476,7 @@ export function RecoveryPanel({
           }
         >
           {starting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          Recover Recruitment Memory
+          Import Recruitment Memory
         </Button>
         {completed && (
           <Button variant="ghost" onClick={() => setSetupAgain(false)}>

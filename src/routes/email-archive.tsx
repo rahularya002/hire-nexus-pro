@@ -76,13 +76,13 @@ export const Route = createFileRoute("/email-archive")({
   component: RecruitmentMemoryPage,
   head: () => ({
     meta: [
-      { title: "Recruitment Memory — Recover Candidates from Gmail" },
+      { title: "Recruitment Memory — Import Candidates from Gmail" },
       {
         name: "description",
         content:
-          "Recover years of candidate profiles, resumes and recruiting conversations from Gmail into one searchable recruitment archive.",
+          "Import years of candidate profiles, resumes and recruiting conversations from Gmail into one searchable recruitment archive.",
       },
-      { property: "og:title", content: "Recruitment Memory — Recover Candidates from Gmail" },
+      { property: "og:title", content: "Recruitment Memory — Import Candidates from Gmail" },
       {
         property: "og:description",
         content: "Turn your inbox history into a searchable archive of every candidate you have ever recruited.",
@@ -96,7 +96,7 @@ export const Route = createFileRoute("/email-archive")({
 type TabKey = "candidates" | "review" | "history" | "nocandidate";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "candidates", label: "Recovered candidates" },
+  { key: "candidates", label: "Imported candidates" },
   { key: "review", label: "Needs your call" },
   { key: "history", label: "Recruiting history" },
   { key: "nocandidate", label: "No candidate found" },
@@ -284,7 +284,7 @@ function RecruitmentMemoryPage() {
 
   const runs = useQuery({ queryKey: ["email-import-runs"], queryFn: () => runsFn() });
 
-  /** What history we have already recovered, derived from past runs. */
+  /** What history we have already imported, derived from past runs. */
   const coverage = useMemo(() => {
     const done = (runs.data ?? []).filter((r) => r.status !== "failed");
     if (!done.length) {
@@ -292,7 +292,7 @@ function RecruitmentMemoryPage() {
         hasRuns: false,
         entireMailbox: false,
         oldestFrom: null,
-        recoveredThrough: null,
+        importedThrough: null,
         lastRunAt: null,
         emailsScanned: 0,
       };
@@ -304,7 +304,7 @@ function RecruitmentMemoryPage() {
       hasRuns: true,
       entireMailbox,
       oldestFrom: entireMailbox || !froms.length ? null : froms.sort()[0],
-      recoveredThrough: throughs.length ? throughs.sort().slice(-1)[0] : null,
+      importedThrough: throughs.length ? throughs.sort().slice(-1)[0] : null,
       lastRunAt: done[0].created_at,
       emailsScanned: done.reduce((s, r) => s + (r.emails_scanned ?? 0), 0),
     };
@@ -355,7 +355,7 @@ function RecruitmentMemoryPage() {
           if (res.done) break;
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Recovery stopped unexpectedly");
+        toast.error(e instanceof Error ? e.message : "Import stopped unexpectedly");
       } finally {
         loopRef.current = false;
         qc.invalidateQueries({ queryKey: ["email-import-progress"] });
@@ -383,11 +383,11 @@ function RecruitmentMemoryPage() {
       return startFn({ data: { dateFrom, dateTo: null, labels: o.labels, exclusions: o.exclusions } });
     },
     onSuccess: () => {
-      toast.success("Recovering your recruitment memory…");
+      toast.success("Importing your recruitment memory…");
       qc.invalidateQueries({ queryKey: ["email-import-progress"] });
       qc.invalidateQueries({ queryKey: ["email-import-runs"] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not start recovery"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not start import"),
   });
 
   const lifecycle = useMutation({
@@ -477,8 +477,8 @@ function RecruitmentMemoryPage() {
   }, [people.data, chips]);
 
   const counts = {
-    recovered: people.data?.length ?? 0,
-    imported: (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
+    imported: people.data?.length ?? 0,
+    promoted: (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
     review: reviewItems.data?.bands.total ?? 0,
     conversations: run.data?.skipped_noise ?? 0,
   };
@@ -501,15 +501,15 @@ function RecruitmentMemoryPage() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Recruitment Memory</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Every candidate you ever emailed, recovered from Gmail and made searchable.
+                Every candidate you ever emailed, imported from Gmail and made searchable.
               </p>
               {coverage.hasRuns && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {coverage.entireMailbox
-                    ? "Entire mailbox recovered"
+                    ? "Entire mailbox imported"
                     : coverage.oldestFrom
-                      ? `Recovered ${new Date(coverage.oldestFrom).toLocaleDateString(undefined, { month: "short", year: "numeric" })} → today`
-                      : "History recovered"}
+                      ? `Imported ${new Date(coverage.oldestFrom).toLocaleDateString(undefined, { month: "short", year: "numeric" })} → today`
+                      : "History imported"}
                   {coverage.lastRunAt ? ` · last run ${relTime(coverage.lastRunAt)}` : ""}
                   {coverage.emailsScanned ? ` · ${coverage.emailsScanned.toLocaleString()} emails scanned` : ""}
                 </p>
@@ -533,7 +533,7 @@ function RecruitmentMemoryPage() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Archive</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => setHistoryOpen(true)}>
-                  <History className="size-3.5" /> Recovery history
+                  <History className="size-3.5" /> Import history
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => rescore.mutate()} disabled={rescore.isPending}>
                   <RefreshCw className="size-3.5" /> Re-score archive
@@ -570,8 +570,8 @@ function RecruitmentMemoryPage() {
 
         {/* stats */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <StatTile icon={Users} value={counts.recovered} label="Recovered candidates" />
-          <StatTile icon={UserPlus} value={counts.imported} label="Imported to database" />
+          <StatTile icon={Users} value={counts.imported} label="Imported candidates" />
+          <StatTile icon={UserPlus} value={counts.promoted} label="Imported to database" />
           <StatTile
             icon={Sparkles}
             value={counts.review}
@@ -658,8 +658,8 @@ function RecruitmentMemoryPage() {
                   search || chips.length
                     ? "Try a broader keyword, or clear the quick filters above."
                     : gmailReady
-                      ? "Recover your recruitment memory above and every candidate we find will appear here."
-                      : "Connect Gmail above to start recovering candidates from your recruiting history."
+                      ? "Import your recruitment memory above and every candidate we find will appear here."
+                      : "Connect Gmail above to start importing candidates from your recruiting history."
                 }
                 action={
                   search || chips.length ? (
@@ -747,10 +747,10 @@ function RecruitmentMemoryPage() {
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear the recovered archive?</AlertDialogTitle>
+            <AlertDialogTitle>Clear the imported archive?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes archived people, their stored emails and resume versions. Anyone you already added to the
-              candidate database keeps their candidate record. You can recover your memory again at any time.
+              candidate database keeps their candidate record. You can import your memory again at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

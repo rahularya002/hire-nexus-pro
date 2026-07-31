@@ -145,7 +145,7 @@ export function PersonSheet({ person, onClose }: { person: ArchivePerson | null;
               </div>
               <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
                 {txt(p.ai_summary) ??
-                  "No summary yet. Summaries are only written when you ask, so recovery stays fast."}
+                  "No summary yet. Summaries are only written when you ask, so importing stays fast."}
               </p>
             </div>
 

@@ -141,7 +141,7 @@ export function ReviewQueue() {
         const it = items[Math.min(cursor, items.length - 1)];
         if (!it) return;
         if (k === "a" && !it.has_payload) {
-          toast.error("This email has no saved content to import. Re-run recovery instead.");
+          toast.error("This email has no saved content to import. Re-run import instead.");
           return;
         }
         single.mutate({ id: it.id, approve: k === "a" });
@@ -314,7 +314,7 @@ export function ReviewQueue() {
           title={bands.total === 0 ? "Queue clear — nothing needs your call" : "Nothing matches this filter"}
           description={
             bands.total === 0
-              ? "Everything we recovered was decided automatically. New uncertain emails will land here after your next recovery."
+              ? "Everything we imported was decided automatically. New uncertain emails will land here after your next import."
               : `There are still ${bands.total} items in other bands. Try "Everything", or clear the search.`
           }
           action={
