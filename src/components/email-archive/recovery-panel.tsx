@@ -22,6 +22,19 @@ import type { ImportRun } from "@/lib/email-import.functions";
 
 type Window = { key: string; label: string; months: number | null; recommended?: boolean };
 
+/** What history has already been recovered, derived from past runs. */
+export type Coverage = {
+  hasRuns: boolean;
+  /** true when a past run scanned the whole mailbox (no date_from). */
+  entireMailbox: boolean;
+  /** oldest date we have recovered from (ISO date), null when entire mailbox. */
+  oldestFrom: string | null;
+  /** we have recovered mail up to this point (ISO datetime). */
+  recoveredThrough: string | null;
+  lastRunAt: string | null;
+  emailsScanned: number;
+};
+
 const WINDOWS: Window[] = [
   { key: "3m", label: "Last 3 months", months: 3 },
   { key: "12m", label: "Last 12 months", months: 12 },
@@ -67,6 +80,7 @@ export function RecoveryPanel({
   run,
   labels,
   starting,
+  coverage,
   onConnect,
   onStart,
   onPause,
@@ -81,15 +95,22 @@ export function RecoveryPanel({
   run: ImportRun | null;
   labels: { id: string; name: string }[];
   starting: boolean;
+  coverage: Coverage;
   onConnect: () => void;
-  onStart: (o: { months: number | null; labels: string[]; exclusions: string[] }) => void;
+  onStart: (o: {
+    months: number | null;
+    dateFrom?: string | null;
+    labels: string[];
+    exclusions: string[];
+  }) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
   onBrowse: () => void;
   onReview: () => void;
 }) {
-  const [win, setWin] = useState("all");
+  const incrementalAvailable = coverage.hasRuns && !!coverage.recoveredThrough;
+  const [win, setWin] = useState(incrementalAvailable ? "since" : "all");
   const [advanced, setAdvanced] = useState(false);
   const [selLabels, setSelLabels] = useState<string[]>([]);
   const [exclusions, setExclusions] = useState("");
@@ -108,6 +129,28 @@ export function RecoveryPanel({
 
   const chosen = WINDOWS.find((w) => w.key === win) ?? WINDOWS[3];
   const est = useMemo(() => estimate(chosen.months), [chosen.months]);
+
+  /** Months of history already covered (Infinity when the whole mailbox was scanned). */
+  const coveredMonths = coverage.entireMailbox
+    ? Number.POSITIVE_INFINITY
+    : coverage.oldestFrom
+      ? Math.max(0, (Date.now() - new Date(coverage.oldestFrom).getTime()) / (30 * 86_400_000))
+      : 0;
+
+  const incrementalMonths = coverage.recoveredThrough
+    ? Math.max(
+        0.05,
+        (Date.now() - new Date(coverage.recoveredThrough).getTime()) / (30 * 86_400_000),
+      )
+    : 0;
+
+  const coverageLine = !coverage.hasRuns
+    ? null
+    : coverage.entireMailbox
+      ? `Entire mailbox already recovered${coverage.recoveredThrough ? ` · up to ${fmtDate(coverage.recoveredThrough)}` : ""}`
+      : coverage.oldestFrom
+        ? `Already recovered: ${fmtDate(coverage.oldestFrom)} → ${fmtDate(coverage.recoveredThrough)}`
+        : `Last recovery finished ${fmtDate(coverage.recoveredThrough)}`;
 
   const advancedSummary = `${selLabels.length ? `${selLabels.length} folder${selLabels.length === 1 ? "" : "s"}` : "All folders"} · ${
     exclusions.trim() ? "custom exclusions" : "no exclusions"
