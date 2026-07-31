@@ -500,6 +500,17 @@ function RecruitmentMemoryPage() {
               <p className="text-sm text-muted-foreground mt-0.5">
                 Every candidate you ever emailed, recovered from Gmail and made searchable.
               </p>
+              {coverage.hasRuns && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {coverage.entireMailbox
+                    ? "Entire mailbox recovered"
+                    : coverage.oldestFrom
+                      ? `Recovered ${new Date(coverage.oldestFrom).toLocaleDateString(undefined, { month: "short", year: "numeric" })} → today`
+                      : "History recovered"}
+                  {coverage.lastRunAt ? ` · last run ${relTime(coverage.lastRunAt)}` : ""}
+                  {coverage.emailsScanned ? ` · ${coverage.emailsScanned.toLocaleString()} emails scanned` : ""}
+                </p>
+              )}
             </div>
           </div>
 
