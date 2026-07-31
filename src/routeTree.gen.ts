@@ -26,7 +26,6 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InterviewsRouteImport } from './routes/interviews'
-import { Route as EmailArchiveRouteImport } from './routes/email-archive'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClosedRouteImport } from './routes/closed'
@@ -157,11 +156,6 @@ const LoginRoute = LoginRouteImport.update({
 const InterviewsRoute = InterviewsRouteImport.update({
   id: '/interviews',
   path: '/interviews',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmailArchiveRoute = EmailArchiveRouteImport.update({
-  id: '/email-archive',
-  path: '/email-archive',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DatabaseRoute = DatabaseRouteImport.update({
@@ -405,7 +399,6 @@ export interface FileRoutesByFullPath {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/email-archive': typeof EmailArchiveRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
@@ -470,7 +463,6 @@ export interface FileRoutesByTo {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/email-archive': typeof EmailArchiveRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
@@ -534,7 +526,6 @@ export interface FileRoutesById {
   '/closed': typeof ClosedRoute
   '/dashboard': typeof DashboardRoute
   '/database': typeof DatabaseRoute
-  '/email-archive': typeof EmailArchiveRoute
   '/interviews': typeof InterviewsRouteWithChildren
   '/login': typeof LoginRoute
   '/me': typeof MeRoute
@@ -602,7 +593,6 @@ export interface FileRouteTypes {
     | '/closed'
     | '/dashboard'
     | '/database'
-    | '/email-archive'
     | '/interviews'
     | '/login'
     | '/me'
@@ -667,7 +657,6 @@ export interface FileRouteTypes {
     | '/closed'
     | '/dashboard'
     | '/database'
-    | '/email-archive'
     | '/interviews'
     | '/login'
     | '/me'
@@ -730,7 +719,6 @@ export interface FileRouteTypes {
     | '/closed'
     | '/dashboard'
     | '/database'
-    | '/email-archive'
     | '/interviews'
     | '/login'
     | '/me'
@@ -797,7 +785,6 @@ export interface RootRouteChildren {
   ClosedRoute: typeof ClosedRoute
   DashboardRoute: typeof DashboardRoute
   DatabaseRoute: typeof DatabaseRoute
-  EmailArchiveRoute: typeof EmailArchiveRoute
   InterviewsRoute: typeof InterviewsRouteWithChildren
   LoginRoute: typeof LoginRoute
   MeRoute: typeof MeRoute
@@ -957,13 +944,6 @@ declare module '@tanstack/react-router' {
       path: '/interviews'
       fullPath: '/interviews'
       preLoaderRoute: typeof InterviewsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/email-archive': {
-      id: '/email-archive'
-      path: '/email-archive'
-      fullPath: '/email-archive'
-      preLoaderRoute: typeof EmailArchiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/database': {
@@ -1404,7 +1384,6 @@ const rootRouteChildren: RootRouteChildren = {
   ClosedRoute: ClosedRoute,
   DashboardRoute: DashboardRoute,
   DatabaseRoute: DatabaseRoute,
-  EmailArchiveRoute: EmailArchiveRoute,
   InterviewsRoute: InterviewsRouteWithChildren,
   LoginRoute: LoginRoute,
   MeRoute: MeRoute,
