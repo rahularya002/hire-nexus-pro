@@ -466,6 +466,7 @@ export function RecoveryPanel({
           onClick={() =>
             onStart({
               months: chosen.months,
+              dateFrom: isIncremental ? (coverage.recoveredThrough ?? null) : undefined,
               labels: selLabels,
               exclusions: exclusions
                 .split(/[\n,]/)
