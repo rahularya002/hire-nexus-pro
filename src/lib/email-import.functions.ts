@@ -748,3 +748,74 @@ export const setArchiveReviewStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/** Stop the active run for good (paused runs can still be stopped). */
+export const stopImportRun = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ runId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_import_runs")
+      .update({ status: "cancelled", finished_at: new Date().toISOString() })
+      .eq("id", data.runId)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Recovery history for the "import history" drawer. */
+export const listImportRuns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("email_import_runs")
+      .select(
+        "id,status,google_email,date_from,date_to,emails_scanned,people_found,people_enriched,needs_review,skipped_noise,failures,created_at,finished_at",
+      )
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as unknown as {
+      id: string;
+      status: string;
+      google_email: string | null;
+      date_from: string | null;
+      date_to: string | null;
+      emails_scanned: number;
+      people_found: number;
+      people_enriched: number;
+      needs_review: number;
+      skipped_noise: number;
+      failures: number;
+      created_at: string;
+      finished_at: string | null;
+    }[];
+  });
+
+/**
+ * Wipe this recruiter's recovered archive. People already promoted to the main
+ * candidate database are kept — their candidate record stays either way, but we
+ * never silently drop the archive row that links them.
+ */
+export const clearEmailArchive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("email_candidates")
+      .select("id")
+      .is("promoted_candidate_id", null)
+      .limit(5000);
+    if (error) throw new Error(error.message);
+    const doomed = (rows ?? []).map((r) => r.id as string);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (doomed.length) {
+      await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
+      await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
+      const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
+      if (dErr) throw new Error(dErr.message);
+    }
+    await supabaseAdmin.from("email_import_skips").delete().eq("user_id", context.userId);
+    return { removed: doomed.length };
+  });
