@@ -57,6 +57,7 @@ import {
   getImportProgress,
   listEmailCandidates,
   listGmailLabels,
+  listImportRuns,
   listReviewItems,
   processImportBatch,
   promoteArchivePerson,
@@ -258,6 +259,7 @@ function RecruitmentMemoryPage() {
   const rejectFn = useServerFn(rejectReviewItem);
   const rescoreFn = useServerFn(rescoreArchive);
   const clearFn = useServerFn(clearEmailArchive);
+  const runsFn = useServerFn(listImportRuns);
 
   const [tab, setTab] = useState<TabKey>("candidates");
   const [search, setSearch] = useState("");
@@ -276,6 +278,34 @@ function RecruitmentMemoryPage() {
   });
 
   const running = run.data?.status === "running";
+
+  const runs = useQuery({ queryKey: ["email-import-runs"], queryFn: () => runsFn() });
+
+  /** What history we have already recovered, derived from past runs. */
+  const coverage = useMemo(() => {
+    const done = (runs.data ?? []).filter((r) => r.status !== "failed");
+    if (!done.length) {
+      return {
+        hasRuns: false,
+        entireMailbox: false,
+        oldestFrom: null,
+        recoveredThrough: null,
+        lastRunAt: null,
+        emailsScanned: 0,
+      };
+    }
+    const entireMailbox = done.some((r) => !r.date_from);
+    const froms = done.map((r) => r.date_from).filter((d): d is string => !!d);
+    const throughs = done.map((r) => r.date_to ?? r.finished_at ?? r.created_at).filter(Boolean) as string[];
+    return {
+      hasRuns: true,
+      entireMailbox,
+      oldestFrom: entireMailbox || !froms.length ? null : froms.sort()[0],
+      recoveredThrough: throughs.length ? throughs.sort().slice(-1)[0] : null,
+      lastRunAt: done[0].created_at,
+      emailsScanned: done.reduce((s, r) => s + (r.emails_scanned ?? 0), 0),
+    };
+  }, [runs.data]);
 
   const people = useQuery({
     queryKey: ["email-archive-people", search, chips.join(",")],
@@ -344,6 +374,7 @@ function RecruitmentMemoryPage() {
     onSuccess: () => {
       toast.success("Recovering your recruitment memory…");
       qc.invalidateQueries({ queryKey: ["email-import-progress"] });
+      qc.invalidateQueries({ queryKey: ["email-import-runs"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not start recovery"),
   });
