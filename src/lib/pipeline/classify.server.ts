@@ -18,6 +18,7 @@ import { emailCacheKey, readCache, resumeCacheKey, writeCache } from "./cache.se
 import {
   AI_MAX_BODY_CHARS,
   AI_MAX_DOC_CHARS,
+  CANDIDATE_AUTO_ACCEPT_THRESHOLD,
   CANDIDATE_IMPORT_THRESHOLD,
   CANDIDATE_SKIP_THRESHOLD,
   type Facet,
@@ -187,8 +188,13 @@ export async function classifyItem(
   const h = heuristicScore(signal);
   const ev = candidateEvidence(signal);
   const det = cleanExtracted(ctx.deterministic);
-  const hasPerson = !!det.name && (!!det.email || !!det.phone);
   const hasAttachment = signal.attachmentNames.length > 0;
+  // A resume attachment is itself strong identity evidence: name-only (or
+  // sender-email-only) extraction still produces a usable person record that the
+  // recruiter can correct later. Only attachment-free mail needs a full identity.
+  const hasPerson = hasAttachment
+    ? !!det.name || !!det.email || !!det.phone
+    : !!det.name && (!!det.email || !!det.phone);
 
   const sig = (ai: number | null) => ({
     heuristic: h.score,
@@ -200,7 +206,12 @@ export async function classifyItem(
   });
 
   // Band 1 — a candidate is plainly here and we already know who it is.
-  if (ev.score >= CANDIDATE_IMPORT_THRESHOLD && hasPerson && !h.hardBlock && !ev.uncertainty) {
+  if (
+    ev.score >= CANDIDATE_IMPORT_THRESHOLD &&
+    hasPerson &&
+    !h.hardBlock &&
+    (!ev.uncertainty || (hasAttachment && ev.score >= CANDIDATE_AUTO_ACCEPT_THRESHOLD))
+  ) {
     metrics.autoImported++;
     return {
       confidence: ev.score,
@@ -294,12 +305,18 @@ function fuse(
   score = Math.max(0, Math.min(100, score));
 
   const extracted = cleanExtracted(mergeFields(deterministic, ai ?? {}));
-  const hasPerson = !!extracted.name && (!!extracted.email || !!extracted.phone || (extracted.skills?.length ?? 0) > 0);
+  const hasPerson = hasAttachment
+    ? !!extracted.name || !!extracted.email || !!extracted.phone
+    : !!extracted.name && (!!extracted.email || !!extracted.phone || (extracted.skills?.length ?? 0) > 0);
 
   let decision: Classification["decision"];
   if (!candidateArtifact) {
     // Recruitment context without a person never costs a recruiter a review.
     decision = "skip";
+  } else if (score >= CANDIDATE_AUTO_ACCEPT_THRESHOLD && hasPerson && !h.hardBlock) {
+    // High candidate confidence is trusted outright — a recruiter adds nothing
+    // by confirming what we are already 85%+ sure about.
+    decision = "import";
   } else if (score >= CANDIDATE_IMPORT_THRESHOLD && hasPerson && !ev.uncertainty && !h.hardBlock) {
     decision = "import";
   } else if (score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty) {

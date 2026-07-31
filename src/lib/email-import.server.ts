@@ -527,6 +527,20 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
           .maybeSingle();
         if (!existing?.email_candidate_id) {
           const uncertain = !!(cls.signals as { uncertainty?: string | null })?.uncertainty;
+          const bodyProfile =
+            cls.decision === "import" && isCandidateArtifact(cls.artifact) && !!cls.extracted?.name;
+          // A body-only profile the classifier is confident about is imported, not queued.
+          if (bodyProfile) {
+            const res = await upsertPersonFromPayload(payload);
+            if (res.merged) {
+              merged++;
+              enriched++;
+            } else {
+              peopleFound++;
+              newPeople.push({ id: res.personId, name: res.name, email: res.email });
+            }
+            continue;
+          }
           const reviewable = uncertain && isCandidateArtifact(cls.artifact);
           if (reviewable) needsReview++;
           else skipped++;

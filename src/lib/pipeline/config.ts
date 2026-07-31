@@ -11,6 +11,13 @@ function num(name: string, fallback: number): number {
 export const CANDIDATE_IMPORT_THRESHOLD = num("PIPELINE_CANDIDATE_IMPORT_THRESHOLD", 75);
 /** At or below this candidate-confidence there is no candidate worth chasing. */
 export const CANDIDATE_SKIP_THRESHOLD = num("PIPELINE_CANDIDATE_SKIP_THRESHOLD", 25);
+/**
+ * At or above this candidate-confidence we trust the verdict outright and import
+ * without asking a recruiter, even when the extraction is partial or the
+ * evidence carried a soft uncertainty note. Keeps the review queue small enough
+ * for a human to actually clear.
+ */
+export const CANDIDATE_AUTO_ACCEPT_THRESHOLD = num("PIPELINE_CANDIDATE_AUTO_ACCEPT_THRESHOLD", 85);
 
 /** Legacy aliases — recruitment-noise gating still uses these bands. */
 export const AUTO_IMPORT_THRESHOLD = num("PIPELINE_AUTO_IMPORT_THRESHOLD", 92);
