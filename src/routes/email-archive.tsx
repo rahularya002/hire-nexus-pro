@@ -67,7 +67,7 @@ import {
   stopImportRun,
   type ArchivePerson,
 } from "@/lib/email-import.functions";
-import { disconnectGoogle, getGoogleAuthUrl } from "@/lib/google-calendar.functions";
+import { disconnectGoogle, startGoogleOAuth } from "@/lib/google-calendar.functions";
 
 export const Route = createFileRoute("/email-archive")({
   component: RecruitmentMemoryPage,
@@ -249,7 +249,7 @@ function RecruitmentMemoryPage() {
   const pauseFn = useServerFn(cancelImportRun);
   const resumeFn = useServerFn(resumeImportRun);
   const stopFn = useServerFn(stopImportRun);
-  const authUrlFn = useServerFn(getGoogleAuthUrl);
+  const authUrlFn = useServerFn(startGoogleOAuth);
   const disconnectFn = useServerFn(disconnectGoogle);
   const peopleFn = useServerFn(listEmailCandidates);
   const reviewFn = useServerFn(listReviewItems);
@@ -362,7 +362,7 @@ function RecruitmentMemoryPage() {
 
   const connect = async () => {
     try {
-      const { authUrl } = await authUrlFn({ data: { redirectTo: window.location.pathname } });
+      const { authUrl } = await authUrlFn({ data: { origin: window.location.origin } });
       window.location.href = authUrl;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not start Google connection");
@@ -386,7 +386,7 @@ function RecruitmentMemoryPage() {
   const rescore = useMutation({
     mutationFn: () => rescoreFn(),
     onSuccess: (r) => {
-      toast.success(`Re-scored ${r.rescored ?? 0} archived people.`);
+      toast.success(`Re-scored ${r.scored ?? 0} archived people.`);
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
     },
@@ -415,8 +415,10 @@ function RecruitmentMemoryPage() {
   });
 
   const reviewMut = useMutation({
-    mutationFn: ({ id, approve }: { id: string; approve: boolean }) =>
-      approve ? approveFn({ data: { id } }) : rejectFn({ data: { id } }),
+    mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
+      if (approve) await approveFn({ data: { id } });
+      else await rejectFn({ data: { id } });
+    },
     onSuccess: (_r, v) => {
       toast.success(v.approve ? "Candidate added to the archive." : "Marked as no candidate.");
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
