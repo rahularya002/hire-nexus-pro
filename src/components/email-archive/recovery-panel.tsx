@@ -129,6 +129,7 @@ export function RecoveryPanel({
 
   const chosen = WINDOWS.find((w) => w.key === win) ?? WINDOWS[3];
   const est = useMemo(() => estimate(chosen.months), [chosen.months]);
+  const isIncremental = win === "since" && incrementalAvailable;
 
   /** Months of history already covered (Infinity when the whole mailbox was scanned). */
   const coveredMonths = coverage.entireMailbox
