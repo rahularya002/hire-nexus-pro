@@ -279,6 +279,7 @@ export function RecoveryPanel({
             <p className="text-sm text-muted-foreground mt-1">
               Finished {fmtDate(run?.finished_at ?? run?.created_at)} · {run?.google_email}
             </p>
+            {coverageLine && <p className="text-xs text-muted-foreground mt-1">{coverageLine}</p>}
           </div>
         </div>
 
@@ -337,29 +338,76 @@ export function RecoveryPanel({
 
       <div className="mt-6 space-y-3">
         <Label className="text-xs text-muted-foreground">How much history should we recover?</Label>
+        {coverageLine && (
+          <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+            <div className="text-foreground font-medium">{coverageLine}</div>
+            <div className="mt-0.5">
+              {coverage.emailsScanned ? `${nf.format(coverage.emailsScanned)} emails scanned so far · ` : ""}
+              Re-running is safe — emails we already processed are skipped, so nothing is imported or analysed twice.
+            </div>
+          </div>
+        )}
+        {incrementalAvailable && (
+          <button
+            onClick={() => setWin("since")}
+            className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+              win === "since" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 bg-background"
+            }`}
+          >
+            <div className="text-sm font-medium">New mail since last recovery</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Fastest — only looks at mail after {fmtDate(coverage.recoveredThrough)}
+            </div>
+          </button>
+        )}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.key}
-              onClick={() => setWin(w.key)}
-              className={`text-left rounded-xl border px-4 py-3 transition-colors ${
-                win === w.key
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/40 bg-background"
-              }`}
-            >
-              <div className="text-sm font-medium">{w.label}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
-                {w.recommended ? "Recommended — deepest memory" : `≈ ${nf.format(estimate(w.months).emails)} emails`}
-              </div>
-            </button>
-          ))}
+          {WINDOWS.map((w) => {
+            const wMonths = w.months ?? Number.POSITIVE_INFINITY;
+            const fullyCovered = coverage.hasRuns && wMonths <= coveredMonths;
+            const extraMonths = Number.isFinite(wMonths) ? wMonths - coveredMonths : null;
+            const addsHistory =
+              coverage.hasRuns && !fullyCovered
+                ? extraMonths == null
+                  ? "Adds everything older than what you have"
+                  : extraMonths >= 12
+                    ? `Adds ~${Math.round(extraMonths / 12)} more year${Math.round(extraMonths / 12) === 1 ? "" : "s"} of history`
+                    : `Adds ~${Math.max(1, Math.round(extraMonths))} more months of history`
+                : null;
+            return (
+              <button
+                key={w.key}
+                onClick={() => setWin(w.key)}
+                className={`text-left rounded-xl border px-4 py-3 transition-colors ${
+                  win === w.key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 bg-background"
+                } ${fullyCovered && win !== w.key ? "opacity-60" : ""}`}
+              >
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <span className="truncate">{w.label}</span>
+                  {fullyCovered && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-success/25 bg-success/10 text-success shrink-0">
+                      Recovered
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  {fullyCovered
+                    ? "Already covered — re-running just re-checks"
+                    : (addsHistory ??
+                      (w.recommended
+                        ? "Recommended — deepest memory"
+                        : `≈ ${nf.format(estimate(w.months).emails)} emails`))}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         <div className="rounded-xl border border-dashed border-border bg-background/60 px-4 py-3 flex flex-wrap gap-x-8 gap-y-2">
-          <Metric value={est.emails} label="Emails to scan (est.)" />
-          <Metric value={est.candidates} label="Candidate profiles (est.)" />
-          <Metric value={est.duration} label="Time to finish (est.)" />
+          <Metric value={shownEst.emails} label="Emails to scan (est.)" />
+          <Metric value={shownEst.candidates} label="Candidate profiles (est.)" />
+          <Metric value={shownEst.duration} label="Time to finish (est.)" />
         </div>
         <p className="text-[11px] text-muted-foreground">
           Estimates only — recovery runs in the background and you can pause or stop it at any time.
