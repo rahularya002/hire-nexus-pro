@@ -193,6 +193,9 @@ export async function classifyItem(
   const ev = candidateEvidence(signal);
   const det = cleanExtracted(ctx.deterministic);
   const hasAttachment = signal.attachmentNames.length > 0;
+  // Requirement mail (JD / mandate / multi-role blast) is stored as context and
+  // never reaches a human queue, whatever the model would have said.
+  const jdOnly = ev.artifact === "job_description" && ev.score <= CANDIDATE_SKIP_THRESHOLD;
   // A resume attachment is itself strong identity evidence: name-only (or
   // sender-email-only) extraction still produces a usable person record that the
   // recruiter can correct later. Only attachment-free mail needs a full identity.
@@ -231,7 +234,7 @@ export async function classifyItem(
 
   // Band 3 — no candidate evidence and nothing ambiguous. Log the artifact, never
   // ask a human: recruitment conversations and JDs are stored, not reviewed.
-  if (ev.score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty) {
+  if (jdOnly || (ev.score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty)) {
     metrics.rulesSkipped++;
     const reason =
       ev.artifact === "job_description"
