@@ -406,10 +406,11 @@ export function heuristicScore(i: SignalInput): HeuristicResult {
 
   const names = i.attachmentNames;
   if (names.length) {
-    if (names.some((n) => RESUME_FILENAME.test(n))) {
+    const nonJd = names.filter((n) => !JD_FILENAME.test(n));
+    if (nonJd.some((n) => RESUME_FILENAME.test(n))) {
       score += 16;
       hits.push("resume-style attachment name");
-    } else if (names.some((n) => nameishFile(n))) {
+    } else if (nonJd.some((n) => nameishFile(n))) {
       score += 10;
       hits.push("person-named attachment");
     }
