@@ -137,6 +137,10 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
               "job_description (a role, requirement or JD being shared — describes a job, not a person), " +
               "interview_feedback (evaluation of an interview), " +
               "administrative (anything else: statements, invoices, payments, OTP, orders, travel, newsletters, job alerts). " +
+              "CRITICAL: if the attachments are job descriptions / requirements / mandates (file names like 'Job Description - Manager.pdf'), " +
+              "or the mail lists several roles, openings, designations, budgets or CTC ranges, the artifact is job_description and " +
+              "candidate_confidence must be under 10 — even though a JD also lists skills, qualifications and experience. " +
+              "A document is only a candidate profile when it describes ONE specific person (their name, contact details, their own work history). " +
               "candidate_confidence (0-100) answers ONLY: how confident are you that this email contains a candidate profile that can be imported as a person record? " +
               "An email can be 100% recruitment related and still have candidate_confidence 0 — that is normal and correct for JDs and conversations. " +
               "Never call a document a resume just because it is a PDF. Be conservative: use 40-70 when genuinely ambiguous. " +
