@@ -678,33 +678,92 @@ export const retriageReviewQueue = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { data: rows, error } = await context.supabase
       .from("email_import_skips")
-      .select("id,confidence,artifact_type,attachment_names,pending_payload")
+      .select("id,subject,snippet,from_email,from_name,confidence,artifact_type,attachment_names,pending_payload")
       .eq("status", "needs_review")
       .limit(1000);
     if (error) throw new Error(error.message);
 
-    const { CANDIDATE_AUTO_ACCEPT_THRESHOLD } = await import("./pipeline/config");
+    const { CANDIDATE_AUTO_ACCEPT_THRESHOLD, CANDIDATE_SKIP_THRESHOLD } = await import("./pipeline/config");
+    const { candidateEvidence } = await import("./recruitment-classify.server");
     const { upsertPersonFromPayload } = await import("./email-import.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let imported = 0;
     let kept = 0;
+    let movedToContext = 0;
     for (const r of (rows ?? []) as {
       id: string;
+      subject: string | null;
+      snippet: string | null;
+      from_email: string | null;
+      from_name: string | null;
       confidence: number | null;
       artifact_type: string | null;
       attachment_names: string[] | null;
       pending_payload: Record<string, unknown> | null;
     }[]) {
+      const payload = r.pending_payload as
+        | (Record<string, unknown> & {
+            body_text?: string;
+            to_emails?: string[];
+            attachments?: { file_name?: string; extracted_text?: string | null }[];
+            extracted?: { name?: string | null } | null;
+          })
+        | null;
+
+      // Re-run the corrected deterministic evidence over what we already stored —
+      // no Gmail call, no AI call. JD blasts and conversations leave the queue.
+      const attachments = payload?.attachments ?? [];
+      const ev = candidateEvidence({
+        fromEmail: r.from_email,
+        fromName: r.from_name,
+        toEmails: payload?.to_emails ?? [],
+        myEmail: null,
+        subject: r.subject,
+        bodyText: payload?.body_text ?? r.snippet ?? "",
+        attachmentNames: attachments.length
+          ? attachments.map((a) => a.file_name ?? "").filter(Boolean)
+          : (r.attachment_names ?? []),
+        docText: attachments.map((a) => a.extracted_text ?? "").join("\n").slice(0, 20_000),
+        threadKnown: false,
+      });
+
       const candidateArtifact =
-        r.artifact_type === "candidate_profile" || r.artifact_type === "candidate_plus_conversation";
-      const payload = r.pending_payload;
+        ev.artifact === "candidate_profile" || ev.artifact === "candidate_plus_conversation";
+
+      if (!candidateArtifact && ev.score <= CANDIDATE_SKIP_THRESHOLD) {
+        await supabaseAdmin
+          .from("email_import_skips")
+          .update({
+            status: "skipped",
+            confidence: ev.score,
+            artifact_type: ev.artifact,
+            reason:
+              ev.artifact === "job_description"
+                ? "Job description / hiring requirement — stored as requirement intelligence."
+                : ev.artifact === "interview_feedback"
+                  ? "Interview feedback — stored in recruitment history."
+                  : ev.artifact === "recruitment_conversation"
+                    ? "Recruitment conversation with no candidate profile — stored in the archive."
+                    : `No candidate profile found — ${ev.against[0] ?? "no personal profile in this email"}.`,
+            pending_payload: null,
+          })
+          .eq("id", r.id);
+        movedToContext++;
+        continue;
+      }
+
       const extracted = (payload?.extracted ?? null) as { name?: string | null } | null;
       const trusted =
         candidateArtifact &&
-        (r.confidence ?? 0) >= CANDIDATE_AUTO_ACCEPT_THRESHOLD &&
+        Math.max(ev.score, r.confidence ?? 0) >= CANDIDATE_AUTO_ACCEPT_THRESHOLD &&
         (!!extracted?.name || (r.attachment_names ?? []).length > 0);
       if (!payload || !trusted) {
+        // Keep it, but with the corrected score and artifact so bands are honest.
+        await supabaseAdmin
+          .from("email_import_skips")
+          .update({ confidence: ev.score, artifact_type: ev.artifact })
+          .eq("id", r.id);
         kept++;
         continue;
       }
@@ -719,7 +778,7 @@ export const retriageReviewQueue = createServerFn({ method: "POST" })
         kept++;
       }
     }
-    return { imported, kept };
+    return { imported, kept, movedToContext };
   });
 
 /**
