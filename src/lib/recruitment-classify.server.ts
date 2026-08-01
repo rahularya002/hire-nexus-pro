@@ -113,6 +113,18 @@ const RESUME_FILENAME =
 
 const RESUME_EXT = /\.(pdf|docx?|rtf|odt)$/i;
 
+/**
+ * Attachment names that describe a ROLE, not a person. A file called
+ * "Job Description - Manager Social.docx.pdf" must never count as a resume,
+ * even though it is a PDF full of skills and qualifications.
+ */
+const JD_FILENAME =
+  /(job[\s_.\-]?desc|\bjd\b|jd[\s_.\-]|[\s_.\-]jd|requirement|mandate|role[\s_.\-]?brief|hiring|opening|vacancy|position[s]?[\s_.\-]|budget|spec(ification)?[\s_.\-]?sheet|tracker)/i;
+
+/** Parsed document text that reads like a job description rather than a CV. */
+const JD_DOC =
+  /(roles? (and|&) responsibilit|key responsibilit|desired candidate profile|candidate profile:|job (title|description|purpose|summary|location|specification)|no\.? of (openings|positions|vacanc)|number of positions|experience required|qualification required|we are looking for|about the (role|company)|reporting to|budget[:\s]|ctc range|salary range|shift timing|hiring for|position overview|job requirements?)/i;
+
 /** Phrases that mean "a candidate is attached / included here". */
 const CANDIDATE_SHARE_PHRASE =
   /(please find (my |the |attached)|pfa\b|attached (is |herewith |please find )?(the |my )?(resume|cv|profile|candidate)|sharing (my |the |his |her )?(resume|cv|profile|candidate)|kindly find (the |my )?(resume|cv|profile)|candidate (profile|details|summary)|submitting (my |the )?(resume|cv|profile|candidature)|forwarding (the |his |her )?(resume|cv|profile)|herewith my (resume|cv)|enclosed (is )?(my )?(resume|cv))/i;
