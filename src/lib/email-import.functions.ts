@@ -526,6 +526,7 @@ export const listReviewQueue = createServerFn({ method: "GET" })
         artifact: z.string().max(40).optional(),
         hasResume: z.boolean().optional(),
         mine: z.boolean().optional(),
+        hideJd: z.boolean().optional(),
         withinDays: z.number().optional(),
         sort: z.string().max(20).optional(),
         limit: z.number().optional(),
@@ -551,6 +552,7 @@ export const listReviewQueue = createServerFn({ method: "GET" })
       if (band) q = q.gte("confidence", band.min).lte("confidence", band.max);
       if (data.artifact && data.artifact !== "all") q = q.eq("artifact_type", data.artifact);
       if (data.hasResume) q = q.not("attachment_names", "eq", "{}");
+      if (data.hideJd) q = q.in("artifact_type", ["candidate_profile", "candidate_plus_conversation"]);
       if (data.mine) q = q.eq("user_id", context.userId);
       if (data.withinDays && data.withinDays > 0) {
         q = q.gte("sent_at", new Date(Date.now() - data.withinDays * 86_400_000).toISOString());
@@ -582,6 +584,7 @@ export const listReviewQueue = createServerFn({ method: "GET" })
         .from("email_import_skips")
         .select("id", { count: "exact", head: true })
         .eq("status", "needs_review");
+      if (data.hideJd) q = q.in("artifact_type", ["candidate_profile", "candidate_plus_conversation"]);
       if (min != null) q = q.gte("confidence", min);
       if (max != null) q = q.lte("confidence", max);
       const { count: c } = await q;
