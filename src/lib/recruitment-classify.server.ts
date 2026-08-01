@@ -208,9 +208,15 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   const names = i.attachmentNames ?? [];
 
   const docAttachments = names.filter((n) => RESUME_EXT.test(n));
-  const resumeNamed = docAttachments.filter((n) => RESUME_FILENAME.test(n));
-  const personNamed = docAttachments.filter((n) => nameishFile(n));
+  // A JD-named file is evidence of a role, never of a person — exclude it from
+  // every resume-ish bucket before anything else is scored.
+  const jdNamed = names.filter((n) => JD_FILENAME.test(n));
+  const nonJdDocs = docAttachments.filter((n) => !JD_FILENAME.test(n));
+  const resumeNamed = nonJdDocs.filter((n) => RESUME_FILENAME.test(n));
+  const personNamed = nonJdDocs.filter((n) => nameishFile(n));
   const noiseNamed = names.filter((n) => NOISE_FILENAME.test(n));
+  const docLooksLikeJd = JD_DOC.test(doc.slice(0, 6000));
+  const allAttachmentsAreJds = !!names.length && jdNamed.length === names.length;
 
   if (resumeNamed.length) {
     score += 45;
@@ -218,9 +224,17 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   } else if (personNamed.length) {
     score += 32;
     hits.push("person-named document attached");
-  } else if (docAttachments.length) {
+  } else if (nonJdDocs.length) {
     score += 12;
     hits.push("document attached");
+  }
+  if (jdNamed.length) {
+    score -= allAttachmentsAreJds ? 35 : 15;
+    against.push(
+      allAttachmentsAreJds
+        ? "every attachment is a job description, not a CV"
+        : "some attachments are job descriptions",
+    );
   }
   if (noiseNamed.length && noiseNamed.length === names.length && names.length) {
     score -= 40;
@@ -231,7 +245,12 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   if (doc.length > 400) {
     const sections = resumeSectionCount(doc);
     const hasContact = new RegExp(BODY_CONTACT_BLOCK).test(doc) && /\b(?:\+?\d[\d\s\-()]{8,})\b/.test(doc);
-    if (sections >= 3) {
+    if (docLooksLikeJd) {
+      // JDs list skills, education and experience too. Section counting cannot
+      // tell them apart from a CV, so we refuse to award resume credit here.
+      score -= 20;
+      against.push("attachment text reads as a job description");
+    } else if (sections >= 3) {
       score += 35;
       hits.push("attachment parses as a resume");
     } else if (sections === 2 && hasContact) {
@@ -241,11 +260,11 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
       score -= 18;
       against.push("attachment has no resume structure");
     }
-    if (hasContact) {
+    if (hasContact && !docLooksLikeJd) {
       score += 10;
       hits.push("attachment carries personal contact details");
     }
-  } else if (docAttachments.length && doc.trim().length < 120) {
+  } else if (nonJdDocs.length && doc.trim().length < 120) {
     // We have a document we could not read — a scanned or corrupted CV is exactly
     // the case a human should look at.
     uncertainty = "attachment could not be read (possibly scanned or corrupted)";
