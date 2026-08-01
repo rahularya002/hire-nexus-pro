@@ -293,20 +293,44 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   const feedback = FEEDBACK_PHRASE.test(subject) || FEEDBACK_PHRASE.test(body.slice(0, 2500));
   const chatter = CONVERSATION_PHRASE.test(body.slice(0, 2500));
 
-  if (jd && score < 40) {
-    score -= 18;
+  // Several roles / openings / budgets in one mail is a requirement blast, not a
+  // person. Count the strongest repeated role markers in body + subject.
+  const roleMarkers = (subject + "\n" + body.slice(0, 4000)).match(
+    /(no\.? of positions|openings?\b|vacanc(y|ies)|designation|budget|fixed ctc|ctc range|mandate)/gi,
+  );
+  const multiRole = (roleMarkers?.length ?? 0) >= 3;
+  if (multiRole) {
+    score -= 22;
+    against.push("multiple roles / openings listed in one email");
+  }
+
+  if (jd || docLooksLikeJd || allAttachmentsAreJds) {
+    score -= 20;
     against.push("reads like a job description / requirement");
   }
-  if (feedback && score < 40) {
+  if (feedback) {
     score -= 15;
     against.push("reads like interview feedback");
   }
+
+  // Hard ceiling: when the mail is dominated by requirement signals and carries
+  // no resume-named / person-named document and no personal contact block, there
+  // is no importable person here no matter how resume-shaped the words look.
+  const personalEvidence =
+    resumeNamed.length > 0 ||
+    personNamed.length > 0 ||
+    CANDIDATE_SHARE_PHRASE.test(body) ||
+    CANDIDATE_SHARE_PHRASE.test(subject);
+  const jdDominant = allAttachmentsAreJds || docLooksLikeJd || multiRole || (jd && !personalEvidence);
+  if (jdDominant && !personalEvidence) score = Math.min(score, 22);
 
   score = Math.max(0, Math.min(100, score));
 
   // Deterministic artifact guess.
   let artifact: ArtifactType;
-  if (score >= 55) {
+  if (jdDominant && !personalEvidence) {
+    artifact = "job_description";
+  } else if (score >= 55) {
     artifact = chatter || jd || feedback ? "candidate_plus_conversation" : "candidate_profile";
   } else if (feedback) {
     artifact = "interview_feedback";
@@ -317,6 +341,9 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   } else {
     artifact = "administrative";
   }
+
+  // A requirement mail is never a "we cannot tell" case — do not send it to a human.
+  if (jdDominant && !personalEvidence) uncertainty = null;
 
   // Mixed attachment types are ambiguous on purpose.
   if (names.length > 1 && resumeNamed.length && names.length !== docAttachments.length) {
