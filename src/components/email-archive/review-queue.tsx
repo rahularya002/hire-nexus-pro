@@ -22,7 +22,7 @@ import {
   retriageReviewQueue,
 } from "@/lib/email-import.functions";
 
-const PAGE = 50;
+const PAGE = 25;
 
 type Band = "all" | "likely" | "borderline" | "weak";
 
@@ -30,6 +30,7 @@ const CHIPS = [
   { key: "resume", label: "Has resume" },
   { key: "mine", label: "Only my inbox" },
   { key: "recent", label: "Last 12 months" },
+  { key: "jd", label: "Show job descriptions" },
 ] as const;
 
 function whyChip(reason: string | null, hasResume: boolean) {
@@ -49,7 +50,7 @@ export function ReviewQueue() {
 
   const [search, setSearch] = useState("");
   const [band, setBand] = useState<Band>("likely");
-  const [chips, setChips] = useState<string[]>([]);
+  const [chips, setChips] = useState<string[]>(["resume"]);
   const [sort, setSort] = useState("confidence");
   const [limit, setLimit] = useState(PAGE);
   const [selected, setSelected] = useState<string[]>([]);
@@ -60,6 +61,7 @@ export function ReviewQueue() {
     band,
     hasResume: chips.includes("resume") || undefined,
     mine: chips.includes("mine") || undefined,
+    hideJd: !chips.includes("jd"),
     withinDays: chips.includes("recent") ? 365 : undefined,
     sort,
     limit,
@@ -70,12 +72,20 @@ export function ReviewQueue() {
     queryFn: () => queueFn({ data: params }),
   });
 
+  /** How many queued items are actually job descriptions, not people. */
+  const jdQueue = useQuery({
+    queryKey: ["email-archive-review-jd"],
+    queryFn: () => queueFn({ data: { band: "all", artifact: "job_description", limit: 1 } }),
+  });
+  const jdCount = jdQueue.data?.matched ?? 0;
+
   const items = queue.data?.items ?? [];
   const bands = queue.data?.bands ?? { likely: 0, borderline: 0, weak: 0, total: 0 };
   const matched = queue.data?.matched ?? 0;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+    qc.invalidateQueries({ queryKey: ["email-archive-review-jd"] });
     qc.invalidateQueries({ queryKey: ["email-archive-people"] });
   };
 
@@ -111,9 +121,14 @@ export function ReviewQueue() {
   const retriage = useMutation({
     mutationFn: () => retriageFn(),
     onSuccess: (r) => {
+      const moved = r.movedToContext ?? 0;
+      const parts = [
+        r.imported ? `imported ${r.imported} trusted item${r.imported === 1 ? "" : "s"}` : null,
+        moved ? `moved ${moved} job description${moved === 1 ? "" : "s"} / conversation${moved === 1 ? "" : "s"} to recruitment context` : null,
+      ].filter(Boolean);
       toast.success(
-        r.imported
-          ? `Auto-imported ${r.imported} trusted item${r.imported === 1 ? "" : "s"} · ${r.kept} still need your call.`
+        parts.length
+          ? `Re-triaged: ${parts.join(" · ")} · ${r.kept} still need your call.`
           : `Nothing cleared the trust bar — ${r.kept} still need your call.`,
       );
       invalidate();
