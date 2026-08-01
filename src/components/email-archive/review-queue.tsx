@@ -200,8 +200,9 @@ export function ReviewQueue() {
           <div>
             <div className="text-sm font-medium">Clear the queue in a few minutes</div>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-xl leading-relaxed">
-              We only ask when we genuinely cannot tell whether a person is in the email. Start with the strongest
-              band, use <kbd className="px-1 rounded bg-secondary">J</kbd>/
+              We only ask when we genuinely cannot tell whether a person is in the email. Job descriptions and
+              requirement blasts are hidden by default — use{" "}
+              <kbd className="px-1 rounded bg-secondary">J</kbd>/
               <kbd className="px-1 rounded bg-secondary">K</kbd> to move and{" "}
               <kbd className="px-1 rounded bg-secondary">A</kbd>/<kbd className="px-1 rounded bg-secondary">X</kbd> to
               decide.
@@ -210,8 +211,13 @@ export function ReviewQueue() {
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={() => retriage.mutate()}>
               {retriage.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-              Auto-import trusted items
+              Re-triage queue
             </Button>
+            {jdCount > 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                {jdCount} job description{jdCount === 1 ? "" : "s"} in here — re-triage clears them
+              </span>
+            )}
             {bands.weak > 0 && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={dismissWeak}>
                 Dismiss all weak ({bands.weak})
