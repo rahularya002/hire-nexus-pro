@@ -1,59 +1,36 @@
-## Goal
-Replace the "recover / recovered / recovery" language in the Email Archive feature with "import / imported" so the workflow feels like candidate import rather than backup recovery.
+## What's wrong
 
-## Scope
-Only the Email Archive surface: `src/routes/email-archive.tsx` and the components under `src/components/email-archive/`.
+Your screenshot is a JD blast ("All Mandates", attachments literally named `Job Description - Manager Social.docx.pdf`) sitting at **100% Possible candidate**. I traced it in the scoring engine:
 
-## Changes
+- `src/lib/recruitment-classify.server.ts` gives **+35 "attachment parses as a resume"** whenever the parsed document text has 3+ of: Skills, Education, Qualification, Experience, Projects. A job description contains all of those words — so JD PDFs score like resumes.
+- There is no JD-aware filename rule. `Job Description - X.pdf` is only treated as a generic "document attached" (+12) — never as evidence *against* a candidate.
+- The JD penalty is conditional: `if (jd && score < 40)`. Once the JD doc pushed the score above 40, the penalty is skipped entirely, so JD mails can only go up.
+- Nothing distinguishes "one person" from "many roles". Mails listing multiple positions/budgets still route to a per-person review item.
+- The queue has no volume ceiling, so a mailbox of JD threads becomes ~2k review items.
 
-### User-facing copy
-- Page title / meta: `Recruitment Memory — Recover Candidates from Gmail` → `Recruitment Memory — Import Candidates from Gmail`
-- Tab label: `Recovered candidates` → `Imported candidates`
-- KPI tile: `Recovered candidates` → `Imported candidates`
-- Coverage labels:
-  - `Entire mailbox recovered` → `Entire mailbox imported`
-  - `History recovered` → `History imported`
-  - `Recovered Mar 2023 → today` → `Imported Mar 2023 → today`
-- Drawer trigger: `Recovery history` → `Import history`
-- Drawer title/description and empty state updated to "import run" / "import your recruitment memory"
-- Empty-state copy in the candidates tab updated to "Import your recruitment memory above…"
-- Clear-archive dialog: `Clear the recovered archive?` → `Clear the imported archive?`; body copy updated to "imported archive" / "import your memory again"
-- Toast messages: `Recovering your recruitment memory…` → `Importing your recruitment memory…`; `Could not start recovery` → `Could not start import`
+## The fix
 
-### Recovery panel (`recovery-panel.tsx`)
-- Section title: `Recover Recruitment Memory` → `Import Recruitment Memory`
-- CTA button: `Recover Recruitment Memory` → `Import Recruitment Memory`
-- Running state: `Recovering your recruitment memory` → `Importing your recruitment memory`; `Recovery paused` → `Import paused`
-- Completed state heading: `Your recruitment memory is ready` stays; sub-actions:
-  - `Browse recovered candidates` → `Browse imported candidates`
-  - `Recover more history` → `Import more history`
-- Intro card: `Recover the candidates you already know` → `Import the candidates you already know`
-- Coverage summary strings:
-  - `Entire mailbox already recovered` → `Entire mailbox already imported`
-  - `Already recovered: <date> → <date>` → `Already imported: <date> → <date>`
-  - `Last recovery finished <date>` → `Last import finished <date>`
-- Time-window option: `New mail since last recovery` → `New mail since last import`
-- Time-window card badge: `Recovered` → `Imported`
-- Metric label: `Candidates recovered` → `Candidates imported`
-- Helper text: `recovery runs in the background` → `import runs in the background`
+**1. JD-aware evidence (`recruitment-classify.server.ts`)**
+- Add a `JD_FILENAME` pattern (`job description`, `jd`, `requirement`, `mandate`, `role brief`, `hiring`, `openings`, `budget`). JD-named attachments are excluded from resume/person-named counts and add a negative signal.
+- Add a `JD_DOC` pattern for the parsed document text (`roles and responsibilities`, `desired candidate profile`, `no. of positions`, `budget`, `we are looking for`, `job title:`, `experience required`). When the doc looks like a JD, the resume-section bonus is not awarded — a JD is not a resume just because it lists skills and qualifications.
+- Make the JD and feedback penalties unconditional, and hard-cap candidate confidence (≈25) when JD signals dominate and no resume-named/person-named attachment or personal contact block exists.
+- Add a "multiple roles listed" signal (several positions/CTC ranges/openings in one mail) that pushes the artifact to `job_description` instead of a candidate.
 
-### History sheet (`history-sheet.tsx`)
-- Title: `Recovery history` → `Import history`
-- Description and empty state updated to "import run" / "import your recruitment memory"
-- Row metric: `<n> recovered` → `<n> imported`
+**2. Classifier prompt + fusion (`pipeline/classify.server.ts`)**
+- Tell the model explicitly that a mail whose attachments are job descriptions is `job_description` with candidate_confidence near 0, even when the JD lists skills and experience.
+- Refuse the rules-import band when JD signals are present and the only "resume" evidence is section counts — those go to `job_description` (stored as recruitment context, no human review).
+- Stop labelling `recruitment_conversation` / `job_description` rows as "Possible candidate" in the outcome badge; they render as context, not a candidate call.
 
-### Review queue (`review-queue.tsx`)
-- Empty-state helper: `Everything we recovered` → `Everything we imported`; `after your next recovery` → `after your next import`
-- Error toast: `Re-run recovery instead` → `Re-run import instead`
+**3. Retroactive cleanup, no AI or Gmail cost (`email-import.functions.ts`)**
+- Extend `retriageReviewQueue` to re-run the corrected deterministic evidence over each queued item's stored `pending_payload` (subject, body, attachment names, doc text already saved). Items that now read as JD / conversation / no-candidate are reclassified to recruitment context and leave the queue; items above auto-accept are imported as today. Report back: imported, moved to context, still needing a call.
+- Same corrected pass reused by `rescoreArchive` so already-imported JD rows get demoted.
 
-### Code-level consistency (non-breaking)
-- Rename internal variables/state keys in the route and panel so the code reads consistently: e.g., `recoveredThrough` → `importedThrough`, `recovered` count → `imported` count, `coverage.oldestFrom` comments updated.
-- Keep component/file names (`RecoveryPanel`, `HistorySheet`) unchanged to avoid churn unless you want them renamed too.
+**4. Queue that a recruiter can actually clear (`components/email-archive/review-queue.tsx`)**
+- Default the queue to items with a resume/person-named attachment and the "Likely" band, so the first screen is a short, high-yield list.
+- Add an artifact filter chip row (Candidate profile / Candidate + conversation) and a "Hide job descriptions" toggle that is on by default.
+- Add a "Today's triage" cap: show the top 25 by strength with a clear "25 of 1,842 — next 25" control, so the screen never presents 2k rows.
+- Replace "Dismiss all weak" with "Clean up job descriptions (N)" plus the existing weak dismissal, and surface the re-triage result counts in the toast.
 
-## Out of scope
-- Database column names or API field names (no migration needed; this is a copy-only change).
-- The feature name "Recruitment Memory" remains as the product name.
+## Technical notes
 
-## Verification
-- Run a build/typecheck after edits.
-- Visually confirm the Email Archive page no longer shows "recover/recovered/recovery" in any visible label, button, toast, or empty state.
+No schema change. All work is in `src/lib/recruitment-classify.server.ts`, `src/lib/pipeline/classify.server.ts`, `src/lib/email-import.functions.ts`, `src/components/email-archive/review-queue.tsx`, and the badge helper in `src/components/email-archive/shared.tsx`. Reclassified items are moved to the recruitment-context store, never hard-deleted, and the review-status filter still lets you pull anything back.

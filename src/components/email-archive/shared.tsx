@@ -81,7 +81,7 @@ export function OutcomeBadge({
 
   let label: string;
   let tone: string;
-  if (state === "needs_review") {
+  if (state === "needs_review" && isCandidate) {
     label = "Possible candidate";
     tone = "bg-warning/10 text-warning border-warning/30";
   } else if (isCandidate) {
@@ -105,12 +105,12 @@ export function OutcomeBadge({
     <span
       className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${tone} ${className ?? ""}`}
       title={
-        isCandidate || state === "needs_review"
+        isCandidate
           ? `Candidate confidence — how sure we are this email holds an importable profile: ${pct}%`
           : "This email holds no importable candidate profile."
       }
     >
-      {(isCandidate || state === "needs_review") && <span className="font-semibold">{pct}%</span>}
+      {isCandidate && <span className="font-semibold">{pct}%</span>}
       {label}
     </span>
   );

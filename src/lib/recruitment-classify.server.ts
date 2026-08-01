@@ -113,6 +113,18 @@ const RESUME_FILENAME =
 
 const RESUME_EXT = /\.(pdf|docx?|rtf|odt)$/i;
 
+/**
+ * Attachment names that describe a ROLE, not a person. A file called
+ * "Job Description - Manager Social.docx.pdf" must never count as a resume,
+ * even though it is a PDF full of skills and qualifications.
+ */
+const JD_FILENAME =
+  /(job[\s_.\-]?desc|\bjd\b|jd[\s_.\-]|[\s_.\-]jd|requirement|mandate|role[\s_.\-]?brief|hiring|opening|vacancy|position[s]?[\s_.\-]|budget|spec(ification)?[\s_.\-]?sheet|tracker)/i;
+
+/** Parsed document text that reads like a job description rather than a CV. */
+const JD_DOC =
+  /(roles? (and|&) responsibilit|key responsibilit|desired candidate profile|candidate profile:|job (title|description|purpose|summary|location|specification)|no\.? of (openings|positions|vacanc)|number of positions|experience required|qualification required|we are looking for|about the (role|company)|reporting to|budget[:\s]|ctc range|salary range|shift timing|hiring for|position overview|job requirements?)/i;
+
 /** Phrases that mean "a candidate is attached / included here". */
 const CANDIDATE_SHARE_PHRASE =
   /(please find (my |the |attached)|pfa\b|attached (is |herewith |please find )?(the |my )?(resume|cv|profile|candidate)|sharing (my |the |his |her )?(resume|cv|profile|candidate)|kindly find (the |my )?(resume|cv|profile)|candidate (profile|details|summary)|submitting (my |the )?(resume|cv|profile|candidature)|forwarding (the |his |her )?(resume|cv|profile)|herewith my (resume|cv)|enclosed (is )?(my )?(resume|cv))/i;
@@ -196,9 +208,15 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   const names = i.attachmentNames ?? [];
 
   const docAttachments = names.filter((n) => RESUME_EXT.test(n));
-  const resumeNamed = docAttachments.filter((n) => RESUME_FILENAME.test(n));
-  const personNamed = docAttachments.filter((n) => nameishFile(n));
+  // A JD-named file is evidence of a role, never of a person — exclude it from
+  // every resume-ish bucket before anything else is scored.
+  const jdNamed = names.filter((n) => JD_FILENAME.test(n));
+  const nonJdDocs = docAttachments.filter((n) => !JD_FILENAME.test(n));
+  const resumeNamed = nonJdDocs.filter((n) => RESUME_FILENAME.test(n));
+  const personNamed = nonJdDocs.filter((n) => nameishFile(n));
   const noiseNamed = names.filter((n) => NOISE_FILENAME.test(n));
+  const docLooksLikeJd = JD_DOC.test(doc.slice(0, 6000));
+  const allAttachmentsAreJds = !!names.length && jdNamed.length === names.length;
 
   if (resumeNamed.length) {
     score += 45;
@@ -206,9 +224,17 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   } else if (personNamed.length) {
     score += 32;
     hits.push("person-named document attached");
-  } else if (docAttachments.length) {
+  } else if (nonJdDocs.length) {
     score += 12;
     hits.push("document attached");
+  }
+  if (jdNamed.length) {
+    score -= allAttachmentsAreJds ? 35 : 15;
+    against.push(
+      allAttachmentsAreJds
+        ? "every attachment is a job description, not a CV"
+        : "some attachments are job descriptions",
+    );
   }
   if (noiseNamed.length && noiseNamed.length === names.length && names.length) {
     score -= 40;
@@ -219,7 +245,12 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   if (doc.length > 400) {
     const sections = resumeSectionCount(doc);
     const hasContact = new RegExp(BODY_CONTACT_BLOCK).test(doc) && /\b(?:\+?\d[\d\s\-()]{8,})\b/.test(doc);
-    if (sections >= 3) {
+    if (docLooksLikeJd) {
+      // JDs list skills, education and experience too. Section counting cannot
+      // tell them apart from a CV, so we refuse to award resume credit here.
+      score -= 20;
+      against.push("attachment text reads as a job description");
+    } else if (sections >= 3) {
       score += 35;
       hits.push("attachment parses as a resume");
     } else if (sections === 2 && hasContact) {
@@ -229,11 +260,11 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
       score -= 18;
       against.push("attachment has no resume structure");
     }
-    if (hasContact) {
+    if (hasContact && !docLooksLikeJd) {
       score += 10;
       hits.push("attachment carries personal contact details");
     }
-  } else if (docAttachments.length && doc.trim().length < 120) {
+  } else if (nonJdDocs.length && doc.trim().length < 120) {
     // We have a document we could not read — a scanned or corrupted CV is exactly
     // the case a human should look at.
     uncertainty = "attachment could not be read (possibly scanned or corrupted)";
@@ -262,20 +293,44 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   const feedback = FEEDBACK_PHRASE.test(subject) || FEEDBACK_PHRASE.test(body.slice(0, 2500));
   const chatter = CONVERSATION_PHRASE.test(body.slice(0, 2500));
 
-  if (jd && score < 40) {
-    score -= 18;
+  // Several roles / openings / budgets in one mail is a requirement blast, not a
+  // person. Count the strongest repeated role markers in body + subject.
+  const roleMarkers = (subject + "\n" + body.slice(0, 4000)).match(
+    /(no\.? of positions|openings?\b|vacanc(y|ies)|designation|budget|fixed ctc|ctc range|mandate)/gi,
+  );
+  const multiRole = (roleMarkers?.length ?? 0) >= 3;
+  if (multiRole) {
+    score -= 22;
+    against.push("multiple roles / openings listed in one email");
+  }
+
+  if (jd || docLooksLikeJd || allAttachmentsAreJds) {
+    score -= 20;
     against.push("reads like a job description / requirement");
   }
-  if (feedback && score < 40) {
+  if (feedback) {
     score -= 15;
     against.push("reads like interview feedback");
   }
+
+  // Hard ceiling: when the mail is dominated by requirement signals and carries
+  // no resume-named / person-named document and no personal contact block, there
+  // is no importable person here no matter how resume-shaped the words look.
+  const personalEvidence =
+    resumeNamed.length > 0 ||
+    personNamed.length > 0 ||
+    CANDIDATE_SHARE_PHRASE.test(body) ||
+    CANDIDATE_SHARE_PHRASE.test(subject);
+  const jdDominant = allAttachmentsAreJds || docLooksLikeJd || multiRole || (jd && !personalEvidence);
+  if (jdDominant && !personalEvidence) score = Math.min(score, 22);
 
   score = Math.max(0, Math.min(100, score));
 
   // Deterministic artifact guess.
   let artifact: ArtifactType;
-  if (score >= 55) {
+  if (jdDominant && !personalEvidence) {
+    artifact = "job_description";
+  } else if (score >= 55) {
     artifact = chatter || jd || feedback ? "candidate_plus_conversation" : "candidate_profile";
   } else if (feedback) {
     artifact = "interview_feedback";
@@ -286,6 +341,9 @@ export function candidateEvidence(i: SignalInput): CandidateEvidence {
   } else {
     artifact = "administrative";
   }
+
+  // A requirement mail is never a "we cannot tell" case — do not send it to a human.
+  if (jdDominant && !personalEvidence) uncertainty = null;
 
   // Mixed attachment types are ambiguous on purpose.
   if (names.length > 1 && resumeNamed.length && names.length !== docAttachments.length) {
@@ -348,10 +406,11 @@ export function heuristicScore(i: SignalInput): HeuristicResult {
 
   const names = i.attachmentNames;
   if (names.length) {
-    if (names.some((n) => RESUME_FILENAME.test(n))) {
+    const nonJd = names.filter((n) => !JD_FILENAME.test(n));
+    if (nonJd.some((n) => RESUME_FILENAME.test(n))) {
       score += 16;
       hits.push("resume-style attachment name");
-    } else if (names.some((n) => nameishFile(n))) {
+    } else if (nonJd.some((n) => nameishFile(n))) {
       score += 10;
       hits.push("person-named attachment");
     }

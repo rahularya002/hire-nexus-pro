@@ -137,6 +137,10 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
               "job_description (a role, requirement or JD being shared — describes a job, not a person), " +
               "interview_feedback (evaluation of an interview), " +
               "administrative (anything else: statements, invoices, payments, OTP, orders, travel, newsletters, job alerts). " +
+              "CRITICAL: if the attachments are job descriptions / requirements / mandates (file names like 'Job Description - Manager.pdf'), " +
+              "or the mail lists several roles, openings, designations, budgets or CTC ranges, the artifact is job_description and " +
+              "candidate_confidence must be under 10 — even though a JD also lists skills, qualifications and experience. " +
+              "A document is only a candidate profile when it describes ONE specific person (their name, contact details, their own work history). " +
               "candidate_confidence (0-100) answers ONLY: how confident are you that this email contains a candidate profile that can be imported as a person record? " +
               "An email can be 100% recruitment related and still have candidate_confidence 0 — that is normal and correct for JDs and conversations. " +
               "Never call a document a resume just because it is a PDF. Be conservative: use 40-70 when genuinely ambiguous. " +
@@ -189,6 +193,9 @@ export async function classifyItem(
   const ev = candidateEvidence(signal);
   const det = cleanExtracted(ctx.deterministic);
   const hasAttachment = signal.attachmentNames.length > 0;
+  // Requirement mail (JD / mandate / multi-role blast) is stored as context and
+  // never reaches a human queue, whatever the model would have said.
+  const jdOnly = ev.artifact === "job_description" && ev.score <= CANDIDATE_SKIP_THRESHOLD;
   // A resume attachment is itself strong identity evidence: name-only (or
   // sender-email-only) extraction still produces a usable person record that the
   // recruiter can correct later. Only attachment-free mail needs a full identity.
@@ -227,7 +234,7 @@ export async function classifyItem(
 
   // Band 3 — no candidate evidence and nothing ambiguous. Log the artifact, never
   // ask a human: recruitment conversations and JDs are stored, not reviewed.
-  if (ev.score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty) {
+  if (jdOnly || (ev.score <= CANDIDATE_SKIP_THRESHOLD && !ev.uncertainty)) {
     metrics.rulesSkipped++;
     const reason =
       ev.artifact === "job_description"
