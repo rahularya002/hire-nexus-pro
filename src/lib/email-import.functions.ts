@@ -197,7 +197,10 @@ export const getImportProgress = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as unknown as ImportRun | null) ?? null;
+    const row = data as unknown as (ImportRun & { cleared_at?: string | null }) | null;
+    // A cleared archive must read as empty: the run stays in history only.
+    if (!row || row.cleared_at) return null;
+    return row as ImportRun;
   });
 
 export const cancelImportRun = createServerFn({ method: "POST" })
