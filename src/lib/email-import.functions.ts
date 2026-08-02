@@ -190,7 +190,7 @@ export const getImportProgress = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,ai_calls,cache_hits,auto_imported,tokens_estimated,failure_log,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,labels,emails_scanned,resume_emails,people_found,people_enriched,duplicates_merged,failures,skipped_non_resume,needs_review,skipped_noise,ai_calls,cache_hits,auto_imported,tokens_estimated,failure_log,created_at,finished_at,cleared_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -1049,7 +1049,7 @@ export const listImportRuns = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("email_import_runs")
       .select(
-        "id,status,google_email,date_from,date_to,emails_scanned,people_found,people_enriched,duplicates_merged,needs_review,skipped_noise,failures,created_at,finished_at",
+        "id,status,google_email,date_from,date_to,emails_scanned,people_found,people_enriched,duplicates_merged,needs_review,skipped_noise,failures,created_at,finished_at,cleared_at",
       )
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -1070,6 +1070,7 @@ export const listImportRuns = createServerFn({ method: "GET" })
       failures: number;
       created_at: string;
       finished_at: string | null;
+      cleared_at: string | null;
     }[];
   });
 
@@ -1097,5 +1098,11 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       if (dErr) throw new Error(dErr.message);
     }
     await supabaseAdmin.from("email_import_skips").delete().eq("user_id", context.userId);
+    // Keep the runs for the history drawer, but stop them counting as live state.
+    await supabaseAdmin
+      .from("email_import_runs")
+      .update({ cleared_at: new Date().toISOString() })
+      .eq("user_id", context.userId)
+      .is("cleared_at", null);
     return { removed: doomed.length };
   });
