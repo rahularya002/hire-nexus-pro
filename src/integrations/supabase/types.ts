@@ -881,6 +881,7 @@ export type Database = {
           ai_calls: number
           auto_imported: number
           cache_hits: number
+          cleared_at: string | null
           created_at: string
           date_from: string | null
           date_to: string | null
@@ -911,6 +912,7 @@ export type Database = {
           ai_calls?: number
           auto_imported?: number
           cache_hits?: number
+          cleared_at?: string | null
           created_at?: string
           date_from?: string | null
           date_to?: string | null
@@ -941,6 +943,7 @@ export type Database = {
           ai_calls?: number
           auto_imported?: number
           cache_hits?: number
+          cleared_at?: string | null
           created_at?: string
           date_from?: string | null
           date_to?: string | null

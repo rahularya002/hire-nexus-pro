@@ -286,7 +286,7 @@ function RecruitmentMemoryPage() {
 
   /** What history we have already imported, derived from past runs. */
   const coverage = useMemo(() => {
-    const done = (runs.data ?? []).filter((r) => r.status !== "failed");
+    const done = (runs.data ?? []).filter((r) => r.status !== "failed" && !r.cleared_at);
     if (!done.length) {
       return {
         hasRuns: false,

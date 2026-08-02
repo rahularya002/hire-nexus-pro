@@ -50,6 +50,9 @@ export function HistorySheet({ open, onClose }: { open: boolean; onClose: () => 
                   </span>
                   <span className="text-[11px] text-muted-foreground">{relTime(r.created_at)}</span>
                 </div>
+                {r.cleared_at && (
+                  <div className="text-[11px] text-muted-foreground">Archive cleared — kept for history only</div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   {r.date_from
                     ? `${fmtDate(r.date_from)} → ${r.date_to ? fmtDate(r.date_to) : "today"}`
