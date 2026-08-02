@@ -1,0 +1,1 @@
+ALTER TABLE public.email_import_runs ADD COLUMN IF NOT EXISTS cleared_at timestamptz;
