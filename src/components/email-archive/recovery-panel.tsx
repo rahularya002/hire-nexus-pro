@@ -73,6 +73,24 @@ function elapsedOf(from?: string | null) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+/** Live throughput and remaining-time estimate for a running import. */
+function throughputOf(scanned: number, target: number, from?: string | null) {
+  if (!from || scanned <= 0) return null;
+  const mins = (Date.now() - new Date(from).getTime()) / 60000;
+  if (mins < 0.25) return null;
+  const rate = scanned / mins;
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  const left = Math.max(0, target - scanned);
+  const etaMins = left > 0 ? Math.round(left / rate) : 0;
+  const eta =
+    etaMins <= 0
+      ? "almost done"
+      : etaMins < 60
+        ? `~${etaMins} min left`
+        : `~${Math.floor(etaMins / 60)}h ${etaMins % 60}m left`;
+  return { rate: Math.round(rate), eta };
+}
+
 export function RecoveryPanel({
   connected,
   gmailReady,
@@ -193,6 +211,7 @@ export function RecoveryPanel({
     const scanned = run?.emails_scanned ?? 0;
     const target = estimate(null).emails;
     const pct = Math.min(96, Math.max(4, Math.round((scanned / Math.max(target, 1)) * 100)));
+    const tp = running ? throughputOf(scanned, target, run?.created_at) : null;
     return (
       <div className={shell}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -227,9 +246,14 @@ export function RecoveryPanel({
 
         <div className="mt-5 space-y-2">
           <Progress value={running ? pct : Math.max(4, pct)} className="h-1.5" />
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>{running ? "Scanning your mailbox…" : "Paused — progress is saved."}</span>
-            <span className="inline-flex items-center gap-1 tabular-nums">
+          <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+            <span className="truncate">
+              {running ? "Scanning your mailbox…" : "Paused — progress is saved."}
+              {tp ? (
+                <span className="tabular-nums"> · {tp.rate} emails/min · {tp.eta}</span>
+              ) : null}
+            </span>
+            <span className="inline-flex items-center gap-1 tabular-nums shrink-0">
               <Clock className="size-3" /> {elapsedOf(run?.created_at)}
             </span>
           </div>
