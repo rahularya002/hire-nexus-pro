@@ -56,6 +56,7 @@ import {
   cancelImportRun,
   clearEmailArchive,
   getImportProgress,
+  getArchiveCounts,
   listEmailCandidates,
   listGmailLabels,
   listImportRuns,
@@ -263,6 +264,7 @@ function RecruitmentMemoryPage() {
   const rescoreFn = useServerFn(rescoreArchive);
   const clearFn = useServerFn(clearEmailArchive);
   const runsFn = useServerFn(listImportRuns);
+  const countsFn = useServerFn(getArchiveCounts);
 
   const [tab, setTab] = useState<TabKey>("candidates");
   const [search, setSearch] = useState("");
@@ -272,6 +274,7 @@ function RecruitmentMemoryPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const loopRef = useRef(false);
+  const [loopKey, setLoopKey] = useState(0);
 
   const conn = useQuery({ queryKey: ["gmail-labels"], queryFn: () => labelsFn() });
   const run = useQuery({
@@ -283,6 +286,13 @@ function RecruitmentMemoryPage() {
   const running = run.data?.status === "running";
 
   const runs = useQuery({ queryKey: ["email-import-runs"], queryFn: () => runsFn() });
+
+  /** Exact archive totals — the candidate list is paged, so tiles can't count it. */
+  const totals = useQuery({
+    queryKey: ["email-archive-counts"],
+    queryFn: () => countsFn(),
+    refetchInterval: running ? 5000 : false,
+  });
 
   /** What history we have already imported, derived from past runs. */
   const coverage = useMemo(() => {
@@ -344,6 +354,7 @@ function RecruitmentMemoryPage() {
     loopRef.current = true;
     let stop = false;
     (async () => {
+      let failures = 0;
       try {
         // One status read up front; after that the batch result itself tells us
         // whether to keep going, so we spend no round trip per page on polling.
@@ -354,9 +365,23 @@ function RecruitmentMemoryPage() {
         const runId = first.id;
         for (;;) {
           if (stop) break;
-          const res = await batchFn({ data: { runId } });
+          let res: Awaited<ReturnType<typeof batchFn>>;
+          try {
+            res = await batchFn({ data: { runId } });
+            failures = 0;
+          } catch (err) {
+            // A single flaky batch (network blip, Gmail hiccup) must not end the
+            // whole import — back off and retry a few times before giving up.
+            failures += 1;
+            if (failures >= 5) throw err;
+            await new Promise((r) => setTimeout(r, 2000 * failures));
+            continue;
+          }
           qc.invalidateQueries({ queryKey: ["email-import-progress"] });
-          if (res.newPeople.length) qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+          if (res.newPeople.length) {
+            qc.invalidateQueries({ queryKey: ["email-archive-people"] });
+            qc.invalidateQueries({ queryKey: ["email-archive-counts"] });
+          }
           if (res.done) break;
         }
       } catch (e) {
@@ -366,12 +391,26 @@ function RecruitmentMemoryPage() {
         qc.invalidateQueries({ queryKey: ["email-import-progress"] });
         qc.invalidateQueries({ queryKey: ["email-archive-people"] });
         qc.invalidateQueries({ queryKey: ["email-archive-review"] });
+        qc.invalidateQueries({ queryKey: ["email-archive-counts"] });
       }
     })();
     return () => {
       stop = true;
     };
-  }, [running, batchFn, progressFn, qc]);
+  }, [running, loopKey, batchFn, progressFn, qc]);
+
+  /**
+   * Watchdog: a run stays "running" in the database even if the driving loop
+   * died (tab closed, reload, repeated failures). Revive it instead of leaving
+   * the import stuck forever.
+   */
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => {
+      if (!loopRef.current) setLoopKey((v) => v + 1);
+    }, 10_000);
+    return () => clearInterval(t);
+  }, [running]);
 
   const startMut = useMutation({
     mutationFn: (o: {
@@ -482,8 +521,8 @@ function RecruitmentMemoryPage() {
   }, [people.data, chips]);
 
   const counts = {
-    imported: people.data?.length ?? 0,
-    promoted: (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
+    imported: totals.data?.imported ?? people.data?.length ?? 0,
+    promoted: totals.data?.promoted ?? (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
     review: reviewItems.data?.bands.total ?? 0,
     conversations: run.data?.skipped_noise ?? 0,
   };
