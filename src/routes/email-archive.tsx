@@ -56,6 +56,7 @@ import {
   cancelImportRun,
   clearEmailArchive,
   getImportProgress,
+  getArchiveCounts,
   listEmailCandidates,
   listGmailLabels,
   listImportRuns,
