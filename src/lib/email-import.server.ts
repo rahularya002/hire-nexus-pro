@@ -294,7 +294,17 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
     exclusions: run.exclusions,
   });
 
-  const page = await listMessageIds(accessToken, query, run.page_token, pageSize);
+  // Consume several Gmail pages per round trip so the browser's sequential
+  // batch loop pays HTTP + auth overhead far less often per email.
+  const messages: { id: string; threadId?: string | null }[] = [];
+  let nextPageToken: string | null | undefined = run.page_token;
+  for (let i = 0; i < Math.max(1, PAGES_PER_BATCH); i++) {
+    const p = await listMessageIds(accessToken, query, nextPageToken, pageSize);
+    messages.push(...p.messages);
+    nextPageToken = p.nextPageToken;
+    if (!nextPageToken) break;
+  }
+  const page = { messages, nextPageToken };
   const newPeople: BatchResult["newPeople"] = [];
   const failures: { message: string; subject?: string }[] = [];
 
