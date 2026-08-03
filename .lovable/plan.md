@@ -1,36 +1,39 @@
-## What's wrong
+## What's actually happening
 
-Your screenshot is a JD blast ("All Mandates", attachments literally named `Job Description - Manager Social.docx.pdf`) sitting at **100% Possible candidate**. I traced it in the scoring engine:
+**1. It's slow because everything is single-file.** From the code as it stands:
 
-- `src/lib/recruitment-classify.server.ts` gives **+35 "attachment parses as a resume"** whenever the parsed document text has 3+ of: Skills, Education, Qualification, Experience, Projects. A job description contains all of those words — so JD PDFs score like resumes.
-- There is no JD-aware filename rule. `Job Description - X.pdf` is only treated as a generic "document attached" (+12) — never as evidence *against* a candidate.
-- The JD penalty is conditional: `if (jd && score < 40)`. Once the JD doc pushed the score above 40, the penalty is skipped entirely, so JD mails can only go up.
-- Nothing distinguishes "one person" from "many roles". Mails listing multiple positions/budgets still route to a per-person review item.
-- The queue has no volume ceiling, so a mailbox of JD threads becomes ~2k review items.
+- `processRunBatch` takes only **8 messages per call** (`pageSize = 8` in `src/lib/email-import.server.ts`).
+- Inside that batch, messages are handled **strictly one after another** in a `for` loop. Each message does, in series: 2 dedup lookups → 1 thread lookup → Gmail `getMessage` → attachment download → resume-text parse → resume-hash cache lookup → classification → storage upload → 2-3 inserts.
+- The browser loop in `src/routes/email-archive.tsx` also calls `getImportProgress()` **before every batch**, then waits for the batch to finish before requesting the next one — one HTTP round trip per 8 emails, nothing overlapping.
 
-## The fix
+At 8,535 emails that's ~1,070 sequential server calls, each containing ~8 sequential Gmail + database + storage waits. The bottleneck is round trips and serialization, not AI.
 
-**1. JD-aware evidence (`recruitment-classify.server.ts`)**
-- Add a `JD_FILENAME` pattern (`job description`, `jd`, `requirement`, `mandate`, `role brief`, `hiring`, `openings`, `budget`). JD-named attachments are excluded from resume/person-named counts and add a negative signal.
-- Add a `JD_DOC` pattern for the parsed document text (`roles and responsibilities`, `desired candidate profile`, `no. of positions`, `budget`, `we are looking for`, `job title:`, `experience required`). When the doc looks like a JD, the resume-section bonus is not awarded — a JD is not a resume just because it lists skills and qualifications.
-- Make the JD and feedback penalties unconditional, and hard-cap candidate confidence (≈25) when JD signals dominate and no resume-named/person-named attachment or personal contact block exists.
-- Add a "multiple roles listed" signal (several positions/CTC ranges/openings in one mail) that pushes the artifact to `job_description` instead of a candidate.
+**2. Nothing is being AI-enriched during import.** "Profiles enriched" is just the `people_enriched` counter. It goes up in two harmless cases in `email-import.server.ts`:
+- an email matched a person already in the archive (by email/phone), so it merged into that person instead of creating a new one;
+- an email had no resume but belonged to a thread already linked to a person, so it was filed onto that person's timeline.
 
-**2. Classifier prompt + fusion (`pipeline/classify.server.ts`)**
-- Tell the model explicitly that a mail whose attachments are job descriptions is `job_description` with candidate_confidence near 0, even when the JD lists skills and experience.
-- Refuse the rules-import band when JD signals are present and the only "resume" evidence is section counts — those go to `job_description` (stored as recruitment context, no human review).
-- Stop labelling `recruitment_conversation` / `job_description` rows as "Possible candidate" in the outcome badge; they render as context, not a candidate call.
+No extra AI call, no external lookup. The word "enriched" reads like a paid enrichment step, which is why it looks wrong. AI summaries stay on-demand as they are today.
 
-**3. Retroactive cleanup, no AI or Gmail cost (`email-import.functions.ts`)**
-- Extend `retriageReviewQueue` to re-run the corrected deterministic evidence over each queued item's stored `pending_payload` (subject, body, attachment names, doc text already saved). Items that now read as JD / conversation / no-candidate are reclassified to recruitment context and leave the queue; items above auto-accept are imported as today. Report back: imported, moved to context, still needing a call.
-- Same corrected pass reused by `rescoreArchive` so already-imported JD rows get demoted.
+## Plan
 
-**4. Queue that a recruiter can actually clear (`components/email-archive/review-queue.tsx`)**
-- Default the queue to items with a resume/person-named attachment and the "Likely" band, so the first screen is a short, high-yield list.
-- Add an artifact filter chip row (Candidate profile / Candidate + conversation) and a "Hide job descriptions" toggle that is on by default.
-- Add a "Today's triage" cap: show the top 25 by strength with a clear "25 of 1,842 — next 25" control, so the screen never presents 2k rows.
-- Replace "Dismiss all weak" with "Clean up job descriptions (N)" plus the existing weak dismissal, and surface the re-triage result counts in the toast.
+### Make the import fast
+
+1. **Process each batch concurrently.** Refactor the per-message body of `processRunBatch` into one `processMessage()` function and run the page through a bounded concurrency pool (default 6 in flight) instead of a `for` loop, accumulating counters from the settled results.
+2. **Raise the page size.** Move `pageSize` to `src/lib/pipeline/config.ts` (`PIPELINE_BATCH_SIZE`, default 25) so one server call covers 25 emails instead of 8.
+3. **Collapse per-message round trips.** Do the "already seen?" checks for the whole page in two batched `in(...)` queries (`email_messages`, `email_import_skips`) before processing, instead of 2-3 queries per message, and reuse that set for the thread-known check.
+4. **Drop the redundant progress fetch in the client loop.** Use the `done`/status returned by the batch call to decide whether to continue; keep the existing polling query for UI only. Also keep 2 batch calls in flight so network latency overlaps with server work.
+5. **Keep correctness guards:** per-message failures stay isolated (one bad email must not fail the page), the run's counters remain a single update at the end of the batch, and pause/stop still take effect between batches.
+
+### Fix the confusing metric
+
+6. Rename the tile in `src/components/email-archive/recovery-panel.tsx` from **"Profiles enriched"** to **"Merged into existing"**, with a tooltip: "Emails that matched someone already in your archive and were added to their timeline instead of creating a duplicate." No data or logic change — labels only.
+
+### Verify
+
+7. Run a real import against the connected mailbox and compare emails-scanned-per-minute before/after, confirming counters, review queue, and dedup behaviour are unchanged.
 
 ## Technical notes
 
-No schema change. All work is in `src/lib/recruitment-classify.server.ts`, `src/lib/pipeline/classify.server.ts`, `src/lib/email-import.functions.ts`, `src/components/email-archive/review-queue.tsx`, and the badge helper in `src/components/email-archive/shared.tsx`. Reclassified items are moved to the recruitment-context store, never hard-deleted, and the review-status filter still lets you pull anything back.
+- Concurrency is capped because Gmail's API rate-limits per user and each attachment download plus storage upload is bandwidth-heavy; 6 in flight is safe and can be tuned via env (`PIPELINE_MESSAGE_CONCURRENCY`).
+- The archive person upsert (`upsertPersonFromPayload`) mutates shared rows, so it stays serialized: workers classify and store attachments in parallel, then the write phase applies results in order to preserve dedup/merge semantics.
+- Expected result: roughly an order of magnitude fewer round trips and 4-6x throughput per batch, with no change in AI spend.
