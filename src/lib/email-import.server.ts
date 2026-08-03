@@ -17,7 +17,7 @@ import { gmailMessageToRawItem } from "./gmail-discovery.server";
 import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
-import { BATCH_SIZE, MESSAGE_CONCURRENCY } from "./pipeline/config";
+import { BATCH_SIZE, MESSAGE_CONCURRENCY, PAGES_PER_BATCH, WRITE_CONCURRENCY } from "./pipeline/config";
 
 export type { Extracted };
 
@@ -294,7 +294,17 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
     exclusions: run.exclusions,
   });
 
-  const page = await listMessageIds(accessToken, query, run.page_token, pageSize);
+  // Consume several Gmail pages per round trip so the browser's sequential
+  // batch loop pays HTTP + auth overhead far less often per email.
+  const messages: { id: string; threadId?: string | null }[] = [];
+  let nextPageToken: string | null | undefined = run.page_token;
+  for (let i = 0; i < Math.max(1, PAGES_PER_BATCH); i++) {
+    const p = await listMessageIds(accessToken, query, nextPageToken, pageSize);
+    messages.push(...p.messages);
+    nextPageToken = p.nextPageToken;
+    if (!nextPageToken) break;
+  }
+  const page = { messages, nextPageToken };
   const newPeople: BatchResult["newPeople"] = [];
   const failures: { message: string; subject?: string }[] = [];
 
@@ -625,6 +635,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   // WRITE PHASE — serialized so dedup/merge semantics stay identical.
   const skipRows: SkipRow[] = [];
   const attachRows: SkipRow[] = [];
+  // Imports are grouped by dedup key so different people can be written
+  // concurrently while same-person mails stay strictly ordered.
+  const importGroups = new Map<string, CandidatePayload[]>();
   for (const a of actions) {
     if (a.t === "fail") {
       failures.push({ message: a.message });
@@ -644,19 +657,33 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       continue;
     }
     if (a.resumeEmail) resumeEmails++;
-    try {
-      const res = await upsertPersonFromPayload(a.payload);
-      if (res.merged) {
-        merged++;
-        enriched++;
-      } else {
-        peopleFound++;
-        newPeople.push({ id: res.personId, name: res.name, email: res.email });
-      }
-    } catch (e) {
-      failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
-    }
+    const p = a.payload;
+    const key =
+      (p.extracted?.email ?? "").toLowerCase() ||
+      digits(p.extracted?.phone) ||
+      (p.direction === "inbound" ? p.from_email : p.to_emails[0]) ||
+      `msg:${p.gmail_message_id}`;
+    const bucket = importGroups.get(key);
+    if (bucket) bucket.push(p);
+    else importGroups.set(key, [p]);
   }
+
+  await pool(Array.from(importGroups.values()), WRITE_CONCURRENCY, async (group) => {
+    for (const payload of group) {
+      try {
+        const res = await upsertPersonFromPayload(payload);
+        if (res.merged) {
+          merged++;
+          enriched++;
+        } else {
+          peopleFound++;
+          newPeople.push({ id: res.personId, name: res.name, email: res.email });
+        }
+      } catch (e) {
+        failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
+      }
+    }
+  });
 
   if (skipRows.length) await supabaseAdmin.from("email_import_skips").insert(skipRows as never);
   if (attachRows.length) await supabaseAdmin.from("email_messages").insert(attachRows as never);

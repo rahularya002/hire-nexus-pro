@@ -30,10 +30,14 @@ export const AI_MAX_DOC_CHARS = num("PIPELINE_AI_MAX_DOC_CHARS", 3000);
 /** Cached AI verdicts older than this are ignored. */
 export const CACHE_TTL_DAYS = num("PIPELINE_CACHE_TTL_DAYS", 180);
 
-/** Emails fetched and processed per server round trip. */
-export const BATCH_SIZE = num("PIPELINE_BATCH_SIZE", 25);
+/** Emails listed per Gmail page. */
+export const BATCH_SIZE = num("PIPELINE_BATCH_SIZE", 50);
+/** How many Gmail pages one server round trip consumes. */
+export const PAGES_PER_BATCH = num("PIPELINE_PAGES_PER_BATCH", 2);
 /** How many emails are prepared (Gmail + parse + classify) concurrently. */
-export const MESSAGE_CONCURRENCY = num("PIPELINE_MESSAGE_CONCURRENCY", 6);
+export const MESSAGE_CONCURRENCY = num("PIPELINE_MESSAGE_CONCURRENCY", 16);
+/** How many distinct people are written to the database concurrently. */
+export const WRITE_CONCURRENCY = num("PIPELINE_WRITE_CONCURRENCY", 6);
 
 /** Per-facet deterministic coverage we consider "good enough" to skip the model. */
 export const COVERAGE_TARGETS = {
