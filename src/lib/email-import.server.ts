@@ -635,6 +635,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   // WRITE PHASE — serialized so dedup/merge semantics stay identical.
   const skipRows: SkipRow[] = [];
   const attachRows: SkipRow[] = [];
+  // Imports are grouped by dedup key so different people can be written
+  // concurrently while same-person mails stay strictly ordered.
+  const importGroups = new Map<string, CandidatePayload[]>();
   for (const a of actions) {
     if (a.t === "fail") {
       failures.push({ message: a.message });
@@ -654,19 +657,33 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       continue;
     }
     if (a.resumeEmail) resumeEmails++;
-    try {
-      const res = await upsertPersonFromPayload(a.payload);
-      if (res.merged) {
-        merged++;
-        enriched++;
-      } else {
-        peopleFound++;
-        newPeople.push({ id: res.personId, name: res.name, email: res.email });
-      }
-    } catch (e) {
-      failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
-    }
+    const p = a.payload;
+    const key =
+      (p.extracted?.email ?? "").toLowerCase() ||
+      digits(p.extracted?.phone) ||
+      (p.direction === "inbound" ? p.from_email : p.to_emails[0]) ||
+      `msg:${p.gmail_message_id}`;
+    const bucket = importGroups.get(key);
+    if (bucket) bucket.push(p);
+    else importGroups.set(key, [p]);
   }
+
+  await pool(Array.from(importGroups.values()), WRITE_CONCURRENCY, async (group) => {
+    for (const payload of group) {
+      try {
+        const res = await upsertPersonFromPayload(payload);
+        if (res.merged) {
+          merged++;
+          enriched++;
+        } else {
+          peopleFound++;
+          newPeople.push({ id: res.personId, name: res.name, email: res.email });
+        }
+      } catch (e) {
+        failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
+      }
+    }
+  });
 
   if (skipRows.length) await supabaseAdmin.from("email_import_skips").insert(skipRows as never);
   if (attachRows.length) await supabaseAdmin.from("email_messages").insert(attachRows as never);
