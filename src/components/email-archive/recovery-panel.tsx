@@ -55,9 +55,9 @@ function estimate(months: number | null) {
 
 const nf = new Intl.NumberFormat();
 
-function Metric({ value, label }: { value: number | string; label: string }) {
+function Metric({ value, label, hint }: { value: number | string; label: string; hint?: string }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={hint}>
       <div className="text-xl font-semibold tabular-nums">{typeof value === "number" ? nf.format(value) : value}</div>
       <div className="text-[11px] text-muted-foreground truncate">{label}</div>
     </div>
