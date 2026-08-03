@@ -17,7 +17,7 @@ import { gmailMessageToRawItem } from "./gmail-discovery.server";
 import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
-import { BATCH_SIZE, MESSAGE_CONCURRENCY } from "./pipeline/config";
+import { BATCH_SIZE, MESSAGE_CONCURRENCY, PAGES_PER_BATCH, WRITE_CONCURRENCY } from "./pipeline/config";
 
 export type { Extracted };
 
