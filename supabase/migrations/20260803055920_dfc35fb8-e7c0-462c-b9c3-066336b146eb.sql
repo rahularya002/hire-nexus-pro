@@ -1,0 +1,1 @@
+update public.email_import_runs set status='cancelled', finished_at=coalesce(finished_at, now()) where status in ('running','paused') and (cleared_at is not null or created_at < now() - interval '12 hours');
