@@ -1098,6 +1098,13 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       if (dErr) throw new Error(dErr.message);
     }
     await supabaseAdmin.from("email_import_skips").delete().eq("user_id", context.userId);
+    // Any still-live run must be stopped, otherwise it keeps writing rows into
+    // the archive we just cleared (two runs appearing to fight each other).
+    await supabaseAdmin
+      .from("email_import_runs")
+      .update({ status: "cancelled", finished_at: new Date().toISOString() })
+      .eq("user_id", context.userId)
+      .in("status", ["running", "paused"]);
     // Keep the runs for the history drawer, but stop them counting as live state.
     await supabaseAdmin
       .from("email_import_runs")
