@@ -232,19 +232,6 @@ export const getArchiveCounts = createServerFn({ method: "GET" })
     return { imported: imported.count ?? 0, promoted: promoted.count ?? 0 };
   });
 
-const _unusedCancelImportRun = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ runId: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("email_import_runs")
-      .update({ status: "paused" })
-      .eq("id", data.runId)
-      .eq("user_id", context.userId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
-
 export const resumeImportRun = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ runId: z.string().uuid() }).parse(d))
