@@ -216,6 +216,35 @@ export const cancelImportRun = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * True archive totals. The candidate list is paged (300 rows), so the tiles
+ * must not be derived from it — they read exact counts from the database.
+ */
+export const getArchiveCounts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const base = () => context.supabase.from("email_candidates").select("id", { count: "exact", head: true });
+    const [imported, promoted] = await Promise.all([
+      base().eq("review_status", "imported"),
+      base().eq("review_status", "imported").not("promoted_candidate_id", "is", null),
+    ]);
+    if (imported.error) throw new Error(imported.error.message);
+    return { imported: imported.count ?? 0, promoted: promoted.count ?? 0 };
+  });
+
+const _unusedCancelImportRun = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ runId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("email_import_runs")
+      .update({ status: "paused" })
+      .eq("id", data.runId)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const resumeImportRun = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ runId: z.string().uuid() }).parse(d))
