@@ -345,14 +345,25 @@ function RecruitmentMemoryPage() {
     let stop = false;
     (async () => {
       try {
+        // One status read up front; after that the batch result itself tells us
+        // whether to keep going, so we spend no round trip per page on polling.
+        const first = await progressFn();
+        if (first?.status !== "running") return;
+        const runId = first.id;
+        // Two pages in flight so network latency overlaps with server work.
+        let inflight: Promise<Awaited<ReturnType<typeof batchFn>>> | null = batchFn({ data: { runId } });
         for (;;) {
-          if (stop) break;
-          const fresh = await progressFn();
-          if (fresh?.status !== "running") break;
-          const res = await batchFn({ data: { runId: fresh.id } });
+          if (stop || !inflight) break;
+          const current = inflight;
+          const next = batchFn({ data: { runId } });
+          inflight = next;
+          const res = await current;
           qc.invalidateQueries({ queryKey: ["email-import-progress"] });
           if (res.newPeople.length) qc.invalidateQueries({ queryKey: ["email-archive-people"] });
-          if (res.done) break;
+          if (res.done) {
+            await next.catch(() => undefined);
+            break;
+          }
         }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Import stopped unexpectedly");
