@@ -17,6 +17,7 @@ import { gmailMessageToRawItem } from "./gmail-discovery.server";
 import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
+import { BATCH_SIZE, MESSAGE_CONCURRENCY } from "./pipeline/config";
 
 export type { Extracted };
 
@@ -259,8 +260,33 @@ export async function upsertPersonFromPayload(
   return { personId: person!.id, name, email, merged };
 }
 
+type SkipRow = Record<string, unknown>;
+
+/** What the (parallel) prepare phase decided for one message. */
+type Action =
+  | { t: "skip"; row: SkipRow; counter: "skipped" | "needsReview"; resumeEmail: boolean }
+  | { t: "import"; payload: CandidatePayload; resumeEmail: boolean }
+  | { t: "attach"; row: SkipRow }
+  | { t: "none" }
+  | { t: "fail"; message: string };
+
+/** Run an async mapper over a list with a bounded number of workers in flight. */
+async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 /** Process one page of candidate-looking emails for a run. */
-export async function processRunBatch(run: Run, accessToken: string, pageSize = 8): Promise<BatchResult> {
+export async function processRunBatch(run: Run, accessToken: string, pageSize = BATCH_SIZE): Promise<BatchResult> {
   const query = buildQuery({
     dateFrom: run.date_from,
     dateTo: run.date_to,
@@ -272,7 +298,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
   const newPeople: BatchResult["newPeople"] = [];
   const failures: { message: string; subject?: string }[] = [];
 
-  let scanned = 0;
+  const scanned = page.messages.length;
   let resumeEmails = 0;
   let peopleFound = 0;
   let enriched = 0;
@@ -283,25 +309,48 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
 
   const mine = (run.google_email ?? "").toLowerCase() || null;
 
-  for (const ref of page.messages) {
-    scanned++;
-    try {
-      const [{ data: seenMsg }, { data: seenSkip }] = await Promise.all([
+  // Whole-page dedup and thread lookups: two queries instead of three per email.
+  const allIds = page.messages.map((m) => m.id);
+  const [{ data: seenMsgs }, { data: seenSkips }] = allIds.length
+    ? await Promise.all([
         supabaseAdmin
           .from("email_messages")
-          .select("id")
+          .select("gmail_message_id")
           .eq("user_id", run.user_id)
-          .eq("gmail_message_id", ref.id)
-          .maybeSingle(),
+          .in("gmail_message_id", allIds),
         supabaseAdmin
           .from("email_import_skips")
-          .select("id")
+          .select("gmail_message_id")
           .eq("user_id", run.user_id)
-          .eq("gmail_message_id", ref.id)
-          .maybeSingle(),
-      ]);
-      if (seenMsg || seenSkip) continue;
+          .in("gmail_message_id", allIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const seen = new Set(
+    [...(seenMsgs ?? []), ...(seenSkips ?? [])].map((r) => (r as { gmail_message_id: string }).gmail_message_id),
+  );
 
+  const todo = page.messages.filter((m) => !seen.has(m.id));
+  const threadIds = Array.from(new Set(todo.map((m) => m.threadId).filter((t): t is string => !!t)));
+  const { data: threadRows } = threadIds.length
+    ? await supabaseAdmin
+        .from("email_messages")
+        .select("gmail_thread_id,email_candidate_id")
+        .eq("user_id", run.user_id)
+        .in("gmail_thread_id", threadIds)
+    : { data: [] };
+  const knownThreads = new Set<string>();
+  const threadPerson = new Map<string, string>();
+  for (const r of (threadRows ?? []) as { gmail_thread_id: string | null; email_candidate_id: string | null }[]) {
+    if (!r.gmail_thread_id) continue;
+    knownThreads.add(r.gmail_thread_id);
+    if (r.email_candidate_id && !threadPerson.has(r.gmail_thread_id)) {
+      threadPerson.set(r.gmail_thread_id, r.email_candidate_id);
+    }
+  }
+
+  /** Read-only, network-heavy work — safe to run several at a time. */
+  const prepare = async (ref: { id: string; threadId?: string | null }): Promise<Action> => {
+    try {
       const msg = await getMessage(accessToken, ref.id);
       const raw = gmailMessageToRawItem(msg, ref.threadId ?? null);
       const attachments = raw.attachments;
@@ -311,19 +360,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       const bodyText = cleanBodyText(raw.bodyText);
       const sentAt = raw.sentAt;
       const direction = from.email && mine && from.email === mine ? "outbound" : "inbound";
-
-      // Has this thread already produced recruitment mail for this user?
-      let threadKnown = false;
-      if (ref.threadId) {
-        const { data: t } = await supabaseAdmin
-          .from("email_messages")
-          .select("id")
-          .eq("user_id", run.user_id)
-          .eq("gmail_thread_id", ref.threadId)
-          .limit(1)
-          .maybeSingle();
-        threadKnown = !!t;
-      }
+      const threadKnown = !!(ref.threadId && knownThreads.has(ref.threadId));
 
       const attNames = attachments.map((a) => a.fileName);
       const baseSignal = {
@@ -338,7 +375,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         threadKnown,
       };
 
-      const recordSkip = async (c: {
+      const skipRow = (c: {
         confidence: number;
         kind: string;
         artifact?: string | null;
@@ -346,44 +383,53 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
         signals: unknown;
         status: "skipped" | "needs_review";
         payload?: CandidatePayload | null;
-      }) => {
-        await supabaseAdmin.from("email_import_skips").insert({
-          agency_id: run.agency_id,
-          user_id: run.user_id,
-          run_id: run.id,
-          gmail_message_id: ref.id,
-          gmail_thread_id: ref.threadId ?? null,
-          subject,
-          snippet: msg.snippet ?? null,
-          from_email: from.email,
-          from_name: from.name,
-          attachment_names: attNames,
-          confidence: c.confidence,
-          email_kind: c.kind,
-          artifact_type: c.artifact ?? null,
-          reason: c.reason,
-          signals: c.signals as never,
-          pending_payload: (c.payload ?? null) as never,
-          status: c.status,
-          sent_at: sentAt,
-        });
-      };
+      }): SkipRow => ({
+        agency_id: run.agency_id,
+        user_id: run.user_id,
+        run_id: run.id,
+        gmail_message_id: ref.id,
+        gmail_thread_id: ref.threadId ?? null,
+        subject,
+        snippet: msg.snippet ?? null,
+        from_email: from.email,
+        from_name: from.name,
+        attachment_names: attNames,
+        confidence: c.confidence,
+        email_kind: c.kind,
+        artifact_type: c.artifact ?? null,
+        reason: c.reason,
+        signals: c.signals,
+        pending_payload: c.payload ?? null,
+        status: c.status,
+        sent_at: sentAt,
+      });
 
       // Cheapest gate of all: obvious noise is never even downloaded.
       const pre = heuristicScore(baseSignal);
       const preEv = candidateEvidence(baseSignal);
       if (pre.score <= 12 && preEv.score <= 12 && !preEv.uncertainty) {
-        skipped++;
         metrics.rulesSkipped++;
-        await recordSkip({
-          confidence: preEv.score,
-          kind: "other",
-          artifact: preEv.artifact,
-          reason: pre.blocks[0] ? `No candidate found — ${pre.blocks[0]}.` : "No candidate profile found in this email.",
-          signals: { heuristic: pre.score, ai: null, hits: pre.hits, blocks: pre.blocks, candidateEvidence: preEv.score },
-          status: "skipped",
-        });
-        continue;
+        return {
+          t: "skip",
+          counter: "skipped",
+          resumeEmail: false,
+          row: skipRow({
+            confidence: preEv.score,
+            kind: "other",
+            artifact: preEv.artifact,
+            reason: pre.blocks[0]
+              ? `No candidate found — ${pre.blocks[0]}.`
+              : "No candidate profile found in this email.",
+            signals: {
+              heuristic: pre.score,
+              ai: null,
+              hits: pre.hits,
+              blocks: pre.blocks,
+              candidateEvidence: preEv.score,
+            },
+            status: "skipped",
+          }),
+        };
       }
 
       // NORMALIZATION — download, hash, and read the primary attachment. Identical
@@ -435,19 +481,20 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       });
 
       if (cls.decision === "skip") {
-        skipped++;
-        await recordSkip({
-          confidence: cls.confidence,
-          kind: cls.kind,
-          artifact: cls.artifact,
-          reason: cls.reason,
-          signals: cls.signals,
-          status: "skipped",
-        });
-        continue;
+        return {
+          t: "skip",
+          counter: "skipped",
+          resumeEmail: false,
+          row: skipRow({
+            confidence: cls.confidence,
+            kind: cls.kind,
+            artifact: cls.artifact,
+            reason: cls.reason,
+            signals: cls.signals,
+            status: "skipped",
+          }),
+        };
       }
-
-      if (attachments.length) resumeEmails++;
 
       // Store attachments so both "import" and later "approve" keep the files.
       const stored: StoredAttachment[] = [];
@@ -500,83 +547,105 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       };
 
       if (cls.decision === "review") {
-        needsReview++;
-        await recordSkip({
-          confidence: cls.confidence,
-          kind: cls.kind,
-          artifact: cls.artifact,
-          reason: cls.reason,
-          signals: cls.signals,
-          status: "needs_review",
-          payload,
-        });
-        continue;
+        return {
+          t: "skip",
+          counter: "needsReview",
+          resumeEmail: attachments.length > 0,
+          row: skipRow({
+            confidence: cls.confidence,
+            kind: cls.kind,
+            artifact: cls.artifact,
+            reason: cls.reason,
+            signals: cls.signals,
+            status: "needs_review",
+            payload,
+          }),
+        };
       }
 
       // Attachment-free mail only enriches a known person's timeline. If we cannot
       // attach it to anyone, it is recruitment context — logged, never reviewed,
       // unless the evidence says a profile is sitting in the body.
       if (stored.length === 0) {
-        const { data: existing } = await supabaseAdmin
-          .from("email_messages")
-          .select("email_candidate_id")
-          .eq("user_id", run.user_id)
-          .eq("gmail_thread_id", ref.threadId ?? "")
-          .not("email_candidate_id", "is", null)
-          .limit(1)
-          .maybeSingle();
-        if (!existing?.email_candidate_id) {
+        const existingPersonId = ref.threadId ? threadPerson.get(ref.threadId) : undefined;
+        if (!existingPersonId) {
           const uncertain = !!(cls.signals as { uncertainty?: string | null })?.uncertainty;
           const bodyProfile =
             cls.decision === "import" && isCandidateArtifact(cls.artifact) && !!cls.extracted?.name;
           // A body-only profile the classifier is confident about is imported, not queued.
           if (bodyProfile) {
-            const res = await upsertPersonFromPayload(payload);
-            if (res.merged) {
-              merged++;
-              enriched++;
-            } else {
-              peopleFound++;
-              newPeople.push({ id: res.personId, name: res.name, email: res.email });
-            }
-            continue;
+            return { t: "import", payload, resumeEmail: false };
           }
           const reviewable = uncertain && isCandidateArtifact(cls.artifact);
-          if (reviewable) needsReview++;
-          else skipped++;
-          await recordSkip({
-            confidence: cls.confidence,
-            kind: cls.kind,
-            artifact: reviewable ? cls.artifact : "recruitment_conversation",
-            reason: reviewable
-              ? `${cls.reason} No resume attached — confirm whether a profile is in the body.`
-              : "Recruitment conversation with no candidate profile — stored in the archive.",
-            signals: cls.signals,
-            status: reviewable ? "needs_review" : "skipped",
-            payload: reviewable ? payload : null,
-          });
-          continue;
+          return {
+            t: "skip",
+            counter: reviewable ? "needsReview" : "skipped",
+            resumeEmail: false,
+            row: skipRow({
+              confidence: cls.confidence,
+              kind: cls.kind,
+              artifact: reviewable ? cls.artifact : "recruitment_conversation",
+              reason: reviewable
+                ? `${cls.reason} No resume attached — confirm whether a profile is in the body.`
+                : "Recruitment conversation with no candidate profile — stored in the archive.",
+              signals: cls.signals,
+              status: reviewable ? "needs_review" : "skipped",
+              payload: reviewable ? payload : null,
+            }),
+          };
         }
-        await supabaseAdmin.from("email_messages").insert({
-          agency_id: run.agency_id,
-          user_id: run.user_id,
-          email_candidate_id: existing.email_candidate_id as string,
-          gmail_message_id: ref.id,
-          gmail_thread_id: ref.threadId ?? null,
-          subject,
-          snippet: msg.snippet ?? null,
-          from_email: from.email,
-          from_name: from.name,
-          to_emails: toList,
-          direction,
-          has_resume: false,
-          sent_at: sentAt,
-        });
-        enriched++;
-        continue;
+        return {
+          t: "attach",
+          row: {
+            agency_id: run.agency_id,
+            user_id: run.user_id,
+            email_candidate_id: existingPersonId,
+            gmail_message_id: ref.id,
+            gmail_thread_id: ref.threadId ?? null,
+            subject,
+            snippet: msg.snippet ?? null,
+            from_email: from.email,
+            from_name: from.name,
+            to_emails: toList,
+            direction,
+            has_resume: false,
+            sent_at: sentAt,
+          },
+        };
       }
 
-      const res = await upsertPersonFromPayload(payload);
+      return { t: "import", payload, resumeEmail: attachments.length > 0 };
+    } catch (e) {
+      return { t: "fail", message: e instanceof Error ? e.message : "Unknown error" };
+    }
+  };
+
+  const actions = await pool(todo, MESSAGE_CONCURRENCY, prepare);
+
+  // WRITE PHASE — serialized so dedup/merge semantics stay identical.
+  const skipRows: SkipRow[] = [];
+  const attachRows: SkipRow[] = [];
+  for (const a of actions) {
+    if (a.t === "fail") {
+      failures.push({ message: a.message });
+      continue;
+    }
+    if (a.t === "none") continue;
+    if (a.t === "skip") {
+      if (a.resumeEmail) resumeEmails++;
+      if (a.counter === "skipped") skipped++;
+      else needsReview++;
+      skipRows.push(a.row);
+      continue;
+    }
+    if (a.t === "attach") {
+      attachRows.push(a.row);
+      enriched++;
+      continue;
+    }
+    if (a.resumeEmail) resumeEmails++;
+    try {
+      const res = await upsertPersonFromPayload(a.payload);
       if (res.merged) {
         merged++;
         enriched++;
@@ -588,6 +657,9 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       failures.push({ message: e instanceof Error ? e.message : "Unknown error" });
     }
   }
+
+  if (skipRows.length) await supabaseAdmin.from("email_import_skips").insert(skipRows as never);
+  if (attachRows.length) await supabaseAdmin.from("email_messages").insert(attachRows as never);
 
   const done = !page.nextPageToken;
   const prevLog = Array.isArray(run.failure_log) ? (run.failure_log as { message: string }[]) : [];

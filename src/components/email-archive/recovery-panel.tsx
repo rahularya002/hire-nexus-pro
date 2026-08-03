@@ -55,9 +55,9 @@ function estimate(months: number | null) {
 
 const nf = new Intl.NumberFormat();
 
-function Metric({ value, label }: { value: number | string; label: string }) {
+function Metric({ value, label, hint }: { value: number | string; label: string; hint?: string }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={hint}>
       <div className="text-xl font-semibold tabular-nums">{typeof value === "number" ? nf.format(value) : value}</div>
       <div className="text-[11px] text-muted-foreground truncate">{label}</div>
     </div>
@@ -238,7 +238,11 @@ export function RecoveryPanel({
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
           <Metric value={run?.people_found ?? 0} label="Candidates imported" />
-          <Metric value={run?.people_enriched ?? 0} label="Profiles enriched" />
+          <Metric
+            value={run?.people_enriched ?? 0}
+            label="Merged into existing"
+            hint="Emails that matched someone already in your archive and were added to their timeline instead of creating a duplicate."
+          />
           <Metric value={run?.needs_review ?? 0} label="Need your call" />
           <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
         </div>
@@ -290,7 +294,11 @@ export function RecoveryPanel({
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
           <Metric value={run?.people_found ?? 0} label="Candidates imported" />
-          <Metric value={run?.people_enriched ?? 0} label="Profiles enriched" />
+          <Metric
+            value={run?.people_enriched ?? 0}
+            label="Merged into existing"
+            hint="Emails that matched someone already in your archive and were added to their timeline instead of creating a duplicate."
+          />
           <Metric value={run?.needs_review ?? 0} label="Need your call" />
           <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
         </div>

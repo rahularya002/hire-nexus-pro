@@ -345,11 +345,16 @@ function RecruitmentMemoryPage() {
     let stop = false;
     (async () => {
       try {
+        // One status read up front; after that the batch result itself tells us
+        // whether to keep going, so we spend no round trip per page on polling.
+        // Pages stay strictly sequential because each batch advances the run's
+        // Gmail page token — overlapping calls would re-scan the same page.
+        const first = await progressFn();
+        if (first?.status !== "running") return;
+        const runId = first.id;
         for (;;) {
           if (stop) break;
-          const fresh = await progressFn();
-          if (fresh?.status !== "running") break;
-          const res = await batchFn({ data: { runId: fresh.id } });
+          const res = await batchFn({ data: { runId } });
           qc.invalidateQueries({ queryKey: ["email-import-progress"] });
           if (res.newPeople.length) qc.invalidateQueries({ queryKey: ["email-archive-people"] });
           if (res.done) break;
