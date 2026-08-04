@@ -97,7 +97,19 @@ export async function getValidAccessToken(userId: string): Promise<GoogleConnect
   const expiresAt = new Date(conn.expires_at).getTime();
   if (Date.now() < expiresAt - 60_000) return conn;
   // refresh
-  const refreshed = await refreshAccessToken(conn.refresh_token);
+  let refreshed: Awaited<ReturnType<typeof refreshAccessToken>>;
+  try {
+    refreshed = await refreshAccessToken(conn.refresh_token);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Refresh token revoked/expired: the connection is dead. Remove it so the
+    // app shows "not connected" and the user can re-authorize, instead of 500ing.
+    if (msg.includes("invalid_grant")) {
+      await supabaseAdmin.from("google_calendar_connections").delete().eq("id", conn.id);
+      return null;
+    }
+    throw e;
+  }
   const new_expires = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
   const { error } = await supabaseAdmin
     .from("google_calendar_connections")
