@@ -63,3 +63,27 @@ export const disconnectGoogle = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Revokes only Gmail access for the archive feature, keeping the shared
+// connection row (and therefore Calendar/Meet sync) intact.
+export const disconnectGmailAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("google_calendar_connections")
+      .select("id, scopes")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { ok: true };
+    const remaining = (data.scopes ?? "")
+      .split(/\s+/)
+      .filter((s) => s && !s.includes("gmail."))
+      .join(" ");
+    const { error: upErr } = await context.supabase
+      .from("google_calendar_connections")
+      .update({ scopes: remaining })
+      .eq("id", data.id);
+    if (upErr) throw new Error(upErr.message);
+    return { ok: true };
+  });
