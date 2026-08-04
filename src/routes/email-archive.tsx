@@ -72,7 +72,7 @@ import {
   stopImportRun,
   type ArchivePerson,
 } from "@/lib/email-import.functions";
-import { disconnectGoogle, startGoogleOAuth } from "@/lib/google-calendar.functions";
+import { disconnectGmailAccess, startGoogleOAuth } from "@/lib/google-calendar.functions";
 
 export const Route = createFileRoute("/email-archive")({
   component: RecruitmentMemoryPage,
@@ -255,7 +255,7 @@ function RecruitmentMemoryPage() {
   const resumeFn = useServerFn(resumeImportRun);
   const stopFn = useServerFn(stopImportRun);
   const authUrlFn = useServerFn(startGoogleOAuth);
-  const disconnectFn = useServerFn(disconnectGoogle);
+  const disconnectFn = useServerFn(disconnectGmailAccess);
   const peopleFn = useServerFn(listEmailCandidates);
   const reviewFn = useServerFn(listReviewItems);
   const reviewQueueFn = useServerFn(listReviewQueue);
@@ -495,8 +495,9 @@ function RecruitmentMemoryPage() {
   const disconnect = useMutation({
     mutationFn: () => disconnectFn(),
     onSuccess: () => {
-      toast.success("Gmail disconnected.");
+      toast.success("Gmail access removed. Your Google Calendar & Meet sync is untouched.");
       qc.invalidateQueries({ queryKey: ["gmail-labels"] });
+      qc.invalidateQueries({ queryKey: ["google-connection"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not disconnect"),
   });
@@ -589,7 +590,7 @@ function RecruitmentMemoryPage() {
                 <DropdownMenuItem onClick={() => setConfirmClear(true)}>
                   <Trash2 className="size-3.5" /> Clear archive
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => disconnect.mutate()} disabled={!connected}>
+                <DropdownMenuItem onClick={() => disconnect.mutate()} disabled={!gmailReady || disconnect.isPending}>
                   <Unplug className="size-3.5" /> Disconnect Gmail
                 </DropdownMenuItem>
               </DropdownMenuContent>

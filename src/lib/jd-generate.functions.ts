@@ -36,6 +36,7 @@ export const generateJobDescription = createServerFn({ method: "POST" })
       .join("\n");
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(45_000),
       method: "POST",
       headers: {
         "Lovable-API-Key": apiKey,

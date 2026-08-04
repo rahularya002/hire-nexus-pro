@@ -33,6 +33,7 @@ When given a job description or role brief, respond with: ideal candidate profil
 When asked about a candidate, give a balanced evaluation with strengths, gaps, and suggested interview questions.`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(45_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
