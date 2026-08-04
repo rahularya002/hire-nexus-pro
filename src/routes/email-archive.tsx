@@ -525,6 +525,7 @@ function RecruitmentMemoryPage() {
     promoted: totals.data?.promoted ?? (people.data ?? []).filter((p) => p.promoted_candidate_id).length,
     review: reviewItems.data?.bands.total ?? 0,
     conversations: run.data?.skipped_noise ?? 0,
+    merged: totals.data?.merged ?? run.data?.people_enriched ?? 0,
   };
   const connected = !!conn.data?.connected;
   const gmailReady = !!conn.data?.gmail;
@@ -613,9 +614,10 @@ function RecruitmentMemoryPage() {
         />
 
         {/* stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <StatTile icon={Users} value={counts.imported} label="Imported candidates" />
           <StatTile icon={UserPlus} value={counts.promoted} label="Imported to database" />
+          <StatTile icon={UsersRound} value={counts.merged} label="Merged into existing" />
           <StatTile
             icon={Sparkles}
             value={counts.review}
