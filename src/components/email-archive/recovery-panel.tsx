@@ -249,6 +249,7 @@ export function RecoveryPanel({
           <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
             <span className="truncate">
               {running ? "Scanning your mailbox…" : "Paused — progress is saved."}
+              <span className="tabular-nums"> · {(run?.emails_scanned ?? 0).toLocaleString()} emails scanned</span>
               {tp ? (
                 <span className="tabular-nums"> · {tp.rate} emails/min · {tp.eta}</span>
               ) : null}
@@ -257,18 +258,6 @@ export function RecoveryPanel({
               <Clock className="size-3" /> {elapsedOf(run?.created_at)}
             </span>
           </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-          <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
-          <Metric value={run?.people_found ?? 0} label="Candidates imported" />
-          <Metric
-            value={run?.people_enriched ?? 0}
-            label="Merged into existing"
-            hint="Emails that matched someone already in your archive and were added to their timeline instead of creating a duplicate."
-          />
-          <Metric value={run?.needs_review ?? 0} label="Need your call" />
-          <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
         </div>
 
         <details className="mt-5 group">
@@ -312,19 +301,10 @@ export function RecoveryPanel({
               Finished {fmtDate(run?.finished_at ?? run?.created_at)} · {run?.google_email}
             </p>
             {coverageLine && <p className="text-xs text-muted-foreground mt-1">{coverageLine}</p>}
+            <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+              {(run?.emails_scanned ?? 0).toLocaleString()} emails scanned in this run
+            </p>
           </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-          <Metric value={run?.emails_scanned ?? 0} label="Emails scanned" />
-          <Metric value={run?.people_found ?? 0} label="Candidates imported" />
-          <Metric
-            value={run?.people_enriched ?? 0}
-            label="Merged into existing"
-            hint="Emails that matched someone already in your archive and were added to their timeline instead of creating a duplicate."
-          />
-          <Metric value={run?.needs_review ?? 0} label="Need your call" />
-          <Metric value={run?.skipped_noise ?? run?.skipped_non_resume ?? 0} label="No candidate found" />
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
