@@ -121,6 +121,7 @@ async function callModel(i: SignalInput, gaps: Facet[]): Promise<{ result: AiRes
 
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(45_000),
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({

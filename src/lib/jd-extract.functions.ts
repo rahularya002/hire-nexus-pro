@@ -25,6 +25,7 @@ export const extractJdWithAi = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured");
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(45_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
