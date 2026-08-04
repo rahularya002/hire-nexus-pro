@@ -1,30 +1,26 @@
-## What the data actually shows
+## What's duplicated
 
-The current run (started 05:43) has scanned **120 emails in ~290 seconds**, and 120 is a multiple of the new page size — so the batch size change *is* live: it is pulling 25 per page, not 8. What you're seeing as "8 at a time" is the *effective rate*: roughly 25 emails per minute, so each page takes ~60s and the counters creep up in small visible jumps.
+The page shows the same information twice:
 
-The old run (started yesterday) managed 1,179 emails in 15 hours — so it is already ~20x faster. It's just still too slow for a full mailbox (8.5k emails ≈ 5–6 hours at this rate).
+- The **panel** (top card) shows the *last run's* counters: emails scanned, candidates imported, merged, need your call, no candidate found.
+- The **tile row** below shows *archive totals*: imported candidates, imported to database, needs your call, recruiting history, last sync.
 
-Where the remaining minute-per-page goes:
-- Gmail `messages.get` + attachment download + parse happens 6 at a time; heavy resume attachments dominate.
-- The write phase is fully serial: every candidate is upserted one at a time (visible in the database as one row every 2–4 seconds).
-- Pages are strictly sequential: the browser waits for a whole page to finish before requesting the next, so Gmail latency and database latency never overlap.
+They overlap on three numbers (imported candidates, needs your call, recruiting history/no candidate found) and never match exactly — the panel counts one run, the tiles count everything in the archive. That's why "4,733" and "4772" sit next to each other.
 
 ## Plan
 
-1. **Raise the parallelism defaults** in `src/lib/pipeline/config.ts`: page size 25 → 50, prepare concurrency 6 → 16. Gmail's per-user quota comfortably allows this; both stay env-overridable.
+Collapse to **one stats row** — the archive totals — and turn the panel into a pure status/action card.
 
-2. **Speed up the write phase** in `src/lib/email-import.server.ts`:
-   - Batch the person upserts: group the page's imports by dedup key (email/phone), then process distinct people concurrently (bounded, ~6) while keeping same-key people serialized. Dedup/merge behaviour stays identical because collisions within a page are still handled in order.
-   - Keep skip/attach rows as the existing single bulk insert.
+1. In `recovery-panel.tsx`, remove the 5-metric grid from the finished and running states. Replace with a single compact line under the headline:
+   - finished: "33,104 emails scanned · up to 3 Aug 2026"
+   - running: keep the progress bar, emails/min and ETA (the only genuinely run-scoped info).
+   Keep the buttons (Browse imported candidates / Review N items / Import more history) exactly as they are.
 
-3. **Pipeline the pages** so Gmail fetching overlaps database writing: after a page is fetched, immediately kick off the next page's Gmail listing/prepare while the current page writes. Implemented server-side inside one batch call (fetch page N+1's ids while writing page N), so the browser loop stays unchanged and page tokens stay strictly ordered.
+2. In `email-archive.tsx`, keep the tile row as the single stats surface, driven by the exact archive counts already fetched by `getArchiveCounts`. Add a **Merged into existing** tile so nothing from the panel is lost, and make each tile jump to its tab where one exists.
 
-4. **Trim per-email cost**: skip attachment download entirely for messages the cheap heuristic gate already rejects (currently some noise emails still pay for the download), and cap resume text extraction earlier.
+3. Tile set after the change: Imported candidates · Imported to database · Merged into existing · Needs your call · Recruiting history · Last sync (6 tiles, 3-across on desktop, 2-across on mobile).
 
-5. **Show real throughput in the UI** (`recovery-panel.tsx`): add an "emails/min" figure and a live ETA next to the progress bar, so speed is observable instead of inferred.
-
-### Restart note
-These are server-side changes, but the *currently running* run will pick up new page sizes only on its next batch call; a stop/start gives a clean measurement. History is preserved either way.
+4. Per-run numbers stay available in **Import history**, which already lists each run's counters — so nothing is lost, it just isn't shown twice on the dashboard.
 
 ### Technical details
-Files touched: `src/lib/pipeline/config.ts`, `src/lib/email-import.server.ts`, `src/components/email-archive/recovery-panel.tsx`. No schema change, no migration.
+Files: `src/components/email-archive/recovery-panel.tsx`, `src/routes/email-archive.tsx`. If `getArchiveCounts` doesn't yet return a merged-into-existing total, add it there (`src/lib/email-import.functions.ts`) as an exact count. No schema change, no migration, no effect on running imports.
