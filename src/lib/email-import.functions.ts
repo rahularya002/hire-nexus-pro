@@ -224,12 +224,22 @@ export const getArchiveCounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const base = () => context.supabase.from("email_candidates").select("id", { count: "exact", head: true });
-    const [imported, promoted] = await Promise.all([
+    const [imported, promoted, runs] = await Promise.all([
       base().eq("review_status", "imported"),
       base().eq("review_status", "imported").not("promoted_candidate_id", "is", null),
+      context.supabase
+        .from("email_import_runs")
+        .select("people_enriched,emails_scanned,cleared_at,status")
+        .eq("user_id", context.userId),
     ]);
     if (imported.error) throw new Error(imported.error.message);
-    return { imported: imported.count ?? 0, promoted: promoted.count ?? 0 };
+    const live = (runs.data ?? []).filter((r) => !r.cleared_at && r.status !== "failed");
+    return {
+      imported: imported.count ?? 0,
+      promoted: promoted.count ?? 0,
+      merged: live.reduce((s, r) => s + (r.people_enriched ?? 0), 0),
+      scanned: live.reduce((s, r) => s + (r.emails_scanned ?? 0), 0),
+    };
   });
 
 export const resumeImportRun = createServerFn({ method: "POST" })
