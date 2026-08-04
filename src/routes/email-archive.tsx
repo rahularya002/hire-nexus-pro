@@ -20,7 +20,6 @@ import {
   Unplug,
   UserPlus,
   Users,
-  UsersRound,
   X,
   XCircle,
 } from "lucide-react";
