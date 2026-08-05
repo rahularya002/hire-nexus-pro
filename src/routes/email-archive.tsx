@@ -817,18 +817,44 @@ function RecruitmentMemoryPage() {
       <PersonSheet person={open} onClose={() => setOpen(null)} />
       <HistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
 
-      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+      <AlertDialog open={confirmClear} onOpenChange={(o) => !clear.isPending && setConfirmClear(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear the imported archive?</AlertDialogTitle>
+            <AlertDialogTitle>{clear.isPending ? "Clearing your archive…" : "Clear the imported archive?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes archived people, their stored emails and resume versions. Anyone you already added to the
-              candidate database keeps their candidate record. You can import your memory again at any time.
+              {clear.isPending
+                ? "This runs in batches and can take a minute on large archives. Keep this page open until it finishes."
+                : "This removes archived people, their stored emails and resume versions. Anyone you already added to the candidate database keeps their candidate record. You can import your memory again at any time."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {clear.isPending && (
+            <div className="space-y-2">
+              <Progress
+                value={
+                  clearState && clearState.total > 0
+                    ? Math.min(99, Math.round((clearState.removed / clearState.total) * 100))
+                    : 5
+                }
+              />
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" />
+                Removed {clearState?.removed ?? 0}
+                {clearState && clearState.total > 0 ? ` of ${clearState.total}` : ""} archived people…
+              </p>
+            </div>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep archive</AlertDialogCancel>
-            <AlertDialogAction onClick={() => clear.mutate()}>Clear archive</AlertDialogAction>
+            <AlertDialogCancel disabled={clear.isPending}>Keep archive</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={clear.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                setClearState({ removed: 0, total: 0, done: false });
+                clear.mutate(undefined, { onSettled: () => setConfirmClear(false) });
+              }}
+            >
+              {clear.isPending ? "Clearing…" : "Clear archive"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
