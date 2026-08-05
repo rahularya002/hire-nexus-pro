@@ -1111,6 +1111,7 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const uid = context.userId;
     let removed = 0;
+    const { CLEAR_CHUNKS_PER_CALL } = await import("./pipeline/config");
 
     // Delete in bounded chunks: a single .in() with thousands of ids blows past
     // the API request-size limit and the whole clear silently fails.
