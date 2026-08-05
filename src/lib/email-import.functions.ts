@@ -1108,21 +1108,47 @@ export const listImportRuns = createServerFn({ method: "GET" })
 export const clearEmailArchive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: rows, error } = await context.supabase
-      .from("email_candidates")
-      .select("id")
-      .is("promoted_candidate_id", null)
-      .limit(5000);
-    if (error) throw new Error(error.message);
-    const doomed = (rows ?? []).map((r) => r.id as string);
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    if (doomed.length) {
-      await supabaseAdmin.from("email_resume_versions").delete().in("email_candidate_id", doomed);
-      await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", doomed);
-      const { error: dErr } = await supabaseAdmin.from("email_candidates").delete().in("id", doomed);
-      if (dErr) throw new Error(dErr.message);
+    const uid = context.userId;
+    let removed = 0;
+
+    // Delete in bounded chunks: a single .in() with thousands of ids blows past
+    // the API request-size limit and the whole clear silently fails.
+    for (let guard = 0; guard < 500; guard++) {
+      const { data: rows, error } = await supabaseAdmin
+        .from("email_candidates")
+        .select("id")
+        .eq("user_id", uid)
+        .is("promoted_candidate_id", null)
+        .limit(500);
+      if (error) throw new Error(error.message);
+      const chunk = (rows ?? []).map((r) => r.id as string);
+      if (!chunk.length) break;
+
+      const rv = await supabaseAdmin
+        .from("email_resume_versions")
+        .delete()
+        .in("email_candidate_id", chunk);
+      if (rv.error) throw new Error(rv.error.message);
+      const em = await supabaseAdmin.from("email_messages").delete().in("email_candidate_id", chunk);
+      if (em.error) throw new Error(em.error.message);
+      const dEl = await supabaseAdmin.from("email_candidates").delete().in("id", chunk);
+      if (dEl.error) throw new Error(dEl.error.message);
+      removed += chunk.length;
     }
+
+    // Sweep orphans left behind by earlier failed clears (rows whose parent is gone).
+    await supabaseAdmin
+      .from("email_resume_versions")
+      .delete()
+      .eq("user_id", uid)
+      .is("email_candidate_id", null);
+    await supabaseAdmin
+      .from("email_messages")
+      .delete()
+      .eq("user_id", uid)
+      .is("email_candidate_id", null);
+
     await supabaseAdmin.from("email_import_skips").delete().eq("user_id", context.userId);
     // Any still-live run must be stopped, otherwise it keeps writing rows into
     // the archive we just cleared (two runs appearing to fight each other).
@@ -1137,5 +1163,5 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       .update({ cleared_at: new Date().toISOString() })
       .eq("user_id", context.userId)
       .is("cleared_at", null);
-    return { removed: doomed.length };
+    return { removed };
   });
