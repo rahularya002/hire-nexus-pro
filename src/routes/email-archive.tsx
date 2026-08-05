@@ -272,6 +272,7 @@ function RecruitmentMemoryPage() {
   const [open, setOpen] = useState<ArchivePerson | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [clearState, setClearState] = useState<{ removed: number; total: number; done: boolean } | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const loopRef = useRef(false);
   const [loopKey, setLoopKey] = useState(0);
