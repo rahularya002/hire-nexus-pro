@@ -1111,10 +1111,13 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const uid = context.userId;
     let removed = 0;
+    const { CLEAR_CHUNKS_PER_CALL } = await import("./pipeline/config");
 
     // Delete in bounded chunks: a single .in() with thousands of ids blows past
     // the API request-size limit and the whole clear silently fails.
-    for (let guard = 0; guard < 500; guard++) {
+    // Each call does a slice of the work and reports back, so the UI can show
+    // live progress instead of one long silent request.
+    for (let guard = 0; guard < CLEAR_CHUNKS_PER_CALL; guard++) {
       const { data: rows, error } = await supabaseAdmin
         .from("email_candidates")
         .select("id")
@@ -1136,6 +1139,15 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       if (dEl.error) throw new Error(dEl.error.message);
       removed += chunk.length;
     }
+
+    // Anything left for the next call? Report it so the client can keep going.
+    const { count: remainingCount } = await supabaseAdmin
+      .from("email_candidates")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid)
+      .is("promoted_candidate_id", null);
+    const remaining = remainingCount ?? 0;
+    if (remaining > 0) return { removed, remaining, done: false, phase: "people" as const };
 
     // Sweep orphans left behind by earlier failed clears (rows whose parent is gone).
     await supabaseAdmin
@@ -1163,5 +1175,5 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       .update({ cleared_at: new Date().toISOString() })
       .eq("user_id", context.userId)
       .is("cleared_at", null);
-    return { removed };
+    return { removed, remaining: 0, done: true, phase: "finished" as const };
   });
