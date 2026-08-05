@@ -479,14 +479,32 @@ function RecruitmentMemoryPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not re-score the archive"),
   });
 
+  /**
+   * Clearing thousands of rows takes several round trips, so run it as a loop
+   * and keep live counts on screen instead of a silent long request.
+   */
   const clear = useMutation({
-    mutationFn: () => clearFn(),
+    mutationFn: async () => {
+      let removed = 0;
+      let total = 0;
+      for (let guard = 0; guard < 200; guard++) {
+        const r = await clearFn();
+        removed += r.removed ?? 0;
+        if (!total) total = removed + (r.remaining ?? 0);
+        setClearState({ removed, total: Math.max(total, removed), done: !!r.done });
+        qc.invalidateQueries({ queryKey: ["email-archive-counts"] });
+        if (r.done) break;
+      }
+      return { removed };
+    },
     onSuccess: (r) => {
       toast.success(`Cleared ${r.removed} archived record${r.removed === 1 ? "" : "s"}.`);
       qc.invalidateQueries({ queryKey: ["email-archive-people"] });
       qc.invalidateQueries({ queryKey: ["email-archive-review"] });
       qc.invalidateQueries({ queryKey: ["email-archive-context"] });
       qc.invalidateQueries({ queryKey: ["email-archive-nocandidate"] });
+      qc.invalidateQueries({ queryKey: ["email-import-progress"] });
+      qc.invalidateQueries({ queryKey: ["email-import-runs"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not clear the archive"),
   });
