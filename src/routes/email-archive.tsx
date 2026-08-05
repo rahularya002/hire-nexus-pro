@@ -605,8 +605,16 @@ function RecruitmentMemoryPage() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Danger zone</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setConfirmClear(true)}>
-                  <Trash2 className="size-3.5" /> Clear archive
+                <DropdownMenuItem onClick={() => setConfirmClear(true)} disabled={clear.isPending}>
+                  {clear.isPending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" /> Clearing… {clearState?.removed ?? 0}
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="size-3.5" /> Clear archive
+                    </>
+                  )}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => disconnect.mutate()} disabled={!gmailReady || disconnect.isPending}>
                   <Unplug className="size-3.5" /> Disconnect Gmail
