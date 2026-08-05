@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RecoveryPanel } from "@/components/email-archive/recovery-panel";
 import { HistorySheet } from "@/components/email-archive/history-sheet";
+import { Progress } from "@/components/ui/progress";
 import { PersonSheet } from "@/components/email-archive/person-sheet";
 import { ReviewQueue } from "@/components/email-archive/review-queue";
 import { KIND_LABEL, OutcomeBadge, lpa, relTime, txt } from "@/components/email-archive/shared";
