@@ -48,3 +48,5 @@ export const COVERAGE_TARGETS = {
 } as const;
 
 export type Facet = keyof typeof COVERAGE_TARGETS;
+/** Archive-clear slices per server round trip (500 rows each), keeps the UI responsive. */
+export const CLEAR_CHUNKS_PER_CALL = num("PIPELINE_CLEAR_CHUNKS_PER_CALL", 4);
