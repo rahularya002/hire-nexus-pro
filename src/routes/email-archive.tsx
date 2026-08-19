@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { useAuth } from "@/lib/auth/auth-context";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -246,6 +247,9 @@ function PersonCard({
 
 function RecruitmentMemoryPage() {
   const qc = useQueryClient();
+  const { session } = useAuth();
+  /** Server fns require a bearer token; skip fetching until the session exists. */
+  const authed = !!session;
 
   const labelsFn = useServerFn(listGmailLabels);
   const progressFn = useServerFn(getImportProgress);
@@ -278,21 +282,23 @@ function RecruitmentMemoryPage() {
   const loopRef = useRef(false);
   const [loopKey, setLoopKey] = useState(0);
 
-  const conn = useQuery({ queryKey: ["gmail-labels"], queryFn: () => labelsFn() });
+  const conn = useQuery({ queryKey: ["gmail-labels"], queryFn: () => labelsFn(), enabled: authed });
   const run = useQuery({
     queryKey: ["email-import-progress"],
     queryFn: () => progressFn(),
+    enabled: authed,
     refetchInterval: (q) => (q.state.data?.status === "running" ? 2500 : false),
   });
 
   const running = run.data?.status === "running";
 
-  const runs = useQuery({ queryKey: ["email-import-runs"], queryFn: () => runsFn() });
+  const runs = useQuery({ queryKey: ["email-import-runs"], queryFn: () => runsFn(), enabled: authed });
 
   /** Exact archive totals — the candidate list is paged, so tiles can't count it. */
   const totals = useQuery({
     queryKey: ["email-archive-counts"],
     queryFn: () => countsFn(),
+    enabled: authed,
     refetchInterval: running ? 5000 : false,
   });
 
@@ -333,21 +339,23 @@ function RecruitmentMemoryPage() {
           reviewStatus: "imported",
         },
       }),
+    enabled: authed,
   });
 
   const reviewItems = useQuery({
     queryKey: ["email-archive-review", "count"],
     queryFn: () => reviewQueueFn({ data: { limit: 1 } }),
+    enabled: authed,
   });
   const contextItems = useQuery({
     queryKey: ["email-archive-context"],
     queryFn: () => reviewFn({ data: { status: "skipped", contextOnly: true } }),
-    enabled: tab === "history",
+    enabled: authed && tab === "history",
   });
   const noCandidate = useQuery({
     queryKey: ["email-archive-nocandidate"],
     queryFn: () => reviewFn({ data: { status: "skipped" } }),
-    enabled: tab === "nocandidate",
+    enabled: authed && tab === "nocandidate",
   });
 
   /** Drive the batch loop while a run is active. */
