@@ -54,9 +54,16 @@ function daysAgo(iso: string): number {
 
 export const Route = createFileRoute("/client/positions")({
   component: ClientPositionsRoute,
-  validateSearch: (s: Record<string, unknown>) => ({
-    status: (s.status === "active" || s.status === "closed" ? s.status : "all") as "all" | "active" | "closed",
-    model: (s.model === "agency" || s.model === "self" || s.model === "hybrid" ? s.model : "all") as "all" | "agency" | "self" | "hybrid",
+  /** Both filters are optional so links to this route (and its children) need no search. */
+  validateSearch: (s: Record<string, unknown>): {
+    status?: "all" | "active" | "closed";
+    model?: "all" | "agency" | "self" | "hybrid";
+  } => ({
+    status: s.status === "active" || s.status === "closed" || s.status === "all" ? s.status : undefined,
+    model:
+      s.model === "agency" || s.model === "self" || s.model === "hybrid" || s.model === "all"
+        ? s.model
+        : undefined,
   }),
 });
 
@@ -67,7 +74,7 @@ function ClientPositionsRoute() {
 }
 
 function Page() {
-  const { status: filter, model: modelFilter } = Route.useSearch();
+  const { status: filter = "all", model: modelFilter = "all" } = Route.useSearch();
   const navigate = Route.useNavigate();
   const setFilter = (f: "all" | "active" | "closed") =>
     navigate({ search: { status: f, model: modelFilter }, replace: false });

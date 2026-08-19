@@ -196,13 +196,7 @@ function PositionRow({
                   )}
                 </div>
               );
-              return pl.candidate?.id ? (
-                <Link key={pl.id} to="/database" search={{ candidateId: pl.candidate.id }}>
-                  {chip}
-                </Link>
-              ) : (
-                <div key={pl.id}>{chip}</div>
-              );
+              return <div key={pl.id}>{chip}</div>;
             })}
           </div>
         </div>
