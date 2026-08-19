@@ -16,14 +16,16 @@ const getPublicPost = createServerFn({ method: "GET" })
     );
     const { data: post } = await client
       .from("job_posts")
-      .select("id,title,slug,description_md,location,employment_type,tags,agency_id,status,is_public")
+      .select("id,title,slug,description_md,location,employment_type,comp_min,comp_max,currency,experience,tags,agency_id,status,is_public")
       .eq("slug", data.slug)
       .eq("status", "published")
       .eq("is_public", true)
       .maybeSingle();
     return post as null | {
       id: string; title: string; slug: string; description_md: string;
-      location: string | null; employment_type: string | null; tags: string[];
+      location: string | null; employment_type: string | null;
+      comp_min: number | null; comp_max: number | null;
+      currency: string | null; experience: string | null; tags: string[];
       agency_id: string; status: string; is_public: boolean;
     };
   });

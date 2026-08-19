@@ -197,7 +197,7 @@ function PositionRow({
                 </div>
               );
               return pl.candidate?.id ? (
-                <Link key={pl.id} to="/candidates/$candidateId" params={{ candidateId: pl.candidate.id }}>
+                <Link key={pl.id} to="/database" search={{ candidateId: pl.candidate.id }}>
                   {chip}
                 </Link>
               ) : (
