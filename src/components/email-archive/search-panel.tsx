@@ -203,11 +203,7 @@ function HitCard({
               <Button size="sm" variant="outline" onClick={onOpenEvidence}>
                 <FileSearch className="size-3.5" /> {sourceLabel(state)}
               </Button>
-            ) : (
-              <span className="text-[11px] rounded-full border border-dashed border-border px-2.5 py-1 text-muted-foreground">
-                {sourceLabel(state)}
-              </span>
-            )}
+            ) : null}
             {hit.saved_at ? (
               <span className="text-xs text-success inline-flex items-center gap-1">
                 <Check className="size-3.5" /> Saved
