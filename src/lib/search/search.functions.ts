@@ -41,7 +41,6 @@ export type SearchStatus = {
   id: string;
   raw_query: string;
   status: string;
-  plan: Record<string, unknown>;
   listed_count: number;
   hydrated_count: number;
   hit_count: number;
@@ -211,7 +210,7 @@ export const getCandidateSearch = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: search } = await context.supabase
       .from("email_searches")
-      .select("id,raw_query,status,plan,listed_count,hydrated_count,hit_count,ai_calls,cache_hits,created_at,finished_at")
+      .select("id,raw_query,status,listed_count,hydrated_count,hit_count,ai_calls,cache_hits,created_at,finished_at")
       .eq("id", data.searchId)
       .maybeSingle();
     const { data: hits } = await context.supabase
@@ -222,8 +221,8 @@ export const getCandidateSearch = createServerFn({ method: "GET" })
       .order("score", { ascending: false })
       .limit(100);
     return {
-      search: (search as SearchStatus | null) ?? null,
-      hits: ((hits ?? []) as unknown as SearchHit[]) ?? [],
+      search: (search as unknown as SearchStatus | null) ?? null,
+      hits: (hits ?? []) as unknown as SearchHit[],
     };
   });
 
