@@ -71,6 +71,17 @@ const STOPWORDS = new Set([
 ]);
 
 /** Words that describe availability rather than a person; kept as query terms. */
+/**
+ * Seniority modifiers describe the level of a role, never an occupation on their
+ * own. They must never become standalone keywords: "senior" alone must not let a
+ * Sales Associate qualify for a "senior fashion designer" search.
+ */
+export const SENIORITY_WORDS = new Set([
+  "senior","sr","snr","junior","jr","mid","midlevel","entry","level","principal","staff","trainee",
+  "experienced","seasoned","highly",
+]);
+
+/** Words that describe availability rather than a person; kept as query terms. */
 const INTENT_TERMS: Record<string, string[]> = {
   immediate: ["immediate joiner", "available immediately", "notice period"],
   availability: ["immediate joiner", "available immediately", "notice period"],
