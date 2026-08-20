@@ -35,6 +35,19 @@ const EXAMPLES = [
   "HR generalists in Pune under 12 LPA",
 ];
 
+function searchError(e: unknown) {
+  const m = e instanceof Error ? e.message : String(e);
+  if (m.includes("GMAIL_SCOPE") || m.includes("NO_GMAIL_SCOPE")) {
+    return "Reconnect Google and grant read-only Gmail access.";
+  }
+  if (m.includes("GMAIL_AUTH") || m.includes("NOT_CONNECTED")) {
+    return "Gmail rejected the request — reconnect your Google account.";
+  }
+  if (m.includes("GMAIL_RATE_LIMIT")) return "Gmail is rate limiting us — results may be partial. Try again shortly.";
+  if (m.includes("GMAIL_UNAVAILABLE")) return "Gmail is temporarily unavailable — try again in a moment.";
+  return m;
+}
+
 function ScoreRing({ score }: { score: number }) {
   const tone = score >= 70 ? "text-success" : score >= 45 ? "text-warning" : "text-muted-foreground";
   return (
@@ -183,7 +196,7 @@ export function CandidateSearchPanel({
         if (res.done) break;
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Search failed");
+      toast.error(searchError(e));
     } finally {
       loopRef.current = false;
       setScanning(false);
@@ -198,7 +211,7 @@ export function CandidateSearchPanel({
       await qc.invalidateQueries({ queryKey: ["candidate-search", res.searchId] });
       if (gmailReady) void drive(res.searchId);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not start the search"),
+    onError: (e) => toast.error(searchError(e)),
   });
 
   const save = useMutation({
@@ -330,6 +343,18 @@ export function CandidateSearchPanel({
               No candidates matched this query yet. Try fewer constraints, or run a historical import below so older mail
               is already indexed.
             </p>
+          )}
+
+          {search?.status === "failed" && !scanning && (
+            <p className="text-sm text-destructive">
+              This search stopped early. Your Gmail connection may need reconnecting — try running it again.
+            </p>
+          )}
+
+          {search?.status === "running" && !scanning && gmailReady && (
+            <Button size="sm" variant="outline" onClick={() => void drive(searchId)}>
+              Keep searching older mail
+            </Button>
           )}
 
           <div className="space-y-2.5">

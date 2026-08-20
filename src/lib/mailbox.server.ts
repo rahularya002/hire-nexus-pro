@@ -2,6 +2,7 @@
 // "Add to candidates" action goes through the existing import pipeline.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  attachmentNames,
   findAllAttachments,
   getAttachmentBytes,
   getBodyText,
@@ -37,6 +38,10 @@ export type MailboxListItem = {
   unread: boolean;
   labelIds: string[];
   attachments: MailboxAttachment[];
+  /** File names present on the message, even when ids are unavailable (list view). */
+  attachmentNames: string[];
+  /** List-view hint: Gmail reports this message as carrying an attachment. */
+  hasAttachments?: boolean;
 };
 
 export type MailboxThreadMessage = MailboxListItem & { bodyText: string };
@@ -68,6 +73,7 @@ function toListItem(msg: Parameters<typeof gmailMessageToRawItem>[0]): MailboxLi
       mimeType: a.mimeType,
       size: a.size,
     })),
+    attachmentNames: attachmentNames(msg),
   };
 }
 
@@ -113,6 +119,28 @@ export async function importMessageAsCandidate(args: {
   messageId: string;
 }): Promise<{ personId: string; candidateId: string; alreadyExisted: boolean; name: string }> {
   const metrics = emptyMetrics();
+
+  // Idempotent: a second click (or a retry) on the same message links to the
+  // record we already created instead of downloading and classifying again.
+  const { data: prior } = await supabaseAdmin
+    .from("email_messages")
+    .select("email_candidate_id, email_candidates!inner(id,name,promoted_candidate_id)")
+    .eq("user_id", args.userId)
+    .eq("gmail_message_id", args.messageId)
+    .not("email_candidate_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  const priorPerson = (prior as { email_candidates?: { id: string; name: string; promoted_candidate_id: string | null } } | null)
+    ?.email_candidates;
+  if (priorPerson?.promoted_candidate_id) {
+    return {
+      personId: priorPerson.id,
+      candidateId: priorPerson.promoted_candidate_id,
+      alreadyExisted: true,
+      name: priorPerson.name ?? "This candidate",
+    };
+  }
+
   const msg = await getMessage(args.accessToken, args.messageId);
   const raw = gmailMessageToRawItem(msg, msg.threadId ?? null);
   const bodyText = cleanBodyText(raw.bodyText);

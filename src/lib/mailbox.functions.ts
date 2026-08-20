@@ -37,13 +37,32 @@ export const listMailboxMessages = createServerFn({ method: "POST" })
     const parts: string[] = [];
     if (data.q?.trim()) parts.push(data.q.trim());
     if (data.labelId && data.labelId !== "ALL") parts.push(`label:${JSON.stringify(data.labelId)}`);
+    // Spam and trash are never useful recruitment context.
+    parts.push("-in:spam", "-in:trash");
     const size = Math.max(10, Math.min(50, data.pageSize ?? 25));
 
-    const page = await listMessageIds(conn.access_token, parts.join(" ").trim() || "in:anywhere", data.pageToken ?? null, size);
+    const page = await listMessageIds(conn.access_token, parts.join(" ").trim(), data.pageToken ?? null, size);
     const messages = await hydrateListPage(conn.access_token, page.messages);
+
+    // Gmail's metadata format omits the MIME tree, so per-message attachment
+    // flags would need a full fetch. One extra id-only list with
+    // `has:attachment` marks the page cheaply instead.
+    let withAttachments = new Set<string>();
+    try {
+      const att = await listMessageIds(
+        conn.access_token,
+        [...parts, "has:attachment"].join(" ").trim(),
+        null,
+        200,
+      );
+      withAttachments = new Set(att.messages.map((m) => m.id));
+    } catch {
+      // Non-fatal: the paperclip hint is cosmetic, the thread view is authoritative.
+    }
+
     return {
       email: conn.google_email ?? null,
-      messages,
+      messages: messages.map((m) => ({ ...m, hasAttachments: withAttachments.has(m.id) })),
       nextPageToken: page.nextPageToken,
       estimate: page.estimate,
     };

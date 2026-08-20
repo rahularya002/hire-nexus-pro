@@ -161,10 +161,6 @@ export function deterministicPlan(raw: string): SearchPlan {
   return plan;
 }
 
-function thin(plan: SearchPlan) {
-  return plan.roles.length === 0 && plan.keywords.length <= 1;
-}
-
 type AiPlan = Partial<{
   roles: string[];
   skills: string[];
@@ -270,6 +266,5 @@ export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCal
     dateFrom: base.dateFrom,
     labels: base.labels,
   };
-  const used = thin(base) || plan.roles.length > base.roles.length ? 1 : 1;
-  return { plan, aiCalls: used };
+  return { plan, aiCalls: 1 };
 }

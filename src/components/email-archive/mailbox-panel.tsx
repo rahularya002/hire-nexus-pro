@@ -45,8 +45,14 @@ const QUICK_SCOPES = [
 function friendlyError(e: unknown) {
   const m = e instanceof Error ? e.message : String(e);
   if (m.includes("NOT_CONNECTED")) return "Connect your Google account to open your mailbox.";
-  if (m.includes("NO_GMAIL_SCOPE")) return "Reconnect Google and grant read-only Gmail access.";
-  if (m.includes("401") || m.includes("403")) return "Gmail rejected the request — reconnect your Google account.";
+  if (m.includes("NO_GMAIL_SCOPE") || m.includes("GMAIL_SCOPE")) {
+    return "Reconnect Google and grant read-only Gmail access.";
+  }
+  if (m.includes("GMAIL_AUTH")) return "Gmail rejected the request — reconnect your Google account.";
+  if (m.includes("GMAIL_RATE_LIMIT")) return "Gmail is rate limiting us right now — try again in a moment.";
+  if (m.includes("GMAIL_UNAVAILABLE")) return "Gmail is temporarily unavailable — try again in a moment.";
+  if (m.includes("GMAIL_NOT_FOUND")) return "That message is no longer in the mailbox.";
+  if (m.includes("reconnect") || m.includes("Reconnect")) return m;
   return m;
 }
 
@@ -306,7 +312,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
               </button>
 
               <div className="shrink-0 flex items-center gap-1.5">
-                {m.attachments.length > 0 && (
+                {m.attachments.length > 0 ? (
                   <button
                     onClick={() => openAttachment(m.id, m.attachments[0]!)}
                     title={m.attachments[0]!.fileName}
@@ -315,7 +321,16 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                   >
                     <Paperclip className="size-3.5" />
                   </button>
-                )}
+                ) : m.attachmentNames.length > 0 ? (
+                  <button
+                    onClick={() => setThreadId(m.threadId)}
+                    title={m.attachmentNames.join(", ")}
+                    className="text-muted-foreground hover:text-primary"
+                    aria-label="Open conversation to view attachments"
+                  >
+                    <Paperclip className="size-3.5" />
+                  </button>
+                ) : null}
                 <Button size="sm" variant="ghost" onClick={() => add.mutate(m.id)} disabled={addingId === m.id}>
                   {addingId === m.id ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />}
                 </Button>
