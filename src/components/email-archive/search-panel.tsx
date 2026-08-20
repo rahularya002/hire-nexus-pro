@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   Check,
+  FileSearch,
   FileText,
   Loader2,
   Mail,
@@ -18,18 +19,22 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { relTime } from "@/components/email-archive/shared";
 import { ThreadSheet } from "@/components/email-archive/mailbox-panel";
 import {
   dismissSearchHit,
   getCandidateSearch,
+  getHitSourceUrl,
   getSearchHitResumeUrl,
+  listSearchHitSources,
   listRecentSearches,
   runCandidateSearchBatch,
   saveSearchHit,
   startCandidateSearch,
   type SearchHit,
 } from "@/lib/search/search.functions";
+import { evidenceChips, sourceLabel, sourceState } from "@/lib/search/evidence";
 
 const EXAMPLES = [
   "Fashion designers with 3+ years experience in Delhi or Mumbai",
@@ -59,23 +64,111 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
+/** All sources behind one result: mail, stored resumes and their evidence text. */
+function EvidenceSheet({
+  hit,
+  onClose,
+  onOpenThread,
+}: {
+  hit: SearchHit | null;
+  onClose: () => void;
+  onOpenThread: (threadId: string) => void;
+}) {
+  const listFn = useServerFn(listSearchHitSources);
+  const urlFn = useServerFn(getHitSourceUrl);
+  const q = useQuery({
+    queryKey: ["search-hit-sources", hit?.id],
+    queryFn: () => listFn({ data: { hitId: hit!.id } }),
+    enabled: !!hit,
+  });
+
+  const openFile = async (storagePath: string) => {
+    try {
+      const { url } = await urlFn({ data: { hitId: hit!.id, storagePath } });
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open this file");
+    }
+  };
+
+  const sources = q.data?.sources ?? [];
+
+  return (
+    <Sheet open={!!hit} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="pr-8 text-base">
+            Evidence — {hit?.extracted?.name || hit?.from_name || hit?.from_email || "Candidate"}
+          </SheetTitle>
+        </SheetHeader>
+
+        {q.isLoading ? (
+          <p className="mt-6 text-sm text-muted-foreground inline-flex items-center gap-2">
+            <Loader2 className="size-4 animate-spin" /> Loading sources…
+          </p>
+        ) : sources.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">
+            No source email or attachment is available for this result, so it cannot be verified here.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {sources.map((s, idx) => (
+              <article key={`${s.kind}-${s.storagePath ?? idx}`} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate inline-flex items-center gap-1.5">
+                      {s.kind === "email" ? <Mail className="size-3.5" /> : <FileText className="size-3.5" />}
+                      {s.fileName || s.subject || "(no subject)"}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[s.fromEmail, s.subject, s.date ? relTime(s.date) : null].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {s.gmailThreadId && (
+                      <Button size="sm" variant="outline" onClick={() => onOpenThread(s.gmailThreadId!)}>
+                        <Mail className="size-3.5" /> Open email
+                      </Button>
+                    )}
+                    {s.storagePath && (
+                      <Button size="sm" variant="outline" onClick={() => openFile(s.storagePath!)}>
+                        <FileText className="size-3.5" /> View file
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {s.excerpt && (
+                  <p className="text-xs text-muted-foreground line-clamp-6 whitespace-pre-wrap">{s.excerpt}</p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function HitCard({
   hit,
   onSave,
   onDismiss,
   onOpenThread,
+  onOpenEvidence,
   saving,
 }: {
   hit: SearchHit;
   onSave: () => void;
   onDismiss: () => void;
   onOpenThread: (threadId: string) => void;
+  onOpenEvidence: () => void;
   saving: boolean;
 }) {
   const resumeFn = useServerFn(getSearchHitResumeUrl);
   const ex = hit.extracted ?? {};
-  const matched = hit.score_parts?.matched ?? [];
   const missing = hit.score_parts?.missing ?? [];
+  const state = sourceState(hit);
+  const chips = evidenceChips(hit);
 
   const openResume = async () => {
     try {
@@ -98,10 +191,22 @@ function HitCard({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {hit.gmail_thread_id && (
+            {state === "email" ? (
               <Button size="sm" variant="outline" onClick={() => onOpenThread(hit.gmail_thread_id!)}>
-                <Mail className="size-3.5" /> Open email
+                <Mail className="size-3.5" /> {sourceLabel(state)}
               </Button>
+            ) : state === "attachment" ? (
+              <Button size="sm" variant="outline" onClick={openResume}>
+                <FileText className="size-3.5" /> {sourceLabel(state)}
+              </Button>
+            ) : state === "multiple" ? (
+              <Button size="sm" variant="outline" onClick={onOpenEvidence}>
+                <FileSearch className="size-3.5" /> {sourceLabel(state)}
+              </Button>
+            ) : (
+              <span className="text-[11px] rounded-full border border-dashed border-border px-2.5 py-1 text-muted-foreground">
+                {sourceLabel(state)}
+              </span>
             )}
             {hit.saved_at ? (
               <span className="text-xs text-success inline-flex items-center gap-1">
@@ -143,11 +248,14 @@ function HitCard({
           )}
         </div>
 
-        {(matched.length > 0 || missing.length > 0) && (
+        {(chips.length > 0 || missing.length > 0) && (
           <div className="flex flex-wrap gap-1.5">
-            {matched.map((m) => (
-              <span key={m} className="text-[11px] rounded-full border border-success/40 text-success px-2 py-0.5">
-                {m}
+            {chips.map((c) => (
+              <span
+                key={`${c.kind}-${c.label}`}
+                className="text-[11px] rounded-full border border-success/40 text-success px-2 py-0.5"
+              >
+                {c.label}
               </span>
             ))}
             {missing.map((m) => (
@@ -155,6 +263,11 @@ function HitCard({
                 {m}
               </span>
             ))}
+            {state === "none" && (
+              <span className="text-[11px] rounded-full border border-border text-muted-foreground px-2 py-0.5">
+                unverified — no source
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -187,6 +300,7 @@ export function CandidateSearchPanel({
   const [scanning, setScanning] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [evidenceHit, setEvidenceHit] = useState<SearchHit | null>(null);
   const loopRef = useRef(false);
 
   const recent = useQuery({ queryKey: ["candidate-searches"], queryFn: () => recentFn(), enabled: authed });
@@ -382,6 +496,7 @@ export function CandidateSearchPanel({
                 onSave={() => save.mutate(h.id)}
                 onDismiss={() => dismiss.mutate(h.id)}
                 onOpenThread={setThreadId}
+                onOpenEvidence={() => setEvidenceHit(h)}
               />
             ))}
           </div>
@@ -395,6 +510,7 @@ export function CandidateSearchPanel({
       )}
 
       <ThreadSheet threadId={threadId} onClose={() => setThreadId(null)} />
+      <EvidenceSheet hit={evidenceHit} onClose={() => setEvidenceHit(null)} onOpenThread={setThreadId} />
     </section>
   );
 }
