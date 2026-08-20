@@ -375,3 +375,133 @@ export const getSearchHitResumeUrl = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { url: signed!.signedUrl };
   });
+
+export type HitSource = {
+  kind: "email" | "attachment";
+  fileName: string | null;
+  subject: string | null;
+  fromEmail: string | null;
+  gmailThreadId: string | null;
+  date: string | null;
+  /** Short excerpt of the evidence text, when a document was parsed. */
+  excerpt: string | null;
+  /** Present for stored attachments so the UI can request a signed link. */
+  storagePath: string | null;
+};
+
+/**
+ * Every source (mail + stored attachments) behind one search result, so the
+ * recruiter can inspect the evidence before adding the person.
+ */
+export const listSearchHitSources = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ hitId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    // Read through the user's own RLS client: tenant scoping is not optional.
+    const { data: hit } = await context.supabase
+      .from("email_search_hits")
+      .select(
+        "id,subject,from_email,sent_at,gmail_thread_id,gmail_message_id,resume_file_name,resume_storage_path,email_candidate_id,snippet",
+      )
+      .eq("id", data.hitId)
+      .maybeSingle();
+    if (!hit) throw new Error("Search result not found");
+
+    const sources: HitSource[] = [];
+    const isArchive = String(hit.gmail_message_id ?? "").startsWith("archive:");
+    if (hit.gmail_thread_id && !isArchive) {
+      sources.push({
+        kind: "email",
+        fileName: null,
+        subject: (hit.subject as string | null) ?? null,
+        fromEmail: (hit.from_email as string | null) ?? null,
+        gmailThreadId: hit.gmail_thread_id as string,
+        date: (hit.sent_at as string | null) ?? null,
+        excerpt: (hit.snippet as string | null) ?? null,
+        storagePath: null,
+      });
+    }
+    if (hit.resume_storage_path || hit.resume_file_name) {
+      sources.push({
+        kind: "attachment",
+        fileName: (hit.resume_file_name as string | null) ?? "Resume",
+        subject: (hit.subject as string | null) ?? null,
+        fromEmail: (hit.from_email as string | null) ?? null,
+        gmailThreadId: (isArchive ? null : (hit.gmail_thread_id as string | null)) ?? null,
+        date: (hit.sent_at as string | null) ?? null,
+        excerpt: null,
+        storagePath: (hit.resume_storage_path as string | null) ?? null,
+      });
+    }
+
+    const personId = hit.email_candidate_id as string | null;
+    if (personId) {
+      const { data: versions } = await context.supabase
+        .from("email_resume_versions")
+        .select("file_name,storage_path,received_at,extracted_text,email_message_id")
+        .eq("email_candidate_id", personId)
+        .order("received_at", { ascending: false })
+        .limit(8);
+      const messageIds = Array.from(
+        new Set((versions ?? []).map((v) => v.email_message_id as string | null).filter(Boolean) as string[]),
+      );
+      let msgs: Record<string, { subject: string | null; from_email: string | null; gmail_thread_id: string | null }> = {};
+      if (messageIds.length) {
+        const { data: rows } = await context.supabase
+          .from("email_messages")
+          .select("id,subject,from_email,gmail_thread_id")
+          .in("id", messageIds);
+        msgs = Object.fromEntries((rows ?? []).map((r) => [r.id as string, r as never]));
+      }
+      for (const v of versions ?? []) {
+        const path = v.storage_path as string | null;
+        if (path && sources.some((s) => s.storagePath === path)) continue;
+        const m = v.email_message_id ? msgs[v.email_message_id as string] : undefined;
+        sources.push({
+          kind: "attachment",
+          fileName: (v.file_name as string | null) ?? "Resume",
+          subject: m?.subject ?? null,
+          fromEmail: m?.from_email ?? null,
+          gmailThreadId: m?.gmail_thread_id ?? null,
+          date: (v.received_at as string | null) ?? null,
+          excerpt: ((v.extracted_text as string | null) ?? "").replace(/\s+/g, " ").trim().slice(0, 400) || null,
+          storagePath: path,
+        });
+      }
+    }
+
+    return { sources };
+  });
+
+/** Signed link for one stored attachment behind a search result. */
+export const getHitSourceUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ hitId: z.string().uuid(), storagePath: z.string().min(1).max(500) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    // The path must belong to this user's own data — never sign an arbitrary path.
+    const { data: hit } = await context.supabase
+      .from("email_search_hits")
+      .select("resume_storage_path,email_candidate_id")
+      .eq("id", data.hitId)
+      .maybeSingle();
+    if (!hit) throw new Error("Search result not found");
+
+    let allowed = hit.resume_storage_path === data.storagePath;
+    if (!allowed && hit.email_candidate_id) {
+      const { data: v } = await context.supabase
+        .from("email_resume_versions")
+        .select("id")
+        .eq("email_candidate_id", hit.email_candidate_id as string)
+        .eq("storage_path", data.storagePath)
+        .maybeSingle();
+      allowed = !!v;
+    }
+    if (!allowed) throw new Error("This file is not part of this result.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage.from("documents").createSignedUrl(data.storagePath, 300);
+    if (error) throw new Error(error.message);
+    return { url: signed!.signedUrl };
+  });
