@@ -149,7 +149,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
     }
 
     if (archived.length) {
-      const rows = archived.map((p) => {
+      const rows = archived.flatMap((p) => {
         const extracted = {
           name: p.name,
           email: p.email,
@@ -170,7 +170,9 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           sentAt: (p.last_email_at as string | null) ?? null,
           haystack: (p.search_blob as string | null) ?? "",
         });
-        return {
+        // Same role gate as live Gmail hits: no occupation evidence, no result.
+        if (!ranked.qualified) return [];
+        return [{
           search_id: searchId,
           agency_id: agencyId,
           user_id: context.userId,
@@ -191,10 +193,12 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           email_candidate_id: p.id,
           saved_candidate_id: (p.promoted_candidate_id as string | null) ?? null,
           saved_at: p.promoted_candidate_id ? new Date().toISOString() : null,
-        };
+        }];
       });
-      await supabaseAdmin.from("email_search_hits").upsert(rows as never, { onConflict: "search_id,gmail_message_id" });
-      await supabaseAdmin.from("email_searches").update({ hit_count: rows.length }).eq("id", searchId);
+      if (rows.length) {
+        await supabaseAdmin.from("email_search_hits").upsert(rows as never, { onConflict: "search_id,gmail_message_id" });
+        await supabaseAdmin.from("email_searches").update({ hit_count: rows.length }).eq("id", searchId);
+      }
     }
 
     return { searchId, plan, queries, archiveHits: archived.length, reused: false };
