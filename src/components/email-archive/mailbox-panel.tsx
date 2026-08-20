@@ -12,16 +12,14 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
-  Search,
   UserPlus,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { relTime } from "@/components/email-archive/shared";
 import {
@@ -218,7 +216,6 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
-  const [filter, setFilter] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -235,19 +232,16 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
-  const messages = useMemo(() => {
-    const rows = (list.data?.pages ?? []).flatMap((p) => p.messages);
-    const term = filter.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((m) =>
-      [m.subject, m.fromName, m.fromEmail, m.snippet].some((v) => (v ?? "").toLowerCase().includes(term)),
-    );
-  }, [list.data, filter]);
+  const messages = useMemo(
+    () => (list.data?.pages ?? []).flatMap((p) => p.messages),
+    [list.data],
+  );
 
-  // Clear stale selections whenever the search/filter context changes.
+  // Clear stale selections whenever the browsing context changes.
   useEffect(() => {
     setSelected(new Set());
-  }, [scope, labelName, filter]);
+  }, [scope, labelName]);
+
 
   const visibleIds = useMemo(() => messages.map((m) => m.id), [messages]);
   const selectedVisibleCount = useMemo(
@@ -360,25 +354,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
         )}
       </div>
 
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
-              <Input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter loaded emails…"
-                aria-label="Filter loaded emails"
-                className="h-9 pl-8 text-xs text-muted-foreground"
-              />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[16rem] text-center">
-            Filters the emails currently loaded. Doesn't search Gmail.
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+
 
       {messages.length > 0 && (
         <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-border bg-secondary/20">
