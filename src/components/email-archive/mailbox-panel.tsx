@@ -297,18 +297,31 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
           </button>
         ))}
         {labels.length > 0 && (
-          <select
-            value={labelName}
-            onChange={(e) => setLabelName(e.target.value)}
-            className="text-xs h-8 rounded-full border border-border bg-background px-3 text-muted-foreground"
-          >
-            <option value="ALL">All labels</option>
-            {labels.map((l) => (
-              <option key={l.id} value={l.name}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <div className="min-w-[11rem]">
+            <Select value={labelName} onValueChange={setLabelName}>
+              <SelectTrigger className="h-8 w-full rounded-full border-border bg-background px-3 text-xs text-muted-foreground">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className="max-h-64 rounded-xl border-border bg-popover text-popover-foreground"
+                position="popper"
+                sideOffset={4}
+              >
+                <SelectItem value="ALL" className="rounded-md py-1.5 text-xs data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary">
+                  All labels
+                </SelectItem>
+                {labels.map((l) => (
+                  <SelectItem
+                    key={l.id}
+                    value={l.name}
+                    className="rounded-md py-1.5 text-xs data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary"
+                  >
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
       </div>
 
