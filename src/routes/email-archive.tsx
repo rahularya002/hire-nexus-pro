@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RecoveryPanel } from "@/components/email-archive/recovery-panel";
+import { CandidateSearchPanel } from "@/components/email-archive/search-panel";
 import { HistorySheet } from "@/components/email-archive/history-sheet";
 import { Progress } from "@/components/ui/progress";
 import { PersonSheet } from "@/components/email-archive/person-sheet";
@@ -277,6 +278,7 @@ function RecruitmentMemoryPage() {
   const [open, setOpen] = useState<ArchivePerson | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [showBackfill, setShowBackfill] = useState(false);
   const [clearState, setClearState] = useState<{ removed: number; total: number; done: boolean } | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const loopRef = useRef(false);
@@ -632,22 +634,37 @@ function RecruitmentMemoryPage() {
           </div>
         </header>
 
-        <RecoveryPanel
-          connected={connected}
-          gmailReady={gmailReady}
-          email={run.data?.google_email ?? null}
-          run={run.data ?? null}
-          labels={conn.data?.labels ?? []}
-          starting={startMut.isPending}
-          coverage={coverage}
-          onConnect={connect}
-          onStart={(o) => startMut.mutate(o)}
-          onPause={() => lifecycle.mutate("pause")}
-          onResume={() => lifecycle.mutate("resume")}
-          onStop={() => lifecycle.mutate("stop")}
-          onBrowse={() => setTab("candidates")}
-          onReview={() => setTab("review")}
-        />
+        <CandidateSearchPanel authed={authed} gmailReady={gmailReady} onConnect={connect} />
+
+        <div className="space-y-3">
+          <button
+            onClick={() => setShowBackfill((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
+          >
+            <History className="size-3.5" />
+            {showBackfill ? "Hide historical import" : "Historical import (index your whole mailbox)"}
+            {running ? " · running" : ""}
+          </button>
+
+          {(showBackfill || running) && (
+            <RecoveryPanel
+              connected={connected}
+              gmailReady={gmailReady}
+              email={run.data?.google_email ?? null}
+              run={run.data ?? null}
+              labels={conn.data?.labels ?? []}
+              starting={startMut.isPending}
+              coverage={coverage}
+              onConnect={connect}
+              onStart={(o) => startMut.mutate(o)}
+              onPause={() => lifecycle.mutate("pause")}
+              onResume={() => lifecycle.mutate("resume")}
+              onStop={() => lifecycle.mutate("stop")}
+              onBrowse={() => setTab("candidates")}
+              onReview={() => setTab("review")}
+            />
+          )}
+        </div>
 
         {/* stats */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
