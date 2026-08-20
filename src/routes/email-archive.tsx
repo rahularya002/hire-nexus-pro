@@ -660,7 +660,12 @@ function RecruitmentMemoryPage() {
 
         {view === "mailbox" ? (
           <>
-            <CandidateSearchPanel authed={authed} gmailReady={gmailReady} onConnect={connect} />
+            <CandidateSearchPanel
+              authed={authed}
+              gmailReady={gmailReady}
+              gmailChecking={conn.isLoading}
+              onConnect={connect}
+            />
             <MailboxPanel
               authed={authed}
               gmailReady={gmailReady}

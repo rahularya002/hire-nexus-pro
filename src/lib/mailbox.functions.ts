@@ -22,7 +22,8 @@ export const listMailboxMessages = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z
       .object({
-        labelId: z.string().max(200).optional(),
+        /** Gmail label *name* — the `label:` search operator matches names, not ids. */
+        label: z.string().max(200).optional(),
         q: z.string().max(500).optional(),
         pageToken: z.string().max(500).nullish(),
         pageSize: z.number().int().optional(),
@@ -36,7 +37,7 @@ export const listMailboxMessages = createServerFn({ method: "POST" })
 
     const parts: string[] = [];
     if (data.q?.trim()) parts.push(data.q.trim());
-    if (data.labelId && data.labelId !== "ALL") parts.push(`label:${JSON.stringify(data.labelId)}`);
+    if (data.label && data.label !== "ALL") parts.push(`label:${JSON.stringify(data.label)}`);
     // Spam and trash are never useful recruitment context.
     parts.push("-in:spam", "-in:trash");
     const size = Math.max(10, Math.min(50, data.pageSize ?? 25));

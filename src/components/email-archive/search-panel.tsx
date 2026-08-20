@@ -8,6 +8,7 @@ import {
   Check,
   FileText,
   Loader2,
+  Mail,
   MapPin,
   Search,
   Sparkles,
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { relTime } from "@/components/email-archive/shared";
+import { ThreadSheet } from "@/components/email-archive/mailbox-panel";
 import {
   dismissSearchHit,
   getCandidateSearch,
@@ -61,11 +63,13 @@ function HitCard({
   hit,
   onSave,
   onDismiss,
+  onOpenThread,
   saving,
 }: {
   hit: SearchHit;
   onSave: () => void;
   onDismiss: () => void;
+  onOpenThread: (threadId: string) => void;
   saving: boolean;
 }) {
   const resumeFn = useServerFn(getSearchHitResumeUrl);
@@ -94,6 +98,11 @@ function HitCard({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {hit.gmail_thread_id && (
+              <Button size="sm" variant="outline" onClick={() => onOpenThread(hit.gmail_thread_id!)}>
+                <Mail className="size-3.5" /> Open email
+              </Button>
+            )}
             {hit.saved_at ? (
               <span className="text-xs text-success inline-flex items-center gap-1">
                 <Check className="size-3.5" /> Saved
@@ -156,10 +165,13 @@ function HitCard({
 export function CandidateSearchPanel({
   authed,
   gmailReady,
+  gmailChecking,
   onConnect,
 }: {
   authed: boolean;
   gmailReady: boolean;
+  /** True while we are still asking Gmail whether this account is connected. */
+  gmailChecking?: boolean;
   onConnect: () => void;
 }) {
   const qc = useQueryClient();
@@ -174,6 +186,7 @@ export function CandidateSearchPanel({
   const [searchId, setSearchId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
   const loopRef = useRef(false);
 
   const recent = useQuery({ queryKey: ["candidate-searches"], queryFn: () => recentFn(), enabled: authed });
@@ -243,6 +256,9 @@ export function CandidateSearchPanel({
   const search = result.data?.search ?? null;
   const submit = () => {
     if (query.trim().length < 3) return;
+    // Never bounce to Google while the connection check is still in flight —
+    // that hijacked the page to OAuth for already-connected recruiters.
+    if (gmailChecking) return;
     if (!gmailReady) {
       onConnect();
       return;
@@ -271,13 +287,13 @@ export function CandidateSearchPanel({
           placeholder="Fashion designers with 3+ years experience in Delhi or Mumbai"
           className="h-11"
         />
-        <Button className="h-11 sm:w-40" onClick={submit} disabled={start.isPending || scanning || query.trim().length < 3}>
+        <Button className="h-11 sm:w-40" onClick={submit} disabled={start.isPending || scanning || gmailChecking || query.trim().length < 3}>
           {start.isPending || scanning ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
           {scanning ? "Searching…" : "Search"}
         </Button>
       </div>
 
-      {!gmailReady && (
+      {!gmailReady && !gmailChecking && (
         <p className="text-xs text-muted-foreground">
           Connect Gmail once to search your mail history.{" "}
           <button onClick={onConnect} className="text-primary hover:underline">
@@ -365,6 +381,7 @@ export function CandidateSearchPanel({
                 saving={savingId === h.id}
                 onSave={() => save.mutate(h.id)}
                 onDismiss={() => dismiss.mutate(h.id)}
+                onOpenThread={setThreadId}
               />
             ))}
           </div>
@@ -376,6 +393,8 @@ export function CandidateSearchPanel({
           )}
         </div>
       )}
+
+      <ThreadSheet threadId={threadId} onClose={() => setThreadId(null)} />
     </section>
   );
 }

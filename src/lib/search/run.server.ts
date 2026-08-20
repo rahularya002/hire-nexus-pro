@@ -35,6 +35,7 @@ export type SearchRow = {
   ai_calls: number;
   cache_hits: number;
   status: string;
+  seen_message_ids: string[] | null;
 };
 
 async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -78,20 +79,29 @@ export async function runSearchSlice(
     SEARCH_LIST_PAGE,
   );
 
-  // Never look at the same message twice within one search.
-  const ids = page.refs.map((r) => r.id);
-  const seen = new Set<string>();
-  if (ids.length) {
+  // Never look at the same message twice within one search — including messages
+  // a wider variant re-lists and messages that were hydrated but scored out.
+  const seen = new Set<string>(search.seen_message_ids ?? []);
+  const pageIds = Array.from(new Set(page.refs.map((r) => r.id)));
+  const unknown = pageIds.filter((id) => !seen.has(id));
+  if (unknown.length) {
     const { data } = await supabaseAdmin
       .from("email_search_hits")
       .select("gmail_message_id")
       .eq("search_id", search.id)
-      .in("gmail_message_id", ids);
+      .in("gmail_message_id", unknown);
     for (const r of (data ?? []) as { gmail_message_id: string }[]) seen.add(r.gmail_message_id);
   }
 
   const budget = Math.max(0, Math.min(SEARCH_HYDRATE_PER_BATCH, SEARCH_MAX_HYDRATED - search.hydrated_count));
-  const todo = page.refs.filter((r) => !seen.has(r.id)).slice(0, budget);
+  const fresh: typeof page.refs = [];
+  const taken = new Set<string>();
+  for (const r of page.refs) {
+    if (seen.has(r.id) || taken.has(r.id)) continue;
+    taken.add(r.id);
+    fresh.push(r);
+  }
+  const todo = fresh.slice(0, budget);
   const mine = (googleEmail ?? "").toLowerCase() || null;
 
   const hydrate = async (ref: { id: string; threadId: string | null }): Promise<HitRow | null> => {
@@ -113,9 +123,11 @@ export async function runSearchSlice(
       };
 
       // Same cheap gate the importer uses — obvious noise never gets downloaded.
+      // A resume-shaped attachment is itself strong evidence: those messages are
+      // always parsed, because the candidate's details may live only in the file.
       const pre = heuristicScore(baseSignal);
       const preEv = candidateEvidence(baseSignal);
-      if (pre.score <= 12 && preEv.score <= 12 && !preEv.uncertainty) return null;
+      if (!raw.attachments.length && pre.score <= 12 && preEv.score <= 12 && !preEv.uncertainty) return null;
 
       let docText = "";
       let primaryBytes: Uint8Array | null = null;
@@ -261,7 +273,8 @@ export async function runSearchSlice(
     await supabaseAdmin.from("email_search_hits").upsert(rows as never, { onConflict: "search_id,gmail_message_id" });
   }
 
-  const listed = search.listed_count + page.refs.length;
+  const seenAfter = Array.from(new Set([...seen, ...pageIds])).slice(-SEARCH_MAX_LISTED * 2);
+  const listed = search.listed_count + pageIds.length;
   const hydrated = search.hydrated_count + todo.length;
   const hitCount = search.hit_count + rows.length;
   const done =
@@ -280,10 +293,11 @@ export async function runSearchSlice(
       hit_count: hitCount,
       ai_calls: (search.ai_calls ?? 0) + metrics.aiCalls,
       cache_hits: (search.cache_hits ?? 0) + metrics.cacheHits,
+      seen_message_ids: seenAfter,
       status: done ? "done" : "running",
       finished_at: done ? new Date().toISOString() : null,
     })
     .eq("id", search.id);
 
-  return { done, listed: page.refs.length, hydrated: todo.length, newHits: rows.length };
+  return { done, listed: pageIds.length, hydrated: todo.length, newHits: rows.length };
 }

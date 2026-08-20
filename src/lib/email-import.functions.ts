@@ -1162,6 +1162,9 @@ export const clearEmailArchive = createServerFn({ method: "POST" })
       .is("email_candidate_id", null);
 
     await supabaseAdmin.from("email_import_skips").delete().eq("user_id", context.userId);
+    // Saved search results point at archive rows that no longer exist.
+    await supabaseAdmin.from("email_search_hits").delete().eq("user_id", context.userId);
+    await supabaseAdmin.from("email_searches").delete().eq("user_id", context.userId);
     // Any still-live run must be stopped, otherwise it keeps writing rows into
     // the archive we just cleared (two runs appearing to fight each other).
     await supabaseAdmin

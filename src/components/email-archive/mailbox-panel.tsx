@@ -80,7 +80,8 @@ function useAttachmentOpener() {
   };
 }
 
-function ThreadSheet({
+/** Shared evidence view: also used by the search results panel. */
+export function ThreadSheet({
   threadId,
   onClose,
   onAdd,
@@ -88,8 +89,8 @@ function ThreadSheet({
 }: {
   threadId: string | null;
   onClose: () => void;
-  onAdd: (messageId: string) => void;
-  addingId: string | null;
+  onAdd?: (messageId: string) => void;
+  addingId?: string | null;
 }) {
   const threadFn = useServerFn(getMailboxThread);
   const openAttachment = useAttachmentOpener();
@@ -129,14 +130,16 @@ function ThreadSheet({
                       {m.fromEmail} · {relTime(m.sentAt)}
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => onAdd(m.id)} disabled={addingId === m.id}>
-                    {addingId === m.id ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <UserPlus className="size-3.5" />
-                    )}
-                    Add to candidates
-                  </Button>
+                  {onAdd && (
+                    <Button size="sm" variant="outline" onClick={() => onAdd(m.id)} disabled={addingId === m.id}>
+                      {addingId === m.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <UserPlus className="size-3.5" />
+                      )}
+                      Add to candidates
+                    </Button>
+                  )}
                 </div>
                 {m.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -170,7 +173,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const openAttachment = useAttachmentOpener();
 
   const [scope, setScope] = useState<string>("recruitment");
-  const [labelId, setLabelId] = useState<string>("ALL");
+  const [labelName, setLabelName] = useState<string>("ALL");
   const [filter, setFilter] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -179,11 +182,11 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const browsable = authed && gmailReady;
 
   const list = useInfiniteQuery({
-    queryKey: ["mailbox", scope, labelId],
+    queryKey: ["mailbox", scope, labelName],
     enabled: browsable,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
-      listFn({ data: { q: scopeQuery || undefined, labelId, pageToken: pageParam, pageSize: 25 } }),
+      listFn({ data: { q: scopeQuery || undefined, label: labelName, pageToken: pageParam, pageSize: 25 } }),
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
@@ -254,8 +257,8 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
         ))}
         {labels.length > 0 && (
           <select
-            value={labelId}
-            onChange={(e) => setLabelId(e.target.value)}
+            value={labelName}
+            onChange={(e) => setLabelName(e.target.value)}
             className="text-xs h-8 rounded-full border border-border bg-background px-3 text-muted-foreground"
           >
             <option value="ALL">All labels</option>

@@ -1,0 +1,1 @@
+ALTER TABLE public.email_searches ADD COLUMN IF NOT EXISTS seen_message_ids text[] NOT NULL DEFAULT '{}';

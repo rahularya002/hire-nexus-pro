@@ -249,66 +249,11 @@ export async function importMessageAsCandidate(args: {
   return { personId: person.personId, candidateId: res.candidateId, alreadyExisted: res.alreadyExisted, name: person.name };
 }
 
-/** Link the archive person to a candidate record, reusing an existing one when the email matches. */
+/** Link the archive person to a candidate record (race-safe, dedup on email). */
 export async function promotePerson(
   personId: string,
   userId: string,
 ): Promise<{ candidateId: string; alreadyExisted: boolean }> {
-  const { data: person } = await supabaseAdmin.from("email_candidates").select("*").eq("id", personId).maybeSingle();
-  if (!person) throw new Error("Saved person not found");
-
-  const existingId = (person.promoted_candidate_id as string | null) ?? null;
-  if (existingId) return { candidateId: existingId, alreadyExisted: true };
-
-  const email = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
-  let candidateId: string | null = null;
-  let alreadyExisted = false;
-  if (email) {
-    const { data: dup } = await supabaseAdmin
-      .from("candidates")
-      .select("id")
-      .eq("agency_id", person.agency_id as string)
-      .ilike("email", email)
-      .maybeSingle();
-    if (dup?.id) {
-      candidateId = dup.id as string;
-      alreadyExisted = true;
-    }
-  }
-
-  if (!candidateId) {
-    const { data: latest } = await supabaseAdmin
-      .from("email_resume_versions")
-      .select("storage_path")
-      .eq("email_candidate_id", personId)
-      .order("received_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const { data: created, error } = await supabaseAdmin
-      .from("candidates")
-      .insert({
-        agency_id: person.agency_id as string,
-        name: person.name as string,
-        email,
-        phone: (person.phone as string | null) ?? null,
-        role: (person.role as string | null) ?? null,
-        experience: (person.experience as string | null) ?? null,
-        location: (person.location as string | null) ?? null,
-        current_company: (person.current_company as string | null) ?? null,
-        skills: (person.skills as string[] | null) ?? [],
-        salary_min: (person.salary_min as number | null) ?? null,
-        salary_max: (person.salary_max as number | null) ?? null,
-        notes: (person.notes as string | null) ?? null,
-        resume_url: (latest?.storage_path as string | undefined) ?? null,
-        source: "inbound",
-        created_by: userId,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    candidateId = created!.id as string;
-  }
-
-  await supabaseAdmin.from("email_candidates").update({ promoted_candidate_id: candidateId }).eq("id", personId);
-  return { candidateId, alreadyExisted };
+  const { linkOrCreateCandidate } = await import("./candidate-promote.server");
+  return linkOrCreateCandidate(personId, userId);
 }

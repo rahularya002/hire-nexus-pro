@@ -62,25 +62,49 @@ const STOPWORDS = new Set([
   "profile","resumes","resume","cvs","cv","people","someone","any","please","looking","need","want",
   "based","around","near","plus","min","minimum","max","maximum","lpa","lakh","lakhs","salary","ctc",
   "package","last","months","month","days","day","recently","between","to","upto","up",
+  // Filler that adds no retrieval value but pollutes the Gmail OR group.
+  "know","knows","knowing","whose","are","was","were","is","be","been","only","just","inside","attached",
+  "attachment","attachments","pdf","doc","docx","word","file","files","mail","mails","email","emails",
+  "inbox","that","this","those","these","there","their","them","they","some","all","more","than","using",
+  "used","use","good","great","strong","available","availability","immediate","immediately","joiner",
+  "joiners","preferably","must","should","can","will","would","also","about","into","out","on","by",
 ]);
 
+/** Words that describe availability rather than a person; kept as query terms. */
+const INTENT_TERMS: Record<string, string[]> = {
+  immediate: ["immediate joiner", "available immediately", "notice period"],
+  availability: ["immediate joiner", "available immediately", "notice period"],
+  immediately: ["immediate joiner", "available immediately"],
+  joiner: ["immediate joiner"],
+  submitted: ["submitted", "shortlist", "profiles shared"],
+};
+
 /** Multi-word role phrases we want to keep intact for Gmail phrase search. */
+function singular(w: string): string {
+  if (/(ss|us|is)$/.test(w)) return w;
+  if (w.endsWith("ies") && w.length > 4) return `${w.slice(0, -3)}y`;
+  if (w.endsWith("es") && /(ch|sh|x|s|z)es$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith("s") && w.length > 3) return w.slice(0, -1);
+  return w;
+}
+
 function rolePhrases(text: string): string[] {
   const out: string[] = [];
   const words = text.split(/[^a-z0-9+.#/&]+/i).filter(Boolean);
   for (let i = 0; i < words.length; i++) {
-    const w = (words[i] ?? "").toLowerCase();
+    const raw = (words[i] ?? "").toLowerCase();
+    const w = singular(raw);
     if (!ROLE_WORDS.includes(w)) continue;
     const prev = (words[i - 1] ?? "").toLowerCase();
     const prev2 = (words[i - 2] ?? "").toLowerCase();
-    const singular = w.replace(/s$/, "") === w ? w : w;
-    if (prev && !STOPWORDS.has(prev) && !KNOWN_CITIES.includes(prev)) {
-      if (prev2 && !STOPWORDS.has(prev2) && !KNOWN_CITIES.includes(prev2) && ROLE_WORDS.includes(w)) {
-        out.push(`${prev2} ${prev} ${singular}`);
+    const p1 = singular(prev);
+    if (prev && !STOPWORDS.has(prev) && !STOPWORDS.has(p1) && !KNOWN_CITIES.includes(prev)) {
+      if (prev2 && !STOPWORDS.has(prev2) && !KNOWN_CITIES.includes(prev2)) {
+        out.push(`${prev2} ${prev} ${w}`);
       }
-      out.push(`${prev} ${singular}`);
+      out.push(`${prev} ${w}`);
     }
-    out.push(singular);
+    out.push(w);
   }
   return Array.from(new Set(out));
 }
@@ -145,17 +169,20 @@ export function deterministicPlan(raw: string): SearchPlan {
   plan.roles = rolePhrases(lower).filter((r) => r.split(" ").length <= 3);
 
   const words = lower.split(/[^a-z0-9+.#/&]+/i).filter(Boolean);
+  const intent = words.flatMap((w) => INTENT_TERMS[w] ?? []);
   plan.keywords = Array.from(
-    new Set(
-      words.filter(
+    new Set([
+      ...intent,
+      ...words.filter(
         (w) =>
           w.length >= 3 &&
           !STOPWORDS.has(w) &&
+          !STOPWORDS.has(singular(w)) &&
           !/^\d+$/.test(w) &&
           !KNOWN_CITIES.includes(w) &&
-          !plan.roles.some((r) => r.split(" ").includes(w)),
+          !plan.roles.some((r) => r.split(" ").includes(w) || r.split(" ").includes(singular(w))),
       ),
-    ),
+    ]),
   ).slice(0, 8);
 
   return plan;
