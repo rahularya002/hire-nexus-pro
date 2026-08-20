@@ -35,6 +35,48 @@ type Props = {
   onConnect: () => void;
 };
 
+/**
+ * Renders a plain-text email body the way a mail client does: paragraphs are
+ * blocks with modest spacing, single newlines stay soft wraps, and runs of blank
+ * lines collapse so HTML-to-text conversion doesn't double-space the message.
+ * Quoted reply lines ("> ...") keep their own indented block.
+ */
+function EmailBody({ text }: { text: string }) {
+  const blocks = useMemo(() => {
+    const normalized = text
+      .replace(/\r\n?/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{2,}/g, "\n\n")
+      .trim();
+    return normalized
+      .split("\n\n")
+      .map((b) => b.replace(/\n{2,}/g, "\n").trim())
+      .filter(Boolean);
+  }, [text]);
+
+  if (blocks.length === 0) return <p className="text-xs text-muted-foreground">(no text content)</p>;
+
+  return (
+    <div className="text-xs leading-relaxed text-muted-foreground">
+      {blocks.map((b, i) => {
+        const quoted = /^\s*>/.test(b);
+        return (
+          <p
+            key={i}
+            className={
+              quoted
+                ? "whitespace-pre-wrap break-words border-l-2 border-border pl-3 text-muted-foreground/80 mt-2 first:mt-0"
+                : "whitespace-pre-wrap break-words mt-2 first:mt-0"
+            }
+          >
+            {quoted ? b.replace(/^[ \t]*>[ \t]?/gm, "") : b}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 const QUICK_SCOPES = [
   { key: "recruitment", label: "Recruitment mail", q: "(resume OR cv OR candidate OR hiring OR interview OR opening)" },
   { key: "resumes", label: "With resumes", q: "has:attachment (filename:pdf OR filename:doc OR filename:docx)" },
@@ -154,9 +196,7 @@ export function ThreadSheet({
                     ))}
                   </div>
                 )}
-                <pre className="text-xs whitespace-pre-wrap leading-relaxed text-muted-foreground font-sans">
-                  {m.bodyText || "(no text content)"}
-                </pre>
+                <EmailBody text={m.bodyText || ""} />
               </article>
             ))}
           </div>
