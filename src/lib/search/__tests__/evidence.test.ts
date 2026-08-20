@@ -28,7 +28,7 @@ describe("search hit source states", () => {
   it("email plus attachment → compact Evidence action", () => {
     const hit: EvidenceHit = { ...base, gmail_thread_id: "t1", resume_file_name: "cv.pdf" };
     expect(sourceState(hit)).toBe("multiple");
-    expect(sourceLabel(sourceState(hit))).toBe("Evidence");
+    expect(sourceLabel(sourceState(hit))).toBe("View more");
   });
 
   it("archive person keeps an evidence path", () => {
