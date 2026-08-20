@@ -259,7 +259,17 @@ export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCal
     skills: Array.from(new Set([...base.skills, ...clean(ai.skills, 12)])).slice(0, 12),
     locations: expandLocations([...base.locations, ...clean(ai.locations, 8)]),
     minYears: base.minYears ?? numOrNull(ai.min_years),
-    maxYears: base.maxYears ?? numOrNull(ai.max_years),
+    // "3+ years" is an open-ended floor; models often echo it back as max_years: 3,
+    // which would then reject every senior candidate.
+    maxYears:
+      base.maxYears ??
+      (() => {
+        const aiMax = numOrNull(ai.max_years);
+        const min = base.minYears ?? numOrNull(ai.min_years);
+        if (aiMax == null) return null;
+        if (min != null && aiMax <= min) return null;
+        return aiMax;
+      })(),
     salaryMin: base.salaryMin ?? numOrNull(ai.salary_min_lpa),
     salaryMax: base.salaryMax ?? numOrNull(ai.salary_max_lpa),
     keywords: Array.from(new Set([...base.keywords, ...clean(ai.keywords, 10)])).slice(0, 10),
