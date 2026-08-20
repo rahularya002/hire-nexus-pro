@@ -50,3 +50,22 @@ export const COVERAGE_TARGETS = {
 export type Facet = keyof typeof COVERAGE_TARGETS;
 /** Archive-clear slices per server round trip (500 rows each), keeps the UI responsive. */
 export const CLEAR_CHUNKS_PER_CALL = num("PIPELINE_CLEAR_CHUNKS_PER_CALL", 4);
+
+/* ------------------------------ search budgets ------------------------------ *
+ * Search is query-driven, not a mailbox scan: these caps are what keep a single
+ * recruiter query to seconds and a handful of AI calls.
+ */
+/** Gmail message ids listed per search (across all query variants). */
+export const SEARCH_MAX_LISTED = num("SEARCH_MAX_LISTED", 120);
+/** Messages fully downloaded + parsed + classified per search. */
+export const SEARCH_MAX_HYDRATED = num("SEARCH_MAX_HYDRATED", 40);
+/** Messages hydrated per server round trip (one streaming slice). */
+export const SEARCH_HYDRATE_PER_BATCH = num("SEARCH_HYDRATE_PER_BATCH", 10);
+/** Gmail ids listed per page. */
+export const SEARCH_LIST_PAGE = num("SEARCH_LIST_PAGE", 30);
+/** Enough good results to stop spending. */
+export const SEARCH_TARGET_HITS = num("SEARCH_TARGET_HITS", 25);
+/** Archive-first rows pulled before Gmail is touched. */
+export const SEARCH_ARCHIVE_LIMIT = num("SEARCH_ARCHIVE_LIMIT", 40);
+/** Searches older than this are cleaned up. */
+export const SEARCH_RETENTION_DAYS = num("SEARCH_RETENTION_DAYS", 30);
