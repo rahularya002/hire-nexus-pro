@@ -1205,6 +1205,203 @@ export type Database = {
           },
         ]
       }
+      email_search_hits: {
+        Row: {
+          agency_id: string
+          artifact_type: string | null
+          confidence: number
+          created_at: string
+          dismissed_at: string | null
+          email_candidate_id: string | null
+          extracted: Json
+          from_email: string | null
+          from_name: string | null
+          gmail_message_id: string
+          gmail_thread_id: string | null
+          id: string
+          origin: string
+          pending_payload: Json | null
+          reason: string | null
+          resume_file_name: string | null
+          resume_storage_path: string | null
+          saved_at: string | null
+          saved_candidate_id: string | null
+          saved_email_candidate_id: string | null
+          score: number
+          score_parts: Json
+          search_id: string
+          sent_at: string | null
+          snippet: string | null
+          subject: string | null
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          artifact_type?: string | null
+          confidence?: number
+          created_at?: string
+          dismissed_at?: string | null
+          email_candidate_id?: string | null
+          extracted?: Json
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          gmail_thread_id?: string | null
+          id?: string
+          origin?: string
+          pending_payload?: Json | null
+          reason?: string | null
+          resume_file_name?: string | null
+          resume_storage_path?: string | null
+          saved_at?: string | null
+          saved_candidate_id?: string | null
+          saved_email_candidate_id?: string | null
+          score?: number
+          score_parts?: Json
+          search_id: string
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          artifact_type?: string | null
+          confidence?: number
+          created_at?: string
+          dismissed_at?: string | null
+          email_candidate_id?: string | null
+          extracted?: Json
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          gmail_thread_id?: string | null
+          id?: string
+          origin?: string
+          pending_payload?: Json | null
+          reason?: string | null
+          resume_file_name?: string | null
+          resume_storage_path?: string | null
+          saved_at?: string | null
+          saved_candidate_id?: string | null
+          saved_email_candidate_id?: string | null
+          score?: number
+          score_parts?: Json
+          search_id?: string
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_search_hits_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_search_hits_email_candidate_id_fkey"
+            columns: ["email_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "email_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_search_hits_saved_candidate_id_fkey"
+            columns: ["saved_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_search_hits_saved_email_candidate_id_fkey"
+            columns: ["saved_email_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "email_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_search_hits_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "email_searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_searches: {
+        Row: {
+          agency_id: string
+          ai_calls: number
+          cache_hits: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          gmail_queries: string[]
+          hit_count: number
+          hydrated_count: number
+          id: string
+          listed_count: number
+          page_token: string | null
+          plan: Json
+          query_index: number
+          raw_query: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          ai_calls?: number
+          cache_hits?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          gmail_queries?: string[]
+          hit_count?: number
+          hydrated_count?: number
+          id?: string
+          listed_count?: number
+          page_token?: string | null
+          plan?: Json
+          query_index?: number
+          raw_query: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          ai_calls?: number
+          cache_hits?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          gmail_queries?: string[]
+          hit_count?: number
+          hydrated_count?: number
+          id?: string
+          listed_count?: number
+          page_token?: string | null
+          plan?: Json
+          query_index?: number
+          raw_query?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_searches_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_connections: {
         Row: {
           access_token: string
@@ -2663,6 +2860,8 @@ export type Database = {
         Args: { _thread_id: string; _user_id: string }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       activity_kind:
