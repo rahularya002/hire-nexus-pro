@@ -6,14 +6,57 @@ export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
 export type GmailLabel = { id: string; name: string; type?: string };
 
-async function gget<T>(accessToken: string, path: string): Promise<T> {
-  const res = await fetch(`${GMAIL}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Gmail API ${path} failed: ${res.status} ${await res.text()}`);
+export class GmailApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "GmailApiError";
+    this.status = status;
   }
-  return (await res.json()) as T;
+}
+
+function gmailMessageFor(status: number, body: string): string {
+  if (status === 401) return "GMAIL_AUTH: Gmail rejected the request — reconnect your Google account.";
+  if (status === 403 && /insufficient|scope/i.test(body)) {
+    return "GMAIL_SCOPE: Reconnect Google and grant read-only Gmail access.";
+  }
+  if (status === 403 || status === 429) return "GMAIL_RATE_LIMIT: Gmail is rate limiting us — try again in a moment.";
+  if (status === 404) return "GMAIL_NOT_FOUND: That message is no longer in the mailbox.";
+  if (status >= 500) return "GMAIL_UNAVAILABLE: Gmail is temporarily unavailable — try again in a moment.";
+  return `GMAIL_ERROR: Gmail could not complete the request (${status}).`;
+}
+
+/** GET with a timeout plus one backoff retry for rate limits and transient 5xx. */
+async function gget<T>(accessToken: string, path: string): Promise<T> {
+  let lastStatus = 0;
+  let lastBody = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${GMAIL}${path}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      lastStatus = 504;
+      lastBody = "timeout";
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        continue;
+      }
+      break;
+    }
+    if (res.ok) return (await res.json()) as T;
+    lastStatus = res.status;
+    lastBody = (await res.text().catch(() => "")).slice(0, 300);
+    const retryable = res.status === 429 || res.status === 503 || res.status === 500;
+    if (retryable && attempt < 2) {
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
+  throw new GmailApiError(lastStatus, gmailMessageFor(lastStatus, lastBody));
 }
 
 export async function listLabels(accessToken: string): Promise<GmailLabel[]> {
@@ -141,6 +184,22 @@ export function findAllAttachments(msg: GmailMessage): ResumeAttachment[] {
   };
   walk(msg.payload);
   return out;
+}
+
+/**
+ * Attachment file names on a message. Works on `format=metadata` responses too,
+ * where Gmail omits `body.attachmentId`, so the list view can still show that a
+ * message carries files even though only the thread view can download them.
+ */
+export function attachmentNames(msg: GmailMessage): string[] {
+  const out: string[] = [];
+  const walk = (p?: Part) => {
+    if (!p) return;
+    if (p.filename) out.push(p.filename);
+    for (const c of p.parts ?? []) walk(c);
+  };
+  walk(msg.payload);
+  return Array.from(new Set(out.filter(Boolean)));
 }
 
 function decodeB64Url(data: string): string {

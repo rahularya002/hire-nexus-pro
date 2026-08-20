@@ -80,6 +80,29 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { SEARCH_ARCHIVE_LIMIT } = await import("../pipeline/config");
 
+    // Repeated / rapid-fire identical queries reuse the last run instead of
+    // paying for another plan call and another Gmail sweep.
+    const raw = data.query.trim();
+    const { data: recent } = await supabaseAdmin
+      .from("email_searches")
+      .select("id,plan,gmail_queries,hit_count,status")
+      .eq("user_id", context.userId)
+      .eq("raw_query", raw)
+      .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString())
+      .neq("status", "failed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent?.id) {
+      return {
+        searchId: recent.id as string,
+        plan: recent.plan as never,
+        queries: (recent.gmail_queries as string[] | null) ?? [],
+        archiveHits: (recent.hit_count as number | null) ?? 0,
+        reused: true,
+      };
+    }
+
     const { plan, aiCalls } = await planSearch(data.query);
     plan.labels = data.labels;
     const queries = buildSearchQueries(plan);
@@ -165,7 +188,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
       await supabaseAdmin.from("email_searches").update({ hit_count: rows.length }).eq("id", searchId);
     }
 
-    return { searchId, plan, queries, archiveHits: archived.length };
+    return { searchId, plan, queries, archiveHits: archived.length, reused: false };
   });
 
 /** Run one slice of Gmail retrieval for a search. The client loops until done. */
@@ -268,6 +291,14 @@ export const saveSearchHit = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!hit) throw new Error("Search result not found");
+
+    // Double-click / retry safe: an already-saved hit returns its existing links.
+    if (hit.saved_at && hit.saved_email_candidate_id) {
+      return {
+        personId: hit.saved_email_candidate_id as string,
+        candidateId: (hit.saved_candidate_id as string | null) ?? null,
+      };
+    }
 
     let personId = (hit.email_candidate_id as string | null) ?? null;
     if (!personId) {
