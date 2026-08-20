@@ -218,7 +218,6 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
-  const [filter, setFilter] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -235,14 +234,10 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
-  const messages = useMemo(() => {
-    const rows = (list.data?.pages ?? []).flatMap((p) => p.messages);
-    const term = filter.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((m) =>
-      [m.subject, m.fromName, m.fromEmail, m.snippet].some((v) => (v ?? "").toLowerCase().includes(term)),
-    );
-  }, [list.data, filter]);
+  const messages = useMemo(
+    () => (list.data?.pages ?? []).flatMap((p) => p.messages),
+    [list.data],
+  );
 
   // Clear stale selections whenever the search/filter context changes.
   useEffect(() => {
