@@ -321,10 +321,10 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                   >
                     <Paperclip className="size-3.5" />
                   </button>
-                ) : m.attachmentNames.length > 0 ? (
+                ) : m.attachmentNames.length > 0 || m.hasAttachments ? (
                   <button
                     onClick={() => setThreadId(m.threadId)}
-                    title={m.attachmentNames.join(", ")}
+                    title={m.attachmentNames.join(", ") || "Open conversation to view attachments"}
                     className="text-muted-foreground hover:text-primary"
                     aria-label="Open conversation to view attachments"
                   >
