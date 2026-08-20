@@ -245,6 +245,11 @@ const clean = (v: unknown, max: number) =>
     : [];
 
 const numOrNull = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** Models use 0 / -1 as "not specified" sentinels for numeric fields. */
+const posOrNull = (v: unknown) => {
+  const n = numOrNull(v);
+  return n != null && n > 0 ? n : null;
+};
 
 /** Deterministic parse, enriched by the model only when it adds real value. */
 export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCalls: number }> {
@@ -258,20 +263,20 @@ export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCal
     roles: Array.from(new Set([...base.roles, ...clean(ai.roles, 8)])).slice(0, 8),
     skills: Array.from(new Set([...base.skills, ...clean(ai.skills, 12)])).slice(0, 12),
     locations: expandLocations([...base.locations, ...clean(ai.locations, 8)]),
-    minYears: base.minYears ?? numOrNull(ai.min_years),
+    minYears: base.minYears ?? posOrNull(ai.min_years),
     // "3+ years" is an open-ended floor; models often echo it back as max_years: 3,
     // which would then reject every senior candidate.
     maxYears:
       base.maxYears ??
       (() => {
-        const aiMax = numOrNull(ai.max_years);
-        const min = base.minYears ?? numOrNull(ai.min_years);
+        const aiMax = posOrNull(ai.max_years);
+        const min = base.minYears ?? posOrNull(ai.min_years);
         if (aiMax == null) return null;
         if (min != null && aiMax <= min) return null;
         return aiMax;
       })(),
-    salaryMin: base.salaryMin ?? numOrNull(ai.salary_min_lpa),
-    salaryMax: base.salaryMax ?? numOrNull(ai.salary_max_lpa),
+    salaryMin: base.salaryMin ?? posOrNull(ai.salary_min_lpa),
+    salaryMax: base.salaryMax ?? posOrNull(ai.salary_max_lpa),
     keywords: Array.from(new Set([...base.keywords, ...clean(ai.keywords, 10)])).slice(0, 10),
     dateFrom: base.dateFrom,
     labels: base.labels,
