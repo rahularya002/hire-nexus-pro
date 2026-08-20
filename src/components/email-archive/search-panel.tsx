@@ -98,7 +98,7 @@ function EvidenceSheet({
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="pr-8 text-base">
-            Evidence — {hit?.extracted?.name || hit?.from_name || hit?.from_email || "Candidate"}
+            Candidate details — {hit?.extracted?.name || hit?.from_name || hit?.from_email || "Candidate"}
           </SheetTitle>
         </SheetHeader>
 
