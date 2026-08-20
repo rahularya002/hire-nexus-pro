@@ -52,10 +52,26 @@ export function rankItem(plan: SearchPlan, i: RankInput): { score: number; parts
 
   const wantedLoc = expandLocations(plan.locations);
   const locField = (i.extracted.location ?? "").toLowerCase();
-  const locHit = wantedLoc.find((l) => locField.includes(l) || hay.includes(` ${l} `));
-  const location = wantedLoc.length === 0 ? 10 : locHit ? 20 : 0;
-  if (locHit) matched.push(locHit);
-  else if (wantedLoc.length) missing.push("location not confirmed");
+  const fieldHit = wantedLoc.find((l) => locField.includes(l));
+  const mailHit = wantedLoc.find((l) => hay.includes(` ${l} `));
+  let location = 10;
+  if (wantedLoc.length) {
+    if (fieldHit) {
+      location = 20;
+      matched.push(fieldHit);
+    } else if (locField) {
+      // The candidate's own location is known and it is not what was asked for.
+      location = 2;
+      missing.push(`based in ${i.extracted.location}`);
+    } else if (mailHit) {
+      // Only the surrounding email mentions the city — weak evidence.
+      location = 8;
+      missing.push("location not confirmed");
+    } else {
+      location = 0;
+      missing.push("location not confirmed");
+    }
+  }
 
   const y = yearsOf(i.extracted.experience);
   let years = 0;
@@ -82,7 +98,9 @@ export function rankItem(plan: SearchPlan, i: RankInput): { score: number; parts
   const ageDays = i.sentAt ? (Date.now() - new Date(i.sentAt).getTime()) / 86_400_000 : 3650;
   const recency = ageDays <= 90 ? 5 : ageDays <= 365 ? 3 : ageDays <= 1095 ? 1 : 0;
 
-  const raw = role + skills + location + years + resume + recency;
+  let raw = role + skills + location + years + resume + recency;
+  // An explicit skill ask that nothing satisfies should not rank near a real match.
+  if (wanted.length > 0 && skillHits.length === 0) raw *= 0.6;
   const confidenceFactor = 0.6 + Math.min(100, Math.max(0, i.confidence)) / 250; // 0.6 – 1.0
   const score = Math.max(0, Math.min(100, Math.round(raw * confidenceFactor)));
 
