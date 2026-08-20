@@ -89,7 +89,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("raw_query", raw)
       .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString())
-      .neq("status", "failed")
+      .eq("status", "done")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -102,6 +102,15 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
         reused: true,
       };
     }
+
+    // A search left "running" by a closed tab or a crashed loop must not linger:
+    // retire anything of this user's older than 5 minutes before starting a new one.
+    await supabaseAdmin
+      .from("email_searches")
+      .update({ status: "done", finished_at: new Date().toISOString() })
+      .eq("user_id", context.userId)
+      .eq("status", "running")
+      .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString());
 
     const { plan, aiCalls } = await planSearch(data.query);
     plan.labels = data.labels;
@@ -311,62 +320,9 @@ export const saveSearchHit = createServerFn({ method: "POST" })
 
     let candidateId: string | null = null;
     if (data.toCandidateDb) {
-      const { data: person } = await supabaseAdmin
-        .from("email_candidates")
-        .select("*")
-        .eq("id", personId)
-        .maybeSingle();
-      if (!person) throw new Error("Saved person not found");
-      candidateId = (person.promoted_candidate_id as string | null) ?? null;
-
-      if (!candidateId) {
-        const email = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
-        if (email) {
-          const { data: existing } = await supabaseAdmin
-            .from("candidates")
-            .select("id")
-            .eq("agency_id", person.agency_id as string)
-            .ilike("email", email)
-            .maybeSingle();
-          candidateId = (existing?.id as string | undefined) ?? null;
-        }
-        if (!candidateId) {
-          const { data: latest } = await supabaseAdmin
-            .from("email_resume_versions")
-            .select("storage_path")
-            .eq("email_candidate_id", personId)
-            .order("received_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const { data: created, error: cErr } = await supabaseAdmin
-            .from("candidates")
-            .insert({
-              agency_id: person.agency_id as string,
-              name: person.name as string,
-              email: ((person.email as string | null) ?? "")?.toLowerCase() || null,
-              phone: (person.phone as string | null) ?? null,
-              role: (person.role as string | null) ?? null,
-              experience: (person.experience as string | null) ?? null,
-              location: (person.location as string | null) ?? null,
-              current_company: (person.current_company as string | null) ?? null,
-              skills: (person.skills as string[] | null) ?? [],
-              salary_min: (person.salary_min as number | null) ?? null,
-              salary_max: (person.salary_max as number | null) ?? null,
-              notes: (person.notes as string | null) ?? null,
-              resume_url: (latest?.storage_path as string | undefined) ?? null,
-              source: "inbound",
-              created_by: context.userId,
-            })
-            .select("id")
-            .single();
-          if (cErr) throw new Error(cErr.message);
-          candidateId = created!.id as string;
-        }
-        await supabaseAdmin
-          .from("email_candidates")
-          .update({ promoted_candidate_id: candidateId })
-          .eq("id", personId);
-      }
+      const { linkOrCreateCandidate } = await import("../candidate-promote.server");
+      const res = await linkOrCreateCandidate(personId, context.userId);
+      candidateId = res.candidateId;
     }
 
     await supabaseAdmin
@@ -376,7 +332,8 @@ export const saveSearchHit = createServerFn({ method: "POST" })
         saved_candidate_id: candidateId,
         saved_at: new Date().toISOString(),
       })
-      .eq("id", data.hitId);
+      .eq("id", data.hitId)
+      .eq("user_id", context.userId);
 
     return { personId, candidateId };
   });
@@ -390,6 +347,7 @@ export const getSearchHitResumeUrl = createServerFn({ method: "POST" })
       .from("email_search_hits")
       .select("resume_storage_path,email_candidate_id")
       .eq("id", data.hitId)
+      .eq("user_id", context.userId)
       .maybeSingle();
     if (!hit) throw new Error("Search result not found");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

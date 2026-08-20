@@ -52,18 +52,25 @@ export function buildSearchQueries(plan: SearchPlan): string[] {
     if (norm && !queries.includes(norm)) queries.push(norm);
   };
 
+  // Resume-bearing mail first (highest precision), then the same terms without an
+  // attachment requirement so email-only candidates ("submitted to Myntra",
+  // "immediate availability") are still retrieved.
   if (roleGroup && locGroup) push(`${ATTACHMENT} ${roleGroup} ${locGroup} ${tail}`);
   if (roleGroup) push(`${ATTACHMENT} ${roleGroup} ${tail}`);
+  if (roleGroup && locGroup) push(`${roleGroup} ${locGroup} ${tail}`);
   if (roleGroup) push(`${roleGroup} ${tail}`);
-  if (!roleGroup) {
-    // No usable terms at all: fall back to resume-shaped mail in scope.
-    push(`${ATTACHMENT} (resume OR cv OR profile OR candidate) ${tail}`);
-  }
-  // Last resort: resume-shaped mail that merely mentions one of the terms.
+
   const anyGroup = orGroup(subject);
   if (anyGroup) push(`${ATTACHMENT} (resume OR cv OR profile) ${anyGroup} ${tail}`);
+  if (anyGroup) push(`${anyGroup} ${tail}`);
 
-  return queries.slice(0, 4);
+  if (!roleGroup && !anyGroup) {
+    // No usable terms at all: resume-shaped mail in scope, then recruitment talk.
+    push(`${ATTACHMENT} (resume OR cv OR profile OR candidate) ${tail}`);
+    push(`(resume OR cv OR candidate OR shortlist OR "notice period" OR "available immediately") ${tail}`);
+  }
+
+  return queries.slice(0, 6);
 }
 
 export type ListedRef = { id: string; threadId: string | null };

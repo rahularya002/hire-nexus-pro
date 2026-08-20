@@ -1348,6 +1348,7 @@ export type Database = {
           plan: Json
           query_index: number
           raw_query: string
+          seen_message_ids: string[]
           status: string
           updated_at: string
           user_id: string
@@ -1368,6 +1369,7 @@ export type Database = {
           plan?: Json
           query_index?: number
           raw_query: string
+          seen_message_ids?: string[]
           status?: string
           updated_at?: string
           user_id: string
@@ -1388,6 +1390,7 @@ export type Database = {
           plan?: Json
           query_index?: number
           raw_query?: string
+          seen_message_ids?: string[]
           status?: string
           updated_at?: string
           user_id?: string
