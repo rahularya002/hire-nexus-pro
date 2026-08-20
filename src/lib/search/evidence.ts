@@ -53,9 +53,9 @@ export function sourceLabel(state: SourceState): string {
     case "attachment":
       return "View resume";
     case "multiple":
-      return "Evidence";
+      return "View more";
     default:
-      return "No source available";
+      return "View more";
   }
 }
 
