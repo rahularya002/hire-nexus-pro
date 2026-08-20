@@ -365,6 +365,19 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
         className="h-9"
       />
 
+      {messages.length > 0 && (
+        <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-border bg-secondary/20">
+          <Checkbox
+            checked={allSelected ? true : someSelected ? "indeterminate" : false}
+            onCheckedChange={(v) => toggleAll(v === true)}
+            aria-label={allSelected ? "Deselect all loaded messages" : "Select all loaded messages"}
+          />
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            {selected.size > 0 ? `${selected.size} selected` : "Select messages"}
+          </span>
+        </div>
+      )}
+
       {list.isLoading ? (
         <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
           <Loader2 className="size-4 animate-spin" /> Opening your mailbox…
@@ -388,7 +401,19 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
       ) : (
         <div className="divide-y divide-border rounded-xl border border-border bg-card">
           {messages.map((m) => (
-            <div key={m.id} className="flex items-start gap-3 p-3.5 hover:bg-secondary/40 transition-colors">
+            <div
+              key={m.id}
+              className={`flex items-start gap-3 p-3.5 transition-colors ${
+                selected.has(m.id) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-secondary/40"
+              }`}
+            >
+              <div className="pt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selected.has(m.id)}
+                  onCheckedChange={(v) => toggleOne(m.id, v === true)}
+                  aria-label={`Select message from ${m.fromName || m.fromEmail || "unknown sender"}`}
+                />
+              </div>
               <button onClick={() => setThreadId(m.threadId)} className="min-w-0 flex-1 text-left">
                 <div className="flex items-center gap-1.5 min-w-0">
                   {m.unread && <Dot className="size-4 text-primary shrink-0" />}
