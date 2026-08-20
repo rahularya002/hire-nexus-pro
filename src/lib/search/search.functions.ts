@@ -135,6 +135,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
     // Archive-first: people we already know about need no Gmail call at all.
     const terms = Array.from(new Set([...plan.roles, ...plan.skills, ...plan.keywords])).slice(0, 6);
     let archived: any[] = [];
+    let archiveHits = 0;
     if (terms.length) {
       const or = terms.map((t) => `search_blob.ilike.%${t.replace(/[%,()]/g, " ")}%`).join(",");
       const { data: people } = await supabaseAdmin
@@ -195,13 +196,14 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           saved_at: p.promoted_candidate_id ? new Date().toISOString() : null,
         }];
       });
+      archiveHits = rows.length;
       if (rows.length) {
         await supabaseAdmin.from("email_search_hits").upsert(rows as never, { onConflict: "search_id,gmail_message_id" });
         await supabaseAdmin.from("email_searches").update({ hit_count: rows.length }).eq("id", searchId);
       }
     }
 
-    return { searchId, plan, queries, archiveHits: archived.length, reused: false };
+    return { searchId, plan, queries, archiveHits, reused: false };
   });
 
 /** Run one slice of Gmail retrieval for a search. The client loops until done. */
