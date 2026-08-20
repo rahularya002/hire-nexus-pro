@@ -21,15 +21,18 @@ export async function linkOrCreateCandidate(
   const agencyId = person.agency_id as string;
   const email = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
 
+  // Only ever link to a candidate inside the promoting user's own agency —
+  // the admin client bypasses RLS, so a same-email row from another tenant must
+  // never be reused.
   const findByEmail = async () => {
     if (!email) return null;
     const { data } = await supabaseAdmin
       .from("candidates")
       .select("id,agency_id")
+      .eq("agency_id", agencyId)
       .ilike("email", email)
-      .limit(2);
-    const rows = (data ?? []) as { id: string; agency_id: string }[];
-    return rows.find((r) => r.agency_id === agencyId) ?? rows[0] ?? null;
+      .limit(1);
+    return ((data ?? []) as { id: string; agency_id: string }[])[0] ?? null;
   };
 
   let candidateId: string | null = null;
@@ -80,7 +83,7 @@ export async function linkOrCreateCandidate(
       // keep the person without the duplicate email so nothing is lost.
       if (first.error.code === "23505") {
         const dup = await findByEmail();
-        if (dup && dup.agency_id === agencyId) {
+        if (dup) {
           candidateId = dup.id;
           alreadyExisted = true;
         } else {
