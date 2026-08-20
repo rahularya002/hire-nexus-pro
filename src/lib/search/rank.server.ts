@@ -27,28 +27,52 @@ function yearsOf(experience: string | null | undefined): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export function rankItem(plan: SearchPlan, i: RankInput): { score: number; parts: ScoreParts } {
+/** Occupation evidence tier. "specific" = the full requested title, "generic" =
+ *  only the head noun (designer for fashion designer), "none" = no evidence. */
+type RoleTier = "open" | "specific" | "generic" | "none";
+
+function roleEvidence(plan: SearchPlan, roleField: string, hay: string): { tier: RoleTier; hits: string[] } {
+  const terms = plan.roles.map((r) => r.trim().toLowerCase()).filter(Boolean);
+  if (terms.length === 0) return { tier: "open", hits: [] };
+
+  const specific = terms.filter((t) => t.includes(" "));
+  const generic = Array.from(
+    new Set([
+      ...terms.filter((t) => !t.includes(" ")),
+      ...terms.map((t) => t.split(/\s+/).pop()!).filter((w) => w.length > 3),
+    ]),
+  );
+
+  const specificHits = specific.filter((t) => roleField.includes(t) || hay.includes(t));
+  if (specificHits.length) return { tier: "specific", hits: specificHits };
+
+  const genericInField = generic.filter((w) => roleField.includes(w));
+  if (genericInField.length) return { tier: "generic", hits: genericInField };
+
+  // Attachment / body evidence for the occupation concept — weaker, but still
+  // real: the resume may say "Fashion Designer" while the email subject doesn't.
+  const genericInHay = generic.filter((w) => hay.includes(` ${w}`));
+  if (genericInHay.length) return { tier: "generic", hits: genericInHay };
+
+  return { tier: "none", hits: [] };
+}
+
+export function rankItem(
+  plan: SearchPlan,
+  i: RankInput,
+): { score: number; parts: ScoreParts; qualified: boolean } {
   const hay = ` ${i.haystack.toLowerCase()} `;
   const matched: string[] = [];
   const missing: string[] = [];
 
-  const roleTerms = plan.roles;
-  const roleHits = roleTerms.filter((r) => hay.includes(r.toLowerCase()));
   const roleField = `${i.extracted.role ?? ""}`.toLowerCase();
-  const roleInField = roleTerms.some((r) => roleField.includes(r.toLowerCase()));
-  // Head noun fallback: "react developer" should still credit a "UI Developer".
-  const headNouns = Array.from(
-    new Set(roleTerms.map((r) => r.trim().split(/\s+/).pop()!.toLowerCase()).filter((w) => w.length > 3)),
-  );
-  const headInField = headNouns.some((w) => roleField.includes(w));
-  let role = 0;
-  if (roleTerms.length === 0) role = 18;
-  else if (roleInField) role = 30;
-  else if (roleHits.length) role = Math.min(26, 14 + roleHits.length * 6);
-  else if (headInField) role = 16;
-  else missing.push("role not mentioned");
-  if (roleHits.length) matched.push(...roleHits.slice(0, 3));
-  else if (headInField) matched.push(i.extracted.role ?? headNouns[0]!);
+  const ev = roleEvidence(plan, roleField, hay);
+  // The requested occupation is a required criterion: location, seniority and
+  // years refine a role match, they never substitute for one.
+  const role = ev.tier === "open" ? 18 : ev.tier === "specific" ? 34 : ev.tier === "generic" ? 16 : 0;
+  if (ev.tier === "none") missing.push("role not mentioned");
+  if (ev.tier === "generic") missing.push("related role, not an exact title match");
+  if (ev.hits.length) matched.push(...ev.hits.slice(0, 3));
 
   const skillList = (i.extracted.skills ?? []).map((s) => s.toLowerCase());
   const wanted = Array.from(new Set([...plan.skills, ...plan.keywords]));
@@ -108,11 +132,15 @@ export function rankItem(plan: SearchPlan, i: RankInput): { score: number; parts
   let raw = role + skills + location + years + resume + recency;
   // An explicit skill ask that nothing satisfies should not rank near a real match.
   if (wanted.length > 0 && skillHits.length === 0) raw *= 0.6;
+  // Only a loosely related occupation: never let it read like a direct hit.
+  if (ev.tier === "generic") raw *= 0.75;
   const confidenceFactor = 0.6 + Math.min(100, Math.max(0, i.confidence)) / 250; // 0.6 – 1.0
-  const score = Math.max(0, Math.min(100, Math.round(raw * confidenceFactor)));
+  const score = ev.tier === "none" ? 0 : Math.max(0, Math.min(100, Math.round(raw * confidenceFactor)));
 
   return {
     score,
+    // A query that names an occupation excludes people with no role evidence.
+    qualified: ev.tier !== "none",
     parts: {
       role,
       skills,

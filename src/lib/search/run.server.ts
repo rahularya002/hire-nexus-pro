@@ -196,6 +196,10 @@ export async function runSearchSlice(
         haystack,
       });
 
+      // The recruiter asked for an occupation and this person shows no evidence of
+      // it — location/seniority/years alone must not surface them.
+      if (!ranked.qualified) return null;
+
       // Store the resume so the recruiter can open it straight from the result.
       const stored: StoredAttachment[] = [];
       if (primary && primaryBytes) {
