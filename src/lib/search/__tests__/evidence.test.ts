@@ -36,10 +36,10 @@ describe("search hit source states", () => {
     expect(sourceState(hit)).toBe("multiple");
   });
 
-  it("no email and no attachment → no source available", () => {
+  it("no email and no attachment → none state", () => {
     const hit: EvidenceHit = { ...base, gmail_thread_id: null };
     expect(sourceState(hit)).toBe("none");
-    expect(sourceLabel(sourceState(hit))).toBe("No source available");
+    expect(sourceLabel(sourceState(hit))).toBe("View more");
   });
 });
 
