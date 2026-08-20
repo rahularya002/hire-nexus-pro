@@ -239,10 +239,11 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     [list.data],
   );
 
-  // Clear stale selections whenever the search/filter context changes.
+  // Clear stale selections whenever the browsing context changes.
   useEffect(() => {
     setSelected(new Set());
-  }, [scope, labelName, filter]);
+  }, [scope, labelName]);
+
 
   const visibleIds = useMemo(() => messages.map((m) => m.id), [messages]);
   const selectedVisibleCount = useMemo(
