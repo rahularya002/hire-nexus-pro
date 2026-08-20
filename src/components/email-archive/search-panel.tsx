@@ -300,6 +300,7 @@ export function CandidateSearchPanel({
   const [scanning, setScanning] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [evidenceHit, setEvidenceHit] = useState<SearchHit | null>(null);
   const loopRef = useRef(false);
 
   const recent = useQuery({ queryKey: ["candidate-searches"], queryFn: () => recentFn(), enabled: authed });
@@ -495,6 +496,7 @@ export function CandidateSearchPanel({
                 onSave={() => save.mutate(h.id)}
                 onDismiss={() => dismiss.mutate(h.id)}
                 onOpenThread={setThreadId}
+                onOpenEvidence={() => setEvidenceHit(h)}
               />
             ))}
           </div>
@@ -508,6 +510,7 @@ export function CandidateSearchPanel({
       )}
 
       <ThreadSheet threadId={threadId} onClose={() => setThreadId(null)} />
+      <EvidenceSheet hit={evidenceHit} onClose={() => setEvidenceHit(null)} onOpenThread={setThreadId} />
     </section>
   );
 }
