@@ -109,8 +109,8 @@ function rolePhrases(text: string): string[] {
     const prev = (words[i - 1] ?? "").toLowerCase();
     const prev2 = (words[i - 2] ?? "").toLowerCase();
     const p1 = singular(prev);
-    if (prev && !STOPWORDS.has(prev) && !STOPWORDS.has(p1) && !KNOWN_CITIES.includes(prev)) {
-      if (prev2 && !STOPWORDS.has(prev2) && !KNOWN_CITIES.includes(prev2)) {
+    if (prev && !STOPWORDS.has(prev) && !STOPWORDS.has(p1) && !SENIORITY_WORDS.has(p1) && !KNOWN_CITIES.includes(prev)) {
+      if (prev2 && !STOPWORDS.has(prev2) && !SENIORITY_WORDS.has(singular(prev2)) && !KNOWN_CITIES.includes(prev2)) {
         out.push(`${prev2} ${prev} ${w}`);
       }
       out.push(`${prev} ${w}`);
@@ -189,6 +189,8 @@ export function deterministicPlan(raw: string): SearchPlan {
           w.length >= 3 &&
           !STOPWORDS.has(w) &&
           !STOPWORDS.has(singular(w)) &&
+          !SENIORITY_WORDS.has(w) &&
+          !SENIORITY_WORDS.has(singular(w)) &&
           !/^\d+$/.test(w) &&
           !KNOWN_CITIES.includes(w) &&
           !plan.roles.some((r) => r.split(" ").includes(w) || r.split(" ").includes(singular(w))),
@@ -299,7 +301,9 @@ export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCal
 
   const plan: SearchPlan = {
     roles: Array.from(new Set([...base.roles, ...clean(ai.roles, 8)])).slice(0, 8),
-    skills: Array.from(new Set([...base.skills, ...clean(ai.skills, 12)])).slice(0, 12),
+    skills: Array.from(new Set([...base.skills, ...clean(ai.skills, 12)]))
+      .filter((s) => !SENIORITY_WORDS.has(s))
+      .slice(0, 12),
     locations: expandLocations([...base.locations, ...clean(ai.locations, 8)]),
     minYears: base.minYears ?? posOrNull(ai.min_years),
     // "3+ years" is an open-ended floor; models often echo it back as max_years: 3,
@@ -315,7 +319,9 @@ export async function planSearch(raw: string): Promise<{ plan: SearchPlan; aiCal
       })(),
     salaryMin: base.salaryMin ?? posOrNull(ai.salary_min_lpa),
     salaryMax: base.salaryMax ?? posOrNull(ai.salary_max_lpa),
-    keywords: Array.from(new Set([...base.keywords, ...clean(ai.keywords, 10)])).slice(0, 10),
+    keywords: Array.from(new Set([...base.keywords, ...clean(ai.keywords, 10)]))
+      .filter((k) => !SENIORITY_WORDS.has(k) && !SENIORITY_WORDS.has(singular(k)))
+      .slice(0, 10),
     dateFrom: base.dateFrom,
     labels: base.labels,
   };
