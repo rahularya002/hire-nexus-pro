@@ -637,8 +637,39 @@ function RecruitmentMemoryPage() {
           </div>
         </header>
 
-        <CandidateSearchPanel authed={authed} gmailReady={gmailReady} onConnect={connect} />
+        {/* view switch: live mailbox vs. what is already in TalentFlow */}
+        <div className="inline-flex rounded-xl border border-border bg-card p-1">
+          {(
+            [
+              { key: "mailbox", label: "Mailbox", hint: "Live Gmail" },
+              { key: "archive", label: "Candidate archive", hint: "In TalentFlow" },
+            ] as const
+          ).map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                view === v.key ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {v.label}
+              <span className="ml-2 text-[10px] text-muted-foreground">{v.hint}</span>
+            </button>
+          ))}
+        </div>
 
+        {view === "mailbox" ? (
+          <>
+            <CandidateSearchPanel authed={authed} gmailReady={gmailReady} onConnect={connect} />
+            <MailboxPanel
+              authed={authed}
+              gmailReady={gmailReady}
+              labels={conn.data?.labels ?? []}
+              onConnect={connect}
+            />
+          </>
+        ) : (
+          <>
         <div className="space-y-3">
           <button
             onClick={() => setShowBackfill((v) => !v)}
