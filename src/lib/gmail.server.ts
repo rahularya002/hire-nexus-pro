@@ -111,6 +111,38 @@ export async function getMessage(accessToken: string, id: string) {
   return gget<GmailMessage>(accessToken, `/messages/${encodeURIComponent(id)}?format=full`);
 }
 
+/** Cheap header-only read — used by the live mailbox list. */
+export async function getMessageMeta(accessToken: string, id: string) {
+  const headers = ["From", "To", "Subject", "Date"].map((h) => `metadataHeaders=${h}`).join("&");
+  return gget<GmailMessage>(accessToken, `/messages/${encodeURIComponent(id)}?format=metadata&${headers}`);
+}
+
+export async function getThread(accessToken: string, threadId: string) {
+  return gget<{ id: string; messages?: GmailMessage[] }>(
+    accessToken,
+    `/threads/${encodeURIComponent(threadId)}?format=full`,
+  );
+}
+
+/** Every attachment on a message, regardless of extension. */
+export function findAllAttachments(msg: GmailMessage): ResumeAttachment[] {
+  const out: ResumeAttachment[] = [];
+  const walk = (p?: Part) => {
+    if (!p) return;
+    if (p.filename && p.body?.attachmentId) {
+      out.push({
+        attachmentId: p.body.attachmentId,
+        filename: p.filename,
+        mimeType: p.mimeType ?? null,
+        size: p.body.size ?? 0,
+      });
+    }
+    for (const c of p.parts ?? []) walk(c);
+  };
+  walk(msg.payload);
+  return out;
+}
+
 function decodeB64Url(data: string): string {
   try {
     const b64 = data.replace(/-/g, "+").replace(/_/g, "/");
