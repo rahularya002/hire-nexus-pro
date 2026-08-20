@@ -36,12 +36,19 @@ export function rankItem(plan: SearchPlan, i: RankInput): { score: number; parts
   const roleHits = roleTerms.filter((r) => hay.includes(r.toLowerCase()));
   const roleField = `${i.extracted.role ?? ""}`.toLowerCase();
   const roleInField = roleTerms.some((r) => roleField.includes(r.toLowerCase()));
+  // Head noun fallback: "react developer" should still credit a "UI Developer".
+  const headNouns = Array.from(
+    new Set(roleTerms.map((r) => r.trim().split(/\s+/).pop()!.toLowerCase()).filter((w) => w.length > 3)),
+  );
+  const headInField = headNouns.some((w) => roleField.includes(w));
   let role = 0;
   if (roleTerms.length === 0) role = 18;
   else if (roleInField) role = 30;
   else if (roleHits.length) role = Math.min(26, 14 + roleHits.length * 6);
+  else if (headInField) role = 16;
   else missing.push("role not mentioned");
   if (roleHits.length) matched.push(...roleHits.slice(0, 3));
+  else if (headInField) matched.push(i.extracted.role ?? headNouns[0]!);
 
   const skillList = (i.extracted.skills ?? []).map((s) => s.toLowerCase());
   const wanted = Array.from(new Set([...plan.skills, ...plan.keywords]));
