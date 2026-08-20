@@ -871,6 +871,8 @@ function RecruitmentMemoryPage() {
             )}
           </section>
         )}
+          </>
+        )}
       </div>
 
       <PersonSheet person={open} onClose={() => setOpen(null)} />
