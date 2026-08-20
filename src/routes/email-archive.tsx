@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RecoveryPanel } from "@/components/email-archive/recovery-panel";
 import { CandidateSearchPanel } from "@/components/email-archive/search-panel";
+import { MailboxPanel } from "@/components/email-archive/mailbox-panel";
 import { HistorySheet } from "@/components/email-archive/history-sheet";
 import { Progress } from "@/components/ui/progress";
 import { PersonSheet } from "@/components/email-archive/person-sheet";
@@ -98,6 +99,7 @@ export const Route = createFileRoute("/email-archive")({
 });
 
 type TabKey = "candidates" | "review" | "history" | "nocandidate";
+type ViewKey = "mailbox" | "archive";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "candidates", label: "Imported candidates" },
@@ -273,6 +275,7 @@ function RecruitmentMemoryPage() {
   const countsFn = useServerFn(getArchiveCounts);
 
   const [tab, setTab] = useState<TabKey>("candidates");
+  const [view, setView] = useState<ViewKey>("mailbox");
   const [search, setSearch] = useState("");
   const [chips, setChips] = useState<string[]>([]);
   const [open, setOpen] = useState<ArchivePerson | null>(null);
