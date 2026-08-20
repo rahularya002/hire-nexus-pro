@@ -12,6 +12,7 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
+  Search,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { relTime } from "@/components/email-archive/shared";
 import {
@@ -358,12 +360,25 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
         )}
       </div>
 
-      <Input
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter the loaded messages by sender or subject…"
-        className="h-9"
-      />
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+              <Input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter loaded emails…"
+                aria-label="Filter loaded emails"
+                className="h-9 pl-8 text-xs text-muted-foreground"
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[16rem] text-center">
+            Filters the emails currently loaded. Doesn't search Gmail.
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       {messages.length > 0 && (
         <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-border bg-secondary/20">
