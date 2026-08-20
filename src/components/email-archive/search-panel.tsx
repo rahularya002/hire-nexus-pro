@@ -165,10 +165,13 @@ function HitCard({
 export function CandidateSearchPanel({
   authed,
   gmailReady,
+  gmailChecking,
   onConnect,
 }: {
   authed: boolean;
   gmailReady: boolean;
+  /** True while we are still asking Gmail whether this account is connected. */
+  gmailChecking?: boolean;
   onConnect: () => void;
 }) {
   const qc = useQueryClient();
@@ -253,6 +256,9 @@ export function CandidateSearchPanel({
   const search = result.data?.search ?? null;
   const submit = () => {
     if (query.trim().length < 3) return;
+    // Never bounce to Google while the connection check is still in flight —
+    // that hijacked the page to OAuth for already-connected recruiters.
+    if (gmailChecking) return;
     if (!gmailReady) {
       onConnect();
       return;
@@ -281,13 +287,13 @@ export function CandidateSearchPanel({
           placeholder="Fashion designers with 3+ years experience in Delhi or Mumbai"
           className="h-11"
         />
-        <Button className="h-11 sm:w-40" onClick={submit} disabled={start.isPending || scanning || query.trim().length < 3}>
+        <Button className="h-11 sm:w-40" onClick={submit} disabled={start.isPending || scanning || gmailChecking || query.trim().length < 3}>
           {start.isPending || scanning ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
           {scanning ? "Searching…" : "Search"}
         </Button>
       </div>
 
-      {!gmailReady && (
+      {!gmailReady && !gmailChecking && (
         <p className="text-xs text-muted-foreground">
           Connect Gmail once to search your mail history.{" "}
           <button onClick={onConnect} className="text-primary hover:underline">
