@@ -98,7 +98,7 @@ function EvidenceSheet({
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="pr-8 text-base">
-            Evidence — {hit?.extracted?.name || hit?.from_name || hit?.from_email || "Candidate"}
+            Candidate details — {hit?.extracted?.name || hit?.from_name || hit?.from_email || "Candidate"}
           </SheetTitle>
         </SheetHeader>
 
@@ -203,11 +203,7 @@ function HitCard({
               <Button size="sm" variant="outline" onClick={onOpenEvidence}>
                 <FileSearch className="size-3.5" /> {sourceLabel(state)}
               </Button>
-            ) : (
-              <span className="text-[11px] rounded-full border border-dashed border-border px-2.5 py-1 text-muted-foreground">
-                {sourceLabel(state)}
-              </span>
-            )}
+            ) : null}
             {hit.saved_at ? (
               <span className="text-xs text-success inline-flex items-center gap-1">
                 <Check className="size-3.5" /> Saved
