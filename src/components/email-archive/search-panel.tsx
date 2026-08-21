@@ -468,11 +468,15 @@ export function CandidateSearchPanel({
       {searchId && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground flex-wrap">
-            <span>
+            <span title={search ? `${search.ai_calls} AI calls used for this search` : undefined}>
               {hits.length} {hits.length === 1 ? "match" : "matches"}
-              {search ? ` · ${search.hydrated_count} emails read · ${search.ai_calls} AI calls` : ""}
-              {scanning ? " · still searching" : ""}
+              {search
+                ? scanning
+                  ? ` · Searching ${search.hydrated_count} emails…`
+                  : ` · ${search.hydrated_count} emails checked`
+                : ""}
             </span>
+
             <button
               onClick={clearSearchSession}
               className="hover:text-foreground"
