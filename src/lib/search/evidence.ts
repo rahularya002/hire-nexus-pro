@@ -114,15 +114,17 @@ export function matchLabel(score: number): { label: string; tone: MatchTone } {
 }
 
 /**
- * The few chips worth showing on a card: relevant skills and the source file.
- * Role, experience and location already appear in the card header, so they are
- * intentionally left out to avoid repeating the same fact twice.
+ * The few chips worth showing on a card: only skills the query actually ranked
+ * on, plus the source file. Role, experience and location already appear in the
+ * card header, so they are intentionally left out to avoid repeating a fact.
  */
 export function cardChips(hit: EvidenceHit): EvidenceChip[] {
+  const matched = new Set((hit.score_parts?.matched ?? []).map((m) => (m ?? "").trim().toLowerCase()));
   return evidenceChips(hit)
-    .filter((c) => c.kind === "skill" || c.kind === "file")
+    .filter((c) => (c.kind === "skill" && matched.has(c.label.toLowerCase())) || c.kind === "file")
     .slice(0, 3);
 }
+
 
 /** Gaps, phrased as secondary notes rather than positive matches. */
 export function gapNotes(hit: EvidenceHit): string[] {
