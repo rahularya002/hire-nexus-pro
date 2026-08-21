@@ -99,3 +99,39 @@ export function evidenceChips(hit: EvidenceHit): EvidenceChip[] {
   if (hasAttachmentSource(hit)) push(hit.resume_file_name || "Resume attached", "file");
   return chips.slice(0, 7);
 }
+// ---------------------------------------------------------------------------
+// Presentation helpers (no scoring changes — wording and trimming only).
+// ---------------------------------------------------------------------------
+
+export type MatchTone = "strong" | "good" | "possible" | "weak";
+
+/** Recruiter-readable wording for a raw relevance score. */
+export function matchLabel(score: number): { label: string; tone: MatchTone } {
+  if (score >= 80) return { label: "Strong match", tone: "strong" };
+  if (score >= 65) return { label: "Good match", tone: "good" };
+  if (score >= 45) return { label: "Possible match", tone: "possible" };
+  return { label: "Weak match", tone: "weak" };
+}
+
+/**
+ * The few chips worth showing on a card: relevant skills and the source file.
+ * Role, experience and location already appear in the card header, so they are
+ * intentionally left out to avoid repeating the same fact twice.
+ */
+export function cardChips(hit: EvidenceHit): EvidenceChip[] {
+  return evidenceChips(hit)
+    .filter((c) => c.kind === "skill" || c.kind === "file")
+    .slice(0, 3);
+}
+
+/** Gaps, phrased as secondary notes rather than positive matches. */
+export function gapNotes(hit: EvidenceHit): string[] {
+  const out: string[] = [];
+  for (const m of hit.score_parts?.missing ?? []) {
+    const t = (m ?? "").trim();
+    if (!t) continue;
+    const yrs = t.match(/^(\d{1,2}(?:\.\d)?) yrs outside range$/i);
+    out.push(yrs ? `${yrs[1]} yrs · outside requirement` : t);
+  }
+  return out.slice(0, 2);
+}
