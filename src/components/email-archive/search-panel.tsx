@@ -34,7 +34,7 @@ import {
   startCandidateSearch,
   type SearchHit,
 } from "@/lib/search/search.functions";
-import { evidenceChips, sourceLabel, sourceState } from "@/lib/search/evidence";
+import { cardChips, gapNotes, matchLabel, sourceLabel, sourceState } from "@/lib/search/evidence";
 import {
   clearSearchSession,
   setActiveSearch,
