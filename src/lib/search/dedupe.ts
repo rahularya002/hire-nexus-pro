@@ -5,7 +5,6 @@
 export type DedupeHit = {
   score?: number | null;
   origin?: string | null;
-  from_email?: string | null;
   resume_file_name?: string | null;
   extracted?: {
     name?: string | null;
@@ -18,10 +17,14 @@ export type DedupeHit = {
 const clean = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D+/g, "");
 
-/** Stable identity for a result, most reliable signal first. */
+/**
+ * Stable identity for a result, most reliable signal first. The Gmail sender is
+ * deliberately NOT used: one recruiter can forward many different candidates, so
+ * collapsing on the sender would merge unrelated people.
+ */
 export function identityKey(hit: DedupeHit): string {
   const ex = hit.extracted ?? {};
-  const email = clean(ex.email) || clean(hit.from_email);
+  const email = clean(ex.email);
   if (email) return `email:${email}`;
   const phone = digits(ex.phone);
   if (phone.length >= 8) return `phone:${phone.slice(-10)}`;
