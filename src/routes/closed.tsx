@@ -181,7 +181,7 @@ function PositionRow({
             {placementRows.map((pl) => {
               const name = pl.candidate?.name ?? "Candidate";
               const chip = (
-                <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border hover:bg-secondary/70 transition-colors">
+                <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className={cn("size-8 rounded-full grid place-items-center font-semibold text-[11px] shrink-0 bg-muted text-foreground border border-border")}>
                       {initialsOf(name)}
