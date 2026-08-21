@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { dedupeHits } from "./dedupe";
 
 export type SearchHit = {
   id: string;
@@ -260,7 +261,9 @@ export const getCandidateSearch = createServerFn({ method: "GET" })
       .limit(100);
     return {
       search: (search as unknown as SearchStatus | null) ?? null,
-      hits: (hits ?? []) as unknown as SearchHit[],
+      // One card per person: several emails from the same candidate collapse
+      // into their best-scoring result.
+      hits: dedupeHits((hits ?? []) as unknown as SearchHit[]),
     };
   });
 
