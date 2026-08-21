@@ -147,6 +147,30 @@ describe("generic designer query", () => {
 });
 
 describe("dedupe", () => {
+  it("never collapses two candidates forwarded by the same recruiter", () => {
+    const rows = [
+      {
+        score: 61,
+        from_email: "recruiter@agency.com",
+        extracted: { name: "Anita Rao", role: "Fashion Designer" },
+      },
+      {
+        score: 58,
+        from_email: "recruiter@agency.com",
+        extracted: { name: "Priya Nair", role: "Apparel Designer" },
+      },
+    ];
+    expect(dedupeHits(rows)).toHaveLength(2);
+  });
+
+  it("does not treat the sender email as candidate identity", () => {
+    const rows = [
+      { score: 50, from_email: "hr@corp.com", extracted: { name: null, role: null } },
+      { score: 45, from_email: "hr@corp.com", extracted: { name: null, role: null } },
+    ];
+    expect(dedupeHits(rows)).toHaveLength(2);
+  });
+
   it("keeps the best hit per candidate and preserves distinct people", () => {
     const rows = [
       { score: 40, extracted: { name: "Itisha Bindal", email: "itisha@x.com" } },
