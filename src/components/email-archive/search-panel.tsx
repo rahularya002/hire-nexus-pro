@@ -61,25 +61,16 @@ function searchError(e: unknown) {
   return m;
 }
 
-function MatchBadge({ score }: { score: number }) {
-  const { label, tone } = matchLabel(score);
-  const cls =
-    tone === "strong"
-      ? "bg-success/10 text-success"
-      : tone === "good"
-        ? "bg-primary/10 text-primary"
-        : tone === "possible"
-          ? "bg-warning/10 text-warning"
-          : "bg-muted text-muted-foreground";
+function ScoreRing({ score }: { score: number }) {
+  const tone = score >= 70 ? "text-success" : score >= 45 ? "text-warning" : "text-muted-foreground";
   return (
-    <span
-      title="How closely this candidate matches your search."
-      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${cls}`}
-    >
-      {label} · <span className="tabular-nums">{score}%</span>
-    </span>
+    <div className={`shrink-0 grid place-items-center size-11 rounded-full border border-border ${tone}`}>
+      <span className="text-sm font-semibold tabular-nums">{score}</span>
+    </div>
   );
 }
+
+
 
 
 /** All sources behind one result: mail, stored resumes and their evidence text. */
