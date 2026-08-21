@@ -658,22 +658,25 @@ function RecruitmentMemoryPage() {
           ))}
         </div>
 
-        {view === "mailbox" ? (
-          <>
-            <CandidateSearchPanel
-              authed={authed}
-              gmailReady={gmailReady}
-              gmailChecking={conn.isLoading}
-              onConnect={connect}
-            />
-            <MailboxPanel
-              authed={authed}
-              gmailReady={gmailReady}
-              labels={conn.data?.labels ?? []}
-              onConnect={connect}
-            />
-          </>
-        ) : (
+        {/* Kept mounted (hidden) instead of unmounted, so the recruiter's query,
+            results, scope/label choice, loaded pages and selection survive a
+            switch to the archive view and back. */}
+        <div className={view === "mailbox" ? "space-y-5" : "hidden"} aria-hidden={view !== "mailbox"}>
+          <CandidateSearchPanel
+            authed={authed}
+            gmailReady={gmailReady}
+            gmailChecking={conn.isLoading}
+            onConnect={connect}
+          />
+          <MailboxPanel
+            authed={authed}
+            gmailReady={gmailReady}
+            labels={conn.data?.labels ?? []}
+            onConnect={connect}
+          />
+        </div>
+
+        {view === "archive" && (
           <>
         <div className="space-y-3">
           <button
