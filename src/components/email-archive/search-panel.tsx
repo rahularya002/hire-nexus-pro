@@ -35,6 +35,12 @@ import {
   type SearchHit,
 } from "@/lib/search/search.functions";
 import { evidenceChips, sourceLabel, sourceState } from "@/lib/search/evidence";
+import {
+  clearSearchSession,
+  setActiveSearch,
+  setSearchQuery,
+  useSearchSession,
+} from "@/lib/search/search-session";
 
 const EXAMPLES = [
   "Fashion designers with 3+ years experience in Delhi or Mumbai",
@@ -337,7 +343,8 @@ export function CandidateSearchPanel({
   const start = useMutation({
     mutationFn: async () => startFn({ data: { query: query.trim(), labels: [] } }),
     onSuccess: async (res) => {
-      setSearchId(res.searchId);
+      // A new search replaces whatever was on screen before.
+      setActiveSearch(res.searchId);
       await qc.invalidateQueries({ queryKey: ["candidate-search", res.searchId] });
       if (gmailReady) void drive(res.searchId);
     },
@@ -440,8 +447,7 @@ export function CandidateSearchPanel({
             <button
               key={r.id}
               onClick={() => {
-                setQuery(r.raw_query);
-                setSearchId(r.id);
+                setActiveSearch(r.id, r.raw_query);
               }}
               className="text-[11px] rounded-full border border-border px-2.5 py-1 text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
             >
@@ -461,10 +467,7 @@ export function CandidateSearchPanel({
               {scanning ? " · still searching" : ""}
             </span>
             <button
-              onClick={() => {
-                setSearchId(null);
-                setQuery("");
-              }}
+              onClick={clearSearchSession}
               className="hover:text-foreground"
             >
               Clear results
