@@ -291,8 +291,10 @@ export function CandidateSearchPanel({
   const saveFn = useServerFn(saveSearchHit);
   const dismissFn = useServerFn(dismissSearchHit);
 
-  const [query, setQuery] = useState("");
-  const [searchId, setSearchId] = useState<string | null>(null);
+  // Query + active search live outside the component so a tab switch (which
+  // unmounts this panel) cannot throw the recruiter's work away.
+  const { query, searchId } = useSearchSession();
+  const setQuery = setSearchQuery;
   const [scanning, setScanning] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -305,6 +307,11 @@ export function CandidateSearchPanel({
     queryFn: () => getFn({ data: { searchId: searchId! } }),
     enabled: authed && !!searchId,
     refetchInterval: scanning ? 2000 : false,
+    // Coming back to the tab must show the same results, not refetch or expire.
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   /** Drive Gmail retrieval in slices so results stream in instead of blocking. */
