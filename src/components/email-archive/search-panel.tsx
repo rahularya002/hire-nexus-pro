@@ -34,7 +34,7 @@ import {
   startCandidateSearch,
   type SearchHit,
 } from "@/lib/search/search.functions";
-import { cardChips, gapNotes, matchLabel, sourceLabel, sourceState } from "@/lib/search/evidence";
+import { evidenceChips, sourceLabel, sourceState } from "@/lib/search/evidence";
 import {
   clearSearchSession,
   setActiveSearch,
@@ -467,13 +467,10 @@ export function CandidateSearchPanel({
       {searchId && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground flex-wrap">
-            <span title={search ? `${search.ai_calls} AI calls used for this search` : undefined}>
+            <span>
               {hits.length} {hits.length === 1 ? "match" : "matches"}
-              {search
-                ? scanning
-                  ? ` · Searching ${search.hydrated_count} emails…`
-                  : ` · ${search.hydrated_count} emails checked`
-                : ""}
+              {search ? ` · ${search.hydrated_count} emails read · ${search.ai_calls} AI calls` : ""}
+              {scanning ? " · still searching" : ""}
             </span>
 
             <button
