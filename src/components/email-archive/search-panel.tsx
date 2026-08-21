@@ -34,7 +34,7 @@ import {
   startCandidateSearch,
   type SearchHit,
 } from "@/lib/search/search.functions";
-import { cardChips, gapNotes, matchLabel, sourceLabel, sourceState } from "@/lib/search/evidence";
+import { evidenceChips, sourceLabel, sourceState } from "@/lib/search/evidence";
 import {
   clearSearchSession,
   setActiveSearch,
@@ -61,25 +61,16 @@ function searchError(e: unknown) {
   return m;
 }
 
-function MatchBadge({ score }: { score: number }) {
-  const { label, tone } = matchLabel(score);
-  const cls =
-    tone === "strong"
-      ? "bg-success/10 text-success"
-      : tone === "good"
-        ? "bg-primary/10 text-primary"
-        : tone === "possible"
-          ? "bg-warning/10 text-warning"
-          : "bg-muted text-muted-foreground";
+function ScoreRing({ score }: { score: number }) {
+  const tone = score >= 70 ? "text-success" : score >= 45 ? "text-warning" : "text-muted-foreground";
   return (
-    <span
-      title="How closely this candidate matches your search."
-      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${cls}`}
-    >
-      {label} · <span className="tabular-nums">{score}%</span>
-    </span>
+    <div className={`shrink-0 grid place-items-center size-11 rounded-full border border-border ${tone}`}>
+      <span className="text-sm font-semibold tabular-nums">{score}</span>
+    </div>
   );
 }
+
+
 
 
 /** All sources behind one result: mail, stored resumes and their evidence text. */
@@ -184,9 +175,9 @@ function HitCard({
 }) {
   const resumeFn = useServerFn(getSearchHitResumeUrl);
   const ex = hit.extracted ?? {};
-  const gaps = gapNotes(hit);
+  const missing = hit.score_parts?.missing ?? [];
   const state = sourceState(hit);
-  const chips = cardChips(hit);
+  const chips = evidenceChips(hit);
 
   const openResume = async () => {
     try {
@@ -198,89 +189,95 @@ function HitCard({
   };
 
   return (
-    <div className="rounded-lg border border-border/60 bg-card px-3.5 py-2.5 flex items-start justify-between gap-4">
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <h3 className="text-sm font-semibold truncate">
-            {ex.name || hit.from_name || hit.from_email || "Unknown"}
-          </h3>
-          <MatchBadge score={hit.score} />
-          {hit.origin === "archive" && (
-            <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
-              <Sparkles className="size-3" /> Already in TalentFlow
+    <div className="rounded-xl border border-border bg-card p-4 flex gap-4">
+      <ScoreRing score={hit.score} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="font-medium truncate">{ex.name || hit.from_name || hit.from_email || "Unknown"}</div>
+            <div className="text-xs text-muted-foreground truncate">
+              {[ex.role, ex.current_company, ex.experience].filter(Boolean).join(" · ") || "Role not stated"}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {state === "email" ? (
+              <Button size="sm" variant="outline" onClick={() => onOpenThread(hit.gmail_thread_id!)}>
+                <Mail className="size-3.5" /> {sourceLabel(state)}
+              </Button>
+            ) : state === "attachment" ? (
+              <Button size="sm" variant="outline" onClick={openResume}>
+                <FileText className="size-3.5" /> {sourceLabel(state)}
+              </Button>
+            ) : state === "multiple" ? (
+              <Button size="sm" variant="outline" onClick={onOpenEvidence}>
+                <FileSearch className="size-3.5" /> {sourceLabel(state)}
+              </Button>
+            ) : null}
+            {hit.saved_at ? (
+              <span className="text-xs text-success inline-flex items-center gap-1">
+                <Check className="size-3.5" /> Saved
+              </span>
+            ) : (
+              <>
+                <Button size="sm" onClick={onSave} disabled={saving}>
+                  {saving ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />}
+                  Add to database
+                </Button>
+                <Button size="sm" variant="ghost" onClick={onDismiss} aria-label="Dismiss result">
+                  <X className="size-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          {ex.location && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-3" /> {ex.location}
             </span>
+          )}
+          {hit.origin === "archive" ? (
+            <span className="inline-flex items-center gap-1">
+              <Sparkles className="size-3" /> Already in your memory
+            </span>
+          ) : (
+            <span className="truncate max-w-[26rem]">
+              {hit.subject || "(no subject)"} · {relTime(hit.sent_at)}
+            </span>
+          )}
+          {hit.resume_file_name && (
+            <button onClick={openResume} className="inline-flex items-center gap-1 text-primary hover:underline">
+              <FileText className="size-3" /> {hit.resume_file_name}
+            </button>
           )}
         </div>
 
-        <div className="text-xs text-muted-foreground truncate">
-          {[ex.role || "Role not identified", ex.experience, ex.current_company].filter(Boolean).join(" · ")}
-        </div>
-
-        <div className="text-xs text-muted-foreground truncate inline-flex items-center gap-1">
-          <MapPin className="size-3" /> {ex.location || "Location not stated"}
-        </div>
-
-        {hit.origin !== "archive" && (
-          <div className="text-[11px] text-muted-foreground truncate">
-            {hit.subject || "(no subject)"} · {relTime(hit.sent_at)}
-          </div>
-        )}
-
-        {(chips.length > 0 || gaps.length > 0 || state === "none") && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
+        {(chips.length > 0 || missing.length > 0) && (
+          <div className="flex flex-wrap gap-1.5">
             {chips.map((c) => (
               <span
                 key={`${c.kind}-${c.label}`}
-                className="text-[11px] rounded-full bg-success/10 text-success px-2 py-0.5"
+                className="text-[11px] rounded-full border border-success/40 text-success px-2 py-0.5"
               >
                 {c.label}
               </span>
             ))}
-            {gaps.map((m) => (
-              <span key={m} className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+            {missing.map((m) => (
+              <span key={m} className="text-[11px] rounded-full border border-border text-muted-foreground px-2 py-0.5">
                 {m}
               </span>
             ))}
             {state === "none" && (
-              <span className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5">
-                no source to verify
+              <span className="text-[11px] rounded-full border border-border text-muted-foreground px-2 py-0.5">
+                unverified — no source
               </span>
             )}
           </div>
         )}
       </div>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        {state === "email" ? (
-          <Button size="sm" variant="outline" onClick={() => onOpenThread(hit.gmail_thread_id!)}>
-            <Mail className="size-3.5" /> {sourceLabel(state)}
-          </Button>
-        ) : state === "attachment" ? (
-          <Button size="sm" variant="outline" onClick={openResume}>
-            <FileText className="size-3.5" /> {sourceLabel(state)}
-          </Button>
-        ) : state === "multiple" ? (
-          <Button size="sm" variant="outline" onClick={onOpenEvidence}>
-            <FileSearch className="size-3.5" /> {sourceLabel(state)}
-          </Button>
-        ) : null}
-        {hit.saved_at ? (
-          <span className="text-xs text-success inline-flex items-center gap-1">
-            <Check className="size-3.5" /> Saved
-          </span>
-        ) : (
-          <>
-            <Button size="sm" onClick={onSave} disabled={saving}>
-              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />}
-              Add to database
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onDismiss} aria-label="Dismiss result">
-              <X className="size-3.5" />
-            </Button>
-          </>
-        )}
-      </div>
     </div>
+
 
   );
 }
@@ -470,13 +467,10 @@ export function CandidateSearchPanel({
       {searchId && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground flex-wrap">
-            <span title={search ? `${search.ai_calls} AI calls used for this search` : undefined}>
+            <span>
               {hits.length} {hits.length === 1 ? "match" : "matches"}
-              {search
-                ? scanning
-                  ? ` · Searching ${search.hydrated_count} emails…`
-                  : ` · ${search.hydrated_count} emails checked`
-                : ""}
+              {search ? ` · ${search.hydrated_count} emails read · ${search.ai_calls} AI calls` : ""}
+              {scanning ? " · still searching" : ""}
             </span>
 
             <button
