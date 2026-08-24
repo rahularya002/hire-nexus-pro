@@ -20,6 +20,8 @@ export async function linkOrCreateCandidate(
 
   const agencyId = person.agency_id as string;
   const email = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
+  const phoneDigits = ((person.phone as string | null) ?? "").replace(/\D+/g, "");
+  const phoneTail = phoneDigits.length >= 8 ? phoneDigits.slice(-10) : null;
 
   // Only ever link to a candidate inside the promoting user's own agency —
   // the admin client bypasses RLS, so a same-email row from another tenant must
@@ -35,11 +37,28 @@ export async function linkOrCreateCandidate(
     return ((data ?? []) as { id: string; agency_id: string }[])[0] ?? null;
   };
 
+  /**
+   * Email is the strongest identity, but a forwarded CV often has only a phone
+   * number. Matching the last 10 digits inside the same agency prevents a second
+   * row for a person who is already in the grid.
+   */
+  const findByPhone = async () => {
+    if (!phoneTail) return null;
+    const { data } = await supabaseAdmin
+      .from("candidates")
+      .select("id,agency_id")
+      .eq("agency_id", agencyId)
+      .ilike("phone", `%${phoneTail}%`)
+      .limit(1);
+    return ((data ?? []) as { id: string; agency_id: string }[])[0] ?? null;
+  };
+
   let candidateId: string | null = null;
   let alreadyExisted = false;
   let createdByUs = false;
 
-  const match = await findByEmail();
+  const match = (await findByEmail()) ?? (await findByPhone());
+
   if (match) {
     candidateId = match.id;
     alreadyExisted = true;

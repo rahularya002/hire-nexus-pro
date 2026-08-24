@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { CandidateSourcesPanel } from "@/components/candidate-sources-panel";
 import { useAuth } from "@/lib/auth/auth-context";
+import { matchesGridFilters } from "@/lib/candidate-grid-filter";
+
 import {
   useGridSession,
   setGridFilters,
@@ -79,13 +81,7 @@ export const Route = createFileRoute("/database")({
 type MatchInfo = { score: number; matched: string[]; missing: string[]; tier: string };
 
 const UNKNOWN = "—";
-const yearsOf = (...vals: (string | null | undefined)[]) => {
-  for (const v of vals) {
-    const m = (v ?? "").match(/(\d{1,2}(?:\.\d)?)/);
-    if (m) return Number(m[1]);
-  }
-  return null;
-};
+
 const ctcLabel = (v: number | null) => (v == null ? UNKNOWN : `₹${v} LPA`);
 
 const STATUS_TONE: Record<CandidateStatus, string> = {
@@ -149,65 +145,27 @@ function Page() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const nlActive = nlQuery.trim().length >= 2;
+  /** Kept in sync with the header cells so full-width states span the table. */
+  const colCount = matchMap.size > 0 ? 13 : 12;
   const rows = useMemo(() => {
-    const base = nlQuery.trim().length >= 2 && nl ? nl.results.map((r) => r.candidate) : candidates;
-    const needle = f.q.toLowerCase().trim();
-    const has = (v: string | null | undefined, term: string) =>
-      !!v && v.toLowerCase().includes(term.toLowerCase().trim());
-    const minY = f.minYears.trim() === "" ? null : Number(f.minYears);
-    const ctcMin = f.ctcMin.trim() === "" ? null : Number(f.ctcMin);
-    const ctcMax = f.ctcMax.trim() === "" ? null : Number(f.ctcMax);
-    const expMax = f.expectedMax.trim() === "" ? null : Number(f.expectedMax);
-    const wantedSkills = f.skills.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    // While a natural-language search is in flight, never fall back to the full
+    // pool — that would flash unrelated candidates as if they matched.
+    const base = nlActive ? (nl ? nl.results.map((r) => r.candidate) : []) : candidates;
+    return base.filter((c) => matchesGridFilters(c as never, f, myId));
+  }, [candidates, nl, nlActive, f, myId]);
 
-    return base.filter((c) => {
-      if (needle) {
-        const hay = [c.name, c.role, c.location, c.email, c.current_company, c.phone, c.industry, ...(c.skills ?? [])]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(needle));
-        if (!hay) return false;
-      }
-      if (f.role && !has(c.role, f.role)) return false;
-      if (f.company) {
-        const inCurrent = has(c.current_company, f.company);
-        const inPast = (c.previous_companies ?? []).some((p) => has(p, f.company));
-        if (!inCurrent && !inPast) return false;
-      }
-      if (f.location && !has(c.location, f.location)) return false;
-      if (f.industry && !has(c.industry, f.industry)) return false;
-      if (f.noticePeriod && !has(c.notice_period, f.noticePeriod)) return false;
-      if (wantedSkills.length) {
-        const own = (c.skills ?? []).map((s) => s.toLowerCase());
-        if (!wantedSkills.every((s) => own.some((o) => o.includes(s)))) return false;
-      }
-      if (minY != null) {
-        const y = yearsOf(c.experience, c.relevant_experience);
-        if (y == null || y < minY) return false;
-      }
-      if (ctcMin != null || ctcMax != null) {
-        const cur = c.current_ctc ?? c.salary_min ?? c.salary_max;
-        if (cur == null) return false;
-        if (ctcMin != null && cur < ctcMin) return false;
-        if (ctcMax != null && cur > ctcMax) return false;
-      }
-      if (expMax != null) {
-        const exp = c.expected_ctc ?? c.salary_max;
-        if (exp == null || exp > expMax) return false;
-      }
-      if (f.source !== "all" && c.source !== f.source) return false;
-      if (f.status !== "all" && c.status !== f.status) return false;
-      if (f.owner === "mine" && c.owner_id !== myId) return false;
-      if (f.owner === "unassigned" && c.owner_id) return false;
-      if (f.client === "unassigned" && c.source_client_id) return false;
-      if (f.client !== "all" && f.client !== "unassigned" && c.source_client_id !== f.client) return false;
-      return true;
-    });
-  }, [candidates, nl, nlQuery, f, myId]);
 
+  // A search result can legitimately sit outside the first page of the pool, so
+  // resolve the open candidate from both sources before giving up.
   const selected = useMemo(
-    () => candidates.find((c) => c.id === openCandidateId) ?? null,
-    [candidates, openCandidateId],
+    () =>
+      candidates.find((c) => c.id === openCandidateId) ??
+      nl?.results.find((r) => r.candidate.id === openCandidateId)?.candidate ??
+      null,
+    [candidates, nl, openCandidateId],
   );
+
 
   function runNlSearch() {
     setGridNlQuery(nlDraft.trim());
@@ -339,14 +297,20 @@ function Page() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {(isLoading || (nlQuery && nlLoading && !nl)) && <TableRowsSkeleton rows={6} cols={12} />}
+              {(isLoading || (nlActive && nlLoading && !nl)) && <TableRowsSkeleton rows={6} cols={colCount} />}
               {isError && !isLoading && (
-                <tr><td colSpan={13} className="px-4 py-8 text-center text-xs text-destructive">
+                <tr><td colSpan={colCount} className="px-4 py-8 text-center text-xs text-destructive">
                   Could not load your candidates. Refresh to try again.
                 </td></tr>
               )}
-              {!isLoading && !isError && rows.length === 0 && (
-                <tr><td colSpan={13} className="px-4 py-8">
+              {nlActive && nlError && (
+                <tr><td colSpan={colCount} className="px-4 py-8 text-center text-xs text-destructive">
+                  Search failed, so no results are shown. Try again in a moment.
+                </td></tr>
+              )}
+              {!isLoading && !isError && !(nlActive && (nlError || (nlLoading && !nl))) && rows.length === 0 && (
+                <tr><td colSpan={colCount} className="px-4 py-8">
+
                   <EmptyState
                     icon={f.q || nlQuery || hasActiveFilters(f) ? SearchX : Database}
                     title={nlQuery ? "No candidates match that brief" : f.q || hasActiveFilters(f) ? "No matches found" : "No candidates yet"}
