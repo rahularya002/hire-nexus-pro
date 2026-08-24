@@ -929,12 +929,17 @@ export const listCandidateSources = createServerFn({ method: "POST" })
 
     const { data: mails } = await context.supabase
       .from("email_messages")
-      .select("subject,from_email,gmail_thread_id,sent_at,snippet")
+      .select("id,subject,from_email,gmail_thread_id,sent_at,snippet")
       .in("email_candidate_id", personIds)
       .order("sent_at", { ascending: false })
       .limit(20);
+    const seenThreads = new Set(sources.map((s) => s.gmailThreadId).filter(Boolean) as string[]);
     for (const m of mails ?? []) {
       if (!m.gmail_thread_id) continue;
+      // The resume rows above already carry their originating message, so don't
+      // list the same thread twice.
+      if (messageIds.includes(m.id as string) || seenThreads.has(m.gmail_thread_id as string)) continue;
+      seenThreads.add(m.gmail_thread_id as string);
       sources.push({
         kind: "email",
         fileName: null,
@@ -946,6 +951,7 @@ export const listCandidateSources = createServerFn({ method: "POST" })
         storagePath: null,
       });
     }
+
 
     return { sources };
   });
