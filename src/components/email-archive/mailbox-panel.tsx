@@ -1,6 +1,7 @@
-// Live Gmail mailbox, recruitment-focused. These messages are NOT in the ATS —
-// only the explicit "Add to candidates" action creates a record.
-import { useEffect, useMemo, useState } from "react";
+// Gmail-derived Candidate Grid. Gmail is the source layer: rows are candidates
+// extracted from live recruitment mail + attached CVs. Nothing lands in the ATS
+// until the recruiter explicitly adds a row to the talent database.
+import { useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -12,12 +13,14 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
+  Search,
   UserPlus,
+  Users,
 } from "lucide-react";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/empty-state";
@@ -26,9 +29,10 @@ import {
   addMailboxMessageToCandidates,
   getMailboxAttachment,
   getMailboxThread,
-  listMailboxMessages,
+  listMailboxCandidates,
   type MailboxAttachmentRef,
 } from "@/lib/mailbox.functions";
+import { matchesGridQuery, mergeCandidateRows, type GridCandidate } from "@/lib/mailbox-grid";
 
 type Props = {
   authed: boolean;
@@ -208,66 +212,94 @@ export function ThreadSheet({
   );
 }
 
+const COLUMNS: { key: keyof GridCandidate | "actions"; label: string; width: string }[] = [
+  { key: "name", label: "Candidate Name", width: "min-w-[13rem]" },
+  { key: "phone", label: "Contact No", width: "min-w-[9rem]" },
+  { key: "email", label: "Email", width: "min-w-[14rem]" },
+  { key: "role", label: "Designation", width: "min-w-[11rem]" },
+  { key: "skills", label: "Skill", width: "min-w-[15rem]" },
+  { key: "experience", label: "Experience", width: "min-w-[8rem]" },
+  { key: "company", label: "Organisation", width: "min-w-[11rem]" },
+  { key: "currentCtc", label: "Current CTC", width: "min-w-[8rem]" },
+  { key: "expectedCtc", label: "Expected CTC", width: "min-w-[8rem]" },
+  { key: "noticePeriod", label: "Notice Period", width: "min-w-[8rem]" },
+  { key: "location", label: "Current Location", width: "min-w-[10rem]" },
+  { key: "actions", label: "Source", width: "min-w-[11rem]" },
+];
+
+/** Missing data is always shown as missing — never guessed. */
+function Cell({ value }: { value: string | null | undefined }) {
+  return value && value.trim() ? (
+    <span className="text-foreground">{value}</span>
+  ) : (
+    <span className="text-muted-foreground/60">–</span>
+  );
+}
+
+function SkillCell({ skills }: { skills: string[] }) {
+  if (!skills.length) return <span className="text-muted-foreground/60">–</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {skills.slice(0, 4).map((s) => (
+        <span key={s} className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+          {s}
+        </span>
+      ))}
+      {skills.length > 4 && <span className="text-[10px] text-muted-foreground/70">+{skills.length - 4}</span>}
+    </div>
+  );
+}
+
+function GridSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <tr key={r} className="border-t border-border">
+          {COLUMNS.map((c) => (
+            <td key={String(c.key)} className="px-3 py-3">
+              <div className="h-3 rounded bg-secondary animate-pulse" style={{ width: `${50 + ((r * 13 + c.label.length * 7) % 40)}%` }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
 export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const qc = useQueryClient();
-  const listFn = useServerFn(listMailboxMessages);
+  const listFn = useServerFn(listMailboxCandidates);
   const addFn = useServerFn(addMailboxMessageToCandidates);
-  const openAttachment = useAttachmentOpener();
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
+  const [query, setQuery] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [sourcesFor, setSourcesFor] = useState<GridCandidate | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const scopeQuery = QUICK_SCOPES.find((s) => s.key === scope)?.q ?? "";
   const browsable = authed && gmailReady;
 
   const list = useInfiniteQuery({
-    queryKey: ["mailbox", scope, labelName],
+    queryKey: ["mailbox-candidates", scope, labelName],
     enabled: browsable,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
-      listFn({ data: { q: scopeQuery || undefined, label: labelName, pageToken: pageParam, pageSize: 25 } }),
+      listFn({ data: { q: scopeQuery || undefined, label: labelName, pageToken: pageParam, pageSize: 12 } }),
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
-  const messages = useMemo(
-    () => (list.data?.pages ?? []).flatMap((p) => p.messages),
+  // Candidates can appear in more than one page of mail, so merge across pages too.
+  const candidates = useMemo(
+    () => mergeCandidateRows((list.data?.pages ?? []).flatMap((p) => p.candidates as GridCandidate[])),
     [list.data],
   );
-
-  // Clear stale selections whenever the browsing context changes.
-  useEffect(() => {
-    setSelected(new Set());
-  }, [scope, labelName]);
-
-
-  const visibleIds = useMemo(() => messages.map((m) => m.id), [messages]);
-  const selectedVisibleCount = useMemo(
-    () => visibleIds.reduce((n, id) => (selected.has(id) ? n + 1 : n), 0),
-    [visibleIds, selected],
+  const rows = useMemo(() => candidates.filter((c) => matchesGridQuery(c, query)), [candidates, query]);
+  const scanned = useMemo(
+    () => (list.data?.pages ?? []).reduce((n, p) => n + (p.scanned ?? 0), 0),
+    [list.data],
   );
-  const allSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
-  const someSelected = selectedVisibleCount > 0 && !allSelected;
-
-  const toggleOne = (id: string, on: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-
-  const toggleAll = (on: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of visibleIds) {
-        if (on) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
 
   const add = useMutation({
     mutationFn: (messageId: string) => addFn({ data: { messageId } }),
@@ -290,8 +322,8 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     return (
       <EmptyState
         icon={Inbox}
-        title="Connect Gmail to open your mailbox"
-        description="Your mail stays in Gmail. TalentFlow reads it read-only so you can search your recruitment history and promote the people you want."
+        title="Connect Gmail to build your candidate grid"
+        description="Your mail stays in Gmail. TalentFlow reads it read-only, extracts candidate details from recruitment emails and their attached CVs, and lists them here."
         action={<Button onClick={onConnect}>Connect Gmail</Button>}
       />
     );
@@ -299,11 +331,14 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-          <Mail className="size-3.5" />
-          Live Gmail — nothing here is imported into TalentFlow until you add it
-          {list.data?.pages?.[0]?.email ? ` · ${list.data.pages[0].email}` : ""}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-xs text-muted-foreground inline-flex items-start gap-1.5 max-w-2xl leading-relaxed">
+          <Mail className="size-3.5 mt-0.5 shrink-0" />
+          <span>
+            Candidates are extracted automatically from your connected recruitment emails and attached CVs. Review
+            them here and add anyone you want to your main talent database.
+            {list.data?.pages?.[0]?.email ? ` · ${list.data.pages[0].email}` : ""}
+          </span>
         </p>
         <Button variant="outline" size="sm" onClick={() => list.refetch()} disabled={list.isFetching}>
           {list.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
@@ -352,28 +387,18 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
             </Select>
           </div>
         )}
+        <div className="relative min-w-[14rem] flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter candidates by name, skill, company, location…"
+            className="h-8 rounded-full pl-9 text-xs"
+          />
+        </div>
       </div>
 
-
-
-      {messages.length > 0 && (
-        <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-border bg-secondary/20">
-          <Checkbox
-            checked={allSelected ? true : someSelected ? "indeterminate" : false}
-            onCheckedChange={(v) => toggleAll(v === true)}
-            aria-label={allSelected ? "Deselect all loaded messages" : "Select all loaded messages"}
-          />
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            {selected.size > 0 ? `${selected.size} selected` : "Select messages"}
-          </span>
-        </div>
-      )}
-
-      {list.isLoading ? (
-        <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin" /> Opening your mailbox…
-        </div>
-      ) : list.isError ? (
+      {list.isError && !list.isLoading ? (
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex items-start gap-2">
           <AlertTriangle className="size-4 mt-0.5" />
           <div className="space-y-2">
@@ -383,77 +408,164 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
             </Button>
           </div>
         </div>
-      ) : messages.length === 0 ? (
-        <EmptyState
-          icon={Inbox}
-          title="No messages in this view"
-          description="Try a different scope or label, or clear the filter above."
-        />
       ) : (
-        <div className="divide-y divide-border rounded-xl border border-border bg-card">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex items-start gap-3 p-3.5 transition-colors ${
-                selected.has(m.id) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-secondary/40"
-              }`}
-            >
-              <div className="pt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                <Checkbox
-                  checked={selected.has(m.id)}
-                  onCheckedChange={(v) => toggleOne(m.id, v === true)}
-                  aria-label={`Select message from ${m.fromName || m.fromEmail || "unknown sender"}`}
-                />
-              </div>
-              <button onClick={() => setThreadId(m.threadId)} className="min-w-0 flex-1 text-left">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {m.unread && <Dot className="size-4 text-primary shrink-0" />}
-                  <span className={`text-sm truncate ${m.unread ? "font-semibold" : "font-medium"}`}>
-                    {m.fromName || m.fromEmail || "Unknown sender"}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground shrink-0 ml-auto">{relTime(m.sentAt)}</span>
-                </div>
-                <div className="text-xs truncate mt-0.5">{m.subject || "(no subject)"}</div>
-                <div className="text-[11px] text-muted-foreground truncate">{m.snippet}</div>
-              </button>
-
-              <div className="shrink-0 flex items-center gap-1.5">
-                {m.attachments.length > 0 ? (
-                  <button
-                    onClick={() => openAttachment(m.id, m.attachments[0]!)}
-                    title={m.attachments[0]!.fileName}
-                    className="text-muted-foreground hover:text-primary"
-                    aria-label="Open attachment"
-                  >
-                    <Paperclip className="size-3.5" />
-                  </button>
-                ) : m.attachmentNames.length > 0 || m.hasAttachments ? (
-                  <button
-                    onClick={() => setThreadId(m.threadId)}
-                    title={m.attachmentNames.join(", ") || "Open conversation to view attachments"}
-                    className="text-muted-foreground hover:text-primary"
-                    aria-label="Open conversation to view attachments"
-                  >
-                    <Paperclip className="size-3.5" />
-                  </button>
-                ) : null}
-                <Button size="sm" variant="ghost" onClick={() => add.mutate(m.id)} disabled={addingId === m.id}>
-                  {addingId === m.id ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />}
-                </Button>
-              </div>
+        <>
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="max-h-[68vh] overflow-auto">
+              <table className="w-full text-xs border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-secondary/60 backdrop-blur">
+                    {COLUMNS.map((c) => (
+                      <th
+                        key={String(c.key)}
+                        className={`${c.width} whitespace-nowrap border-b border-border px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}
+                      >
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.isLoading && <GridSkeleton />}
+                  {!list.isLoading && rows.length === 0 && (
+                    <tr>
+                      <td colSpan={COLUMNS.length} className="px-4 py-10">
+                        <EmptyState
+                          icon={Users}
+                          title={query ? "No candidates match this filter" : "No candidates found in this view"}
+                          description={
+                            query
+                              ? "Clear the filter to see every candidate extracted from these emails."
+                              : "Try another scope or label, or load more mail — only emails that actually contain a candidate become rows."
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {rows.map((c) => {
+                    const src = c.sources[0];
+                    return (
+                      <tr key={c.key} className="border-t border-border hover:bg-secondary/30 transition-colors">
+                        <td className="border-b border-border px-3 py-2.5">
+                          <button
+                            className="text-left font-medium text-foreground hover:text-primary inline-flex items-center gap-1.5"
+                            onClick={() => setSourcesFor(c)}
+                          >
+                            {c.unread && <Dot className="size-4 text-primary shrink-0" />}
+                            {c.name || "Unnamed candidate"}
+                          </button>
+                          {c.sources.length > 1 && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground">
+                              · {c.sources.length} emails
+                            </span>
+                          )}
+                        </td>
+                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.phone} /></td>
+                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.email} /></td>
+                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.role} /></td>
+                        <td className="border-b border-border px-3 py-2.5"><SkillCell skills={c.skills} /></td>
+                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.experience} /></td>
+                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.company} /></td>
+                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.currentCtc} /></td>
+                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.expectedCtc} /></td>
+                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.noticePeriod} /></td>
+                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.location} /></td>
+                        <td className="border-b border-border px-3 py-2.5">
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setSourcesFor(c)}>
+                              <Mail className="size-3.5" /> Sources
+                            </Button>
+                            {src && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => add.mutate(src.messageId)}
+                                disabled={addingId === src.messageId}
+                                title="Add to talent database"
+                              >
+                                {addingId === src.messageId ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <UserPlus className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[11px] text-muted-foreground">
+              {rows.length} candidate{rows.length === 1 ? "" : "s"}
+              {scanned ? ` from ${scanned} scanned emails` : ""}
+            </p>
+            {list.hasNextPage && (
+              <Button variant="outline" size="sm" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
+                {list.isFetchingNextPage ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Scan more emails
+              </Button>
+            )}
+          </div>
+        </>
       )}
 
-      {list.hasNextPage && (
-        <div className="flex justify-center">
-          <Button variant="outline" size="sm" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
-            {list.isFetchingNextPage ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            Load more messages
-          </Button>
-        </div>
-      )}
+      {/* Provenance: every source email and attachment behind this row. */}
+      <Sheet open={!!sourcesFor} onOpenChange={(o) => !o && setSourcesFor(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="pr-8 text-base">{sourcesFor?.name || "Candidate sources"}</SheetTitle>
+          </SheetHeader>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Extracted from {sourcesFor?.sources.length ?? 0} live Gmail message
+            {(sourcesFor?.sources.length ?? 0) === 1 ? "" : "s"}.
+          </p>
+          <div className="mt-4 space-y-3">
+            {(sourcesFor?.sources ?? []).map((s) => (
+              <article key={s.messageId} className="rounded-xl border border-border bg-card p-3.5 space-y-1.5">
+                <div className="text-sm font-medium">{s.subject || "(no subject)"}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {s.fromName || s.fromEmail || "Unknown sender"} · {relTime(s.sentAt)}
+                </div>
+                {s.attachmentNames.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {s.attachmentNames.map((n) => (
+                      <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                        <Paperclip className="size-3" /> {n}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setThreadId(s.threadId)}>
+                    <FileText className="size-3.5" /> Open email
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-[11px]"
+                    onClick={() => add.mutate(s.messageId)}
+                    disabled={addingId === s.messageId}
+                  >
+                    {addingId === s.messageId ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <UserPlus className="size-3.5" />
+                    )}
+                    Add to database
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <ThreadSheet
         threadId={threadId}
