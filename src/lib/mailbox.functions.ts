@@ -4,9 +4,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MailboxAttachment, MailboxListItem, MailboxThreadMessage } from "./mailbox.server";
+import type { GridCandidate } from "./mailbox-grid";
 
-export type { MailboxListItem, MailboxThreadMessage };
+export type { MailboxListItem, MailboxThreadMessage, GridCandidate };
 export type MailboxAttachmentRef = MailboxAttachment;
+
 
 async function gmailConnection(userId: string) {
   const { getValidAccessToken } = await import("./google-calendar.server");
