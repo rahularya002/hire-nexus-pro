@@ -149,8 +149,13 @@ function Page() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const nlActive = nlQuery.trim().length >= 2;
+
   const rows = useMemo(() => {
-    const base = nlQuery.trim().length >= 2 && nl ? nl.results.map((r) => r.candidate) : candidates;
+    // While a natural-language search is in flight, never fall back to the full
+    // pool — that would flash unrelated candidates as if they matched.
+    const base = nlActive ? (nl ? nl.results.map((r) => r.candidate) : []) : candidates;
+
     const needle = f.q.toLowerCase().trim();
     const has = (v: string | null | undefined, term: string) =>
       !!v && v.toLowerCase().includes(term.toLowerCase().trim());
