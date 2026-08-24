@@ -1,6 +1,7 @@
-// Live Gmail mailbox, recruitment-focused. These messages are NOT in the ATS —
-// only the explicit "Add to candidates" action creates a record.
-import { useEffect, useMemo, useState } from "react";
+// Gmail-derived Candidate Grid. Gmail is the source layer: rows are candidates
+// extracted from live recruitment mail + attached CVs. Nothing lands in the ATS
+// until the recruiter explicitly adds a row to the talent database.
+import { useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -12,12 +13,14 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
+  Search,
   UserPlus,
+  Users,
 } from "lucide-react";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/empty-state";
@@ -26,9 +29,10 @@ import {
   addMailboxMessageToCandidates,
   getMailboxAttachment,
   getMailboxThread,
-  listMailboxMessages,
+  listMailboxCandidates,
   type MailboxAttachmentRef,
 } from "@/lib/mailbox.functions";
+import { matchesGridQuery, mergeCandidateRows, type GridCandidate } from "@/lib/mailbox-grid";
 
 type Props = {
   authed: boolean;
