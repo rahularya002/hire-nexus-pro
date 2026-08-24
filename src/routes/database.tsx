@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { CandidateSourcesPanel } from "@/components/candidate-sources-panel";
 import { useAuth } from "@/lib/auth/auth-context";
+import { matchesGridFilters } from "@/lib/candidate-grid-filter";
+
 import {
   useGridSession,
   setGridFilters,
