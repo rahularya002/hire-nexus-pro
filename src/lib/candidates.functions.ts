@@ -971,9 +971,10 @@ export const getCandidateSourceUrl = createServerFn({ method: "POST" })
         .select("id")
         .in("email_candidate_id", personIds)
         .eq("storage_path", data.storagePath)
-        .maybeSingle();
-      allowed = !!v;
+        .limit(1);
+      allowed = !!(v ?? []).length;
     }
+
     if (!allowed) {
       const { data: own } = await context.supabase
         .from("candidates")
