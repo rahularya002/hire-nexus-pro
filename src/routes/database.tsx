@@ -79,13 +79,7 @@ export const Route = createFileRoute("/database")({
 type MatchInfo = { score: number; matched: string[]; missing: string[]; tier: string };
 
 const UNKNOWN = "—";
-const yearsOf = (...vals: (string | null | undefined)[]) => {
-  for (const v of vals) {
-    const m = (v ?? "").match(/(\d{1,2}(?:\.\d)?)/);
-    if (m) return Number(m[1]);
-  }
-  return null;
-};
+
 const ctcLabel = (v: number | null) => (v == null ? UNKNOWN : `₹${v} LPA`);
 
 const STATUS_TONE: Record<CandidateStatus, string> = {
