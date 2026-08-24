@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { updateCandidate, getResumeSignedUrl, type CandidateRow } from "@/lib/candidates.functions";
+import {
+  updateCandidate,
+  getResumeSignedUrl,
+  CANDIDATE_STATUSES,
+  CANDIDATE_STATUS_LABEL,
+  type CandidateRow,
+  type CandidateStatus,
+} from "@/lib/candidates.functions";
 import { createDocument } from "@/lib/documents.functions";
 import { uploadCvFile } from "@/lib/upload-cv";
 import { listClients, type ClientRow } from "@/lib/clients.functions";
@@ -54,7 +61,18 @@ export function EditCandidateDialog({
   const [resumePath, setResumePath] = useState<string | null>(candidate.resume_url);
   const [uploadingCv, setUploadingCv] = useState(false);
   const [openingCv, setOpeningCv] = useState(false);
+  // Canonical candidate intelligence fields.
+  const [status, setStatus] = useState<CandidateStatus>(candidate.status ?? "new");
+  const [currentCtc, setCurrentCtc] = useState(candidate.current_ctc != null ? String(candidate.current_ctc) : "");
+  const [expectedCtc, setExpectedCtc] = useState(candidate.expected_ctc != null ? String(candidate.expected_ctc) : "");
+  const [relevantExperience, setRelevantExperience] = useState(candidate.relevant_experience ?? "");
+  const [noticePeriod, setNoticePeriod] = useState(candidate.notice_period ?? "");
+  const [availability, setAvailability] = useState(candidate.availability ?? "");
+  const [industry, setIndustry] = useState(candidate.industry ?? "");
+  const [education, setEducation] = useState(candidate.education ?? "");
+  const [previousCompanies, setPreviousCompanies] = useState((candidate.previous_companies ?? []).join(", "));
   const fileRef = useRef<HTMLInputElement | null>(null);
+
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +92,15 @@ export function EditCandidateDialog({
     setSkills(candidate.skills ?? []);
     setSkillInput("");
     setResumePath(candidate.resume_url);
+    setStatus(candidate.status ?? "new");
+    setCurrentCtc(candidate.current_ctc != null ? String(candidate.current_ctc) : "");
+    setExpectedCtc(candidate.expected_ctc != null ? String(candidate.expected_ctc) : "");
+    setRelevantExperience(candidate.relevant_experience ?? "");
+    setNoticePeriod(candidate.notice_period ?? "");
+    setAvailability(candidate.availability ?? "");
+    setIndustry(candidate.industry ?? "");
+    setEducation(candidate.education ?? "");
+    setPreviousCompanies((candidate.previous_companies ?? []).join(", "));
   }, [open, candidate]);
 
   const m = useMutation({
@@ -96,6 +123,15 @@ export function EditCandidateDialog({
           source_client_id: sourceClientId || null,
           skills: skills.map((s) => s.trim()).filter(Boolean).slice(0, 40),
           resume_url: resumePath,
+          status,
+          current_ctc: currentCtc.trim() === "" ? null : Number(currentCtc),
+          expected_ctc: expectedCtc.trim() === "" ? null : Number(expectedCtc),
+          relevant_experience: relevantExperience.trim() || null,
+          notice_period: noticePeriod.trim() || null,
+          availability: availability.trim() || null,
+          industry: industry.trim() || null,
+          education: education.trim() || null,
+          previous_companies: previousCompanies.split(",").map((v) => v.trim()).filter(Boolean).slice(0, 30),
         },
       }),
     onSuccess: () => {
@@ -220,6 +256,54 @@ export function EditCandidateDialog({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-status">Pipeline status</Label>
+              <select
+                id="ec-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as CandidateStatus)}
+                className="h-10 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {CANDIDATE_STATUSES.map((s) => (
+                  <option key={s} value={s}>{CANDIDATE_STATUS_LABEL[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-rel-exp">Relevant experience</Label>
+              <Input id="ec-rel-exp" value={relevantExperience} onChange={(e) => setRelevantExperience(e.target.value)} placeholder="4 yrs in apparel design" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-current-ctc">Current CTC (LPA)</Label>
+              <NumberInput id="ec-current-ctc" min={0} value={currentCtc} onChange={setCurrentCtc} placeholder="14" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-expected-ctc">Expected CTC (LPA)</Label>
+              <NumberInput id="ec-expected-ctc" min={0} value={expectedCtc} onChange={setExpectedCtc} placeholder="18" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-notice">Notice period</Label>
+              <Input id="ec-notice" value={noticePeriod} onChange={(e) => setNoticePeriod(e.target.value)} placeholder="30 days" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-availability">Availability</Label>
+              <Input id="ec-availability" value={availability} onChange={(e) => setAvailability(e.target.value)} placeholder="Immediate" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-industry">Industry / function</Label>
+              <Input id="ec-industry" value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="Apparel / Design" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ec-education">Education</Label>
+              <Input id="ec-education" value={education} onChange={(e) => setEducation(e.target.value)} placeholder="NIFT, B.Des" />
+            </div>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor="ec-prev">Previous companies</Label>
+              <Input id="ec-prev" value={previousCompanies} onChange={(e) => setPreviousCompanies(e.target.value)} placeholder="Comma separated" />
             </div>
           </div>
 

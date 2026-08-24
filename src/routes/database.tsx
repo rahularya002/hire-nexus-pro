@@ -2,12 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download, UploadCloud } from "lucide-react";
+import { Database, Search, Briefcase, MapPin, Building2, Plus, Loader2, SearchX, CheckCircle2, XCircle, Send, CalendarClock, Trophy, History as HistoryIcon, X, Pencil, FileText, Upload, FileSpreadsheet, Download, UploadCloud, Sparkles } from "lucide-react";
 import { CvDropImport, type CvDropImportHandle } from "@/components/cv-drop-import";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { CandidateSourcesPanel } from "@/components/candidate-sources-panel";
+import { useAuth } from "@/lib/auth/auth-context";
+import {
+  useGridSession,
+  setGridFilters,
+  setGridNlQuery,
+  setGridOpenCandidate,
+  resetGridFilters,
+  hasActiveFilters,
+} from "@/lib/candidate-grid-session";
 import {
   createCandidate,
   listCandidates,
@@ -15,15 +25,20 @@ import {
   updateCandidate,
   getResumeSignedUrl,
   attachCvToCandidate,
+  searchCandidatePool,
+  CANDIDATE_STATUSES,
+  CANDIDATE_STATUS_LABEL,
   STAGE_LABEL,
   type ApplicationRow,
   type ApplicationStage,
   type CandidateRow,
+  type CandidateStatus,
 } from "@/lib/candidates.functions";
 import { createDocument } from "@/lib/documents.functions";
 import { uploadCvFile } from "@/lib/upload-cv";
 import { listClients, type ClientRow } from "@/lib/clients.functions";
 import { initialsOf } from "@/lib/display";
+
 import {
   Dialog,
   DialogContent,
@@ -43,24 +58,64 @@ import { EditCandidateDialog } from "@/components/edit-candidate-dialog";
 
 export const Route = createFileRoute("/database")({
   component: () => <AppShell><Page /></AppShell>,
+  head: () => ({
+    meta: [
+      { title: "Candidate Grid · TalentFlow talent database" },
+      {
+        name: "description",
+        content:
+          "Scan, filter and open every structured candidate in your talent pool — roles, experience, compensation, skills, sources and pipeline status in one recruiter grid.",
+      },
+      { property: "og:title", content: "Candidate Grid · TalentFlow" },
+      {
+        property: "og:description",
+        content: "The recruiter workspace for your structured candidate intelligence pool.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
 });
 
+type MatchInfo = { score: number; matched: string[]; missing: string[]; tier: string };
+
+const UNKNOWN = "—";
+const yearsOf = (...vals: (string | null | undefined)[]) => {
+  for (const v of vals) {
+    const m = (v ?? "").match(/(\d{1,2}(?:\.\d)?)/);
+    if (m) return Number(m[1]);
+  }
+  return null;
+};
+const ctcLabel = (v: number | null) => (v == null ? UNKNOWN : `₹${v} LPA`);
+
+const STATUS_TONE: Record<CandidateStatus, string> = {
+  new: "bg-secondary text-secondary-foreground",
+  contacted: "bg-info/15 text-info",
+  screening: "bg-purple/15 text-purple",
+  shortlisted: "bg-emerald-500/15 text-emerald-600",
+  submitted: "bg-primary/15 text-primary",
+  placed: "bg-emerald-500/20 text-emerald-600",
+  on_hold: "bg-warning/15 text-warning",
+  rejected: "bg-destructive/15 text-destructive",
+};
+
 function Page() {
-  const [q, setQ] = useState("");
-  const [locFilter, setLocFilter] = useState("");
-  const [salaryRange, setSalaryRange] = useState<SalaryRangeValue>({ min: null, max: null });
-  const salaryMin = salaryRange.min == null ? "" : String(salaryRange.min);
-  const salaryMax = salaryRange.max == null ? "" : String(salaryRange.max);
-  const [clientFilter, setClientFilter] = useState<string>("all"); // "all" | "unassigned" | client_id
+  const { filters: f, nlQuery, openCandidateId } = useGridSession();
+  const [nlDraft, setNlDraft] = useState(nlQuery);
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [selected, setSelected] = useState<CandidateRow | null>(null);
   const dropRef = useRef<CvDropImportHandle | null>(null);
+  const { session } = useAuth();
+  const myId = session?.user?.id ?? null;
+
   const fetchCandidates = useServerFn(listCandidates);
   const addCandidate = useServerFn(createCandidate);
   const fetchClients = useServerFn(listClients);
+  const poolSearch = useServerFn(searchCandidatePool);
   const qc = useQueryClient();
-  const { data: candidates = [], isLoading } = useQuery({
+
+  const { data: candidates = [], isLoading, isError } = useQuery({
     queryKey: ["candidates"],
     queryFn: () => fetchCandidates(),
   });
@@ -69,9 +124,24 @@ function Page() {
     queryFn: () => fetchClients(),
   });
 
+  // Natural-language search answers from the structured pool — no Gmail rescan.
+  const { data: nl, isFetching: nlLoading, isError: nlError } = useQuery({
+    queryKey: ["candidate-pool-search", nlQuery],
+    queryFn: () => poolSearch({ data: { query: nlQuery } }),
+    enabled: nlQuery.trim().length >= 2,
+    staleTime: 5 * 60_000,
+  });
+
+  const matchMap = useMemo(() => {
+    const m = new Map<string, MatchInfo>();
+    for (const r of nl?.results ?? []) {
+      m.set(r.candidate.id, { score: r.score, matched: r.matched, missing: r.missing, tier: r.tier });
+    }
+    return m;
+  }, [nl]);
+
   const create = useMutation({
-    mutationFn: (data: { name: string; email?: string; phone?: string; role?: string; location?: string; experience?: string; current_company?: string; linkedin_url?: string; salary?: string; salary_min?: number | null; salary_max?: number | null; skills?: string[]; resume_url?: string; source_client_id?: string | null }) =>
-      addCandidate({ data }),
+    mutationFn: (data: Record<string, unknown>) => addCandidate({ data: data as never }),
     onSuccess: () => {
       toast.success("Candidate added");
       qc.invalidateQueries({ queryKey: ["candidates"] });
@@ -80,36 +150,69 @@ function Page() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filtered = useMemo(() => {
-    const needle = q.toLowerCase().trim();
-    const loc = locFilter.toLowerCase().trim();
-    const minF = salaryMin.trim() === "" ? null : Number(salaryMin);
-    const maxF = salaryMax.trim() === "" ? null : Number(salaryMax);
-    return candidates.filter((c) => {
+  const rows = useMemo(() => {
+    const base = nlQuery.trim().length >= 2 && nl ? nl.results.map((r) => r.candidate) : candidates;
+    const needle = f.q.toLowerCase().trim();
+    const has = (v: string | null | undefined, term: string) =>
+      !!v && v.toLowerCase().includes(term.toLowerCase().trim());
+    const minY = f.minYears.trim() === "" ? null : Number(f.minYears);
+    const ctcMin = f.ctcMin.trim() === "" ? null : Number(f.ctcMin);
+    const ctcMax = f.ctcMax.trim() === "" ? null : Number(f.ctcMax);
+    const expMax = f.expectedMax.trim() === "" ? null : Number(f.expectedMax);
+    const wantedSkills = f.skills.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+    return base.filter((c) => {
       if (needle) {
-        const hay = [c.name, c.role, c.location, c.email, c.current_company, c.phone, ...(c.skills ?? [])]
+        const hay = [c.name, c.role, c.location, c.email, c.current_company, c.phone, c.industry, ...(c.skills ?? [])]
           .filter(Boolean)
-          .some((v) => v!.toLowerCase().includes(needle));
+          .some((v) => String(v).toLowerCase().includes(needle));
         if (!hay) return false;
       }
-      if (loc) {
-        if (!c.location || !c.location.toLowerCase().includes(loc)) return false;
+      if (f.role && !has(c.role, f.role)) return false;
+      if (f.company) {
+        const inCurrent = has(c.current_company, f.company);
+        const inPast = (c.previous_companies ?? []).some((p) => has(p, f.company));
+        if (!inCurrent && !inPast) return false;
       }
-      if (minF != null || maxF != null) {
-        const cMin = c.salary_min ?? c.salary_max ?? null;
-        const cMax = c.salary_max ?? c.salary_min ?? null;
-        if (cMin == null && cMax == null) return false;
-        if (minF != null && (cMax ?? -Infinity) < minF) return false;
-        if (maxF != null && (cMin ?? Infinity) > maxF) return false;
+      if (f.location && !has(c.location, f.location)) return false;
+      if (f.industry && !has(c.industry, f.industry)) return false;
+      if (f.noticePeriod && !has(c.notice_period, f.noticePeriod)) return false;
+      if (wantedSkills.length) {
+        const own = (c.skills ?? []).map((s) => s.toLowerCase());
+        if (!wantedSkills.every((s) => own.some((o) => o.includes(s)))) return false;
       }
-      if (clientFilter === "unassigned") {
-        if (c.source_client_id) return false;
-      } else if (clientFilter !== "all") {
-        if (c.source_client_id !== clientFilter) return false;
+      if (minY != null) {
+        const y = yearsOf(c.experience, c.relevant_experience);
+        if (y == null || y < minY) return false;
       }
+      if (ctcMin != null || ctcMax != null) {
+        const cur = c.current_ctc ?? c.salary_min ?? c.salary_max;
+        if (cur == null) return false;
+        if (ctcMin != null && cur < ctcMin) return false;
+        if (ctcMax != null && cur > ctcMax) return false;
+      }
+      if (expMax != null) {
+        const exp = c.expected_ctc ?? c.salary_max;
+        if (exp == null || exp > expMax) return false;
+      }
+      if (f.source !== "all" && c.source !== f.source) return false;
+      if (f.status !== "all" && c.status !== f.status) return false;
+      if (f.owner === "mine" && c.owner_id !== myId) return false;
+      if (f.owner === "unassigned" && c.owner_id) return false;
+      if (f.client === "unassigned" && c.source_client_id) return false;
+      if (f.client !== "all" && f.client !== "unassigned" && c.source_client_id !== f.client) return false;
       return true;
     });
-  }, [candidates, q, locFilter, salaryMin, salaryMax, clientFilter]);
+  }, [candidates, nl, nlQuery, f, myId]);
+
+  const selected = useMemo(
+    () => candidates.find((c) => c.id === openCandidateId) ?? null,
+    [candidates, openCandidateId],
+  );
+
+  function runNlSearch() {
+    setGridNlQuery(nlDraft.trim());
+  }
 
   return (
     <CvDropImport ref={dropRef} className="space-y-5">
@@ -117,10 +220,10 @@ function Page() {
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Talent intelligence</div>
           <h1 className="text-2xl font-semibold tracking-tight mt-1 inline-flex items-center gap-2">
-            <Database className="size-5 text-primary" /> Candidate database
+            <Database className="size-5 text-primary" /> Candidate grid
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Structured pool of every sourced candidate, persisted in your backend.
+            Every structured candidate you have discovered — scan, filter, and open a full profile.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -134,138 +237,205 @@ function Page() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, role, company, location, email…"
-            className="w-full h-10 rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-          />
+      {/* Natural-language search over the structured pool */}
+      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-primary" />
+            <input
+              value={nlDraft}
+              onChange={(e) => setNlDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") runNlSearch(); }}
+              placeholder="Describe who you need — e.g. fashion designers with 3+ years in Delhi or Mumbai"
+              className="w-full h-10 rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
+          <Button onClick={runNlSearch} disabled={nlDraft.trim().length < 2} className="gap-2">
+            {nlLoading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />} Search
+          </Button>
+          {nlQuery && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs"
+              onClick={() => { setNlDraft(""); setGridNlQuery(""); }}>
+              <X className="size-3.5" /> Clear
+            </Button>
+          )}
         </div>
-        <span className="text-xs text-muted-foreground">{filtered.length} candidates</span>
+        {nlQuery && !nlLoading && !nlError && (
+          <div className="text-[11px] text-muted-foreground">
+            Matched on role relevance for “{nlQuery}” · {nl?.results.length ?? 0} candidate
+            {(nl?.results.length ?? 0) === 1 ? "" : "s"} in your database
+          </div>
+        )}
+        {nlError && <div className="text-[11px] text-destructive">Search failed. Try again in a moment.</div>}
       </div>
 
       <div className="flex items-end gap-2 flex-wrap">
         <div className="grid gap-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</Label>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Quick find</Label>
           <div className="relative">
-            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              value={locFilter}
-              onChange={(e) => setLocFilter(e.target.value)}
-              placeholder="e.g. Bengaluru"
-              className="h-9 pl-8 w-52"
-            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input value={f.q} onChange={(e) => setGridFilters({ q: e.target.value })}
+              placeholder="Name, email, company…" className="h-9 pl-8 w-56" />
           </div>
         </div>
-        <SalaryRange value={salaryRange} onChange={setSalaryRange} />
-        <div className="grid gap-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source client</Label>
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className="h-9 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 w-52"
-          >
-            <option value="all">All clients</option>
-            <option value="unassigned">Unassigned</option>
-            {clients.map((c: ClientRow) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        {(locFilter || salaryMin || salaryMax || clientFilter !== "all") && (
-          <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs"
-            onClick={() => { setLocFilter(""); setSalaryRange({ min: null, max: null }); setClientFilter("all"); }}>
+        <FilterInput label="Designation" value={f.role} onChange={(v) => setGridFilters({ role: v })} placeholder="e.g. Fashion Designer" />
+        <FilterInput label="Company" value={f.company} onChange={(v) => setGridFilters({ company: v })} placeholder="Current or past" />
+        <FilterInput label="Location" value={f.location} onChange={(v) => setGridFilters({ location: v })} placeholder="e.g. Mumbai" />
+        <FilterInput label="Skills (all of)" value={f.skills} onChange={(v) => setGridFilters({ skills: v })} placeholder="comma separated" />
+        <FilterInput label="Industry / function" value={f.industry} onChange={(v) => setGridFilters({ industry: v })} placeholder="e.g. Apparel" />
+        <FilterInput label="Notice period" value={f.noticePeriod} onChange={(v) => setGridFilters({ noticePeriod: v })} placeholder="e.g. 30 days" className="w-40" />
+        <FilterInput label="Min experience (yrs)" value={f.minYears} onChange={(v) => setGridFilters({ minYears: v })} placeholder="3" className="w-32" />
+        <FilterInput label="Current CTC min" value={f.ctcMin} onChange={(v) => setGridFilters({ ctcMin: v })} placeholder="LPA" className="w-28" />
+        <FilterInput label="Current CTC max" value={f.ctcMax} onChange={(v) => setGridFilters({ ctcMax: v })} placeholder="LPA" className="w-28" />
+        <FilterInput label="Expected CTC ≤" value={f.expectedMax} onChange={(v) => setGridFilters({ expectedMax: v })} placeholder="LPA" className="w-28" />
+        <FilterSelect label="Status" value={f.status} onChange={(v) => setGridFilters({ status: v })}
+          options={[{ value: "all", label: "All statuses" }, ...CANDIDATE_STATUSES.map((s) => ({ value: s, label: CANDIDATE_STATUS_LABEL[s] }))]} />
+        <FilterSelect label="Source" value={f.source} onChange={(v) => setGridFilters({ source: v })}
+          options={[
+            { value: "all", label: "All sources" },
+            { value: "inbound", label: "Inbound / mailbox" },
+            { value: "manual", label: "Manual" },
+            { value: "scout", label: "Scout" },
+            { value: "referral", label: "Referral" },
+            { value: "database", label: "Database" },
+          ]} />
+        <FilterSelect label="Owner" value={f.owner} onChange={(v) => setGridFilters({ owner: v })}
+          options={[
+            { value: "all", label: "Anyone" },
+            { value: "mine", label: "Owned by me" },
+            { value: "unassigned", label: "Unassigned" },
+          ]} />
+        <FilterSelect label="Source client" value={f.client} onChange={(v) => setGridFilters({ client: v })}
+          options={[
+            { value: "all", label: "All clients" },
+            { value: "unassigned", label: "Unassigned" },
+            ...clients.map((c: ClientRow) => ({ value: c.id, label: c.name })),
+          ]} />
+        {hasActiveFilters(f) && (
+          <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={resetGridFilters}>
             <X className="size-3.5" /> Clear filters
           </Button>
         )}
+        <span className="text-xs text-muted-foreground ml-auto self-center">{rows.length} candidates</span>
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[1400px]">
             <thead className="text-[11px] uppercase tracking-wider text-muted-foreground bg-secondary/40">
               <tr>
                 <th className="text-left font-medium px-4 py-2.5">Candidate</th>
-                <th className="text-left font-medium px-2 py-2.5">Role / experience</th>
-                <th className="text-left font-medium px-2 py-2.5">Location</th>
+                {matchMap.size > 0 && <th className="text-left font-medium px-2 py-2.5">Match</th>}
+                <th className="text-left font-medium px-2 py-2.5">Designation / experience</th>
                 <th className="text-left font-medium px-2 py-2.5">Current company</th>
-                <th className="text-left font-medium px-2 py-2.5">Salary range</th>
-                <th className="text-left font-medium px-2 py-2.5">Source client</th>
+                <th className="text-left font-medium px-2 py-2.5">Location</th>
+                <th className="text-left font-medium px-2 py-2.5">Skills</th>
+                <th className="text-left font-medium px-2 py-2.5">Current CTC</th>
+                <th className="text-left font-medium px-2 py-2.5">Expected</th>
+                <th className="text-left font-medium px-2 py-2.5">Notice</th>
+                <th className="text-left font-medium px-2 py-2.5">Industry</th>
+                <th className="text-left font-medium px-2 py-2.5">Status</th>
                 <th className="text-left font-medium px-2 py-2.5">Source</th>
                 <th className="text-left font-medium px-2 py-2.5">CV</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {isLoading && (
-                <TableRowsSkeleton rows={6} cols={8} />
+              {(isLoading || (nlQuery && nlLoading && !nl)) && <TableRowsSkeleton rows={6} cols={12} />}
+              {isError && !isLoading && (
+                <tr><td colSpan={13} className="px-4 py-8 text-center text-xs text-destructive">
+                  Could not load your candidates. Refresh to try again.
+                </td></tr>
               )}
-              {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8">
+              {!isLoading && !isError && rows.length === 0 && (
+                <tr><td colSpan={13} className="px-4 py-8">
                   <EmptyState
-                    icon={q ? SearchX : Database}
-                    title={q ? "No matches found" : "No candidates yet"}
+                    icon={f.q || nlQuery || hasActiveFilters(f) ? SearchX : Database}
+                    title={nlQuery ? "No candidates match that brief" : f.q || hasActiveFilters(f) ? "No matches found" : "No candidates yet"}
                     description={
-                      q
-                        ? `Nothing matches "${q}". Try a different name, skill, or company.`
-                        : "Click \"Add candidate\" to seed your talent pool."
+                      nlQuery
+                        ? `Nobody in your database matches “${nlQuery}”. Try the Mailbox to discover new people.`
+                        : f.q || hasActiveFilters(f)
+                          ? "Adjust or clear the filters to see more candidates."
+                          : 'Click "Add candidate", upload CVs, or add people from the Mailbox.'
                     }
                     className="border-0 bg-transparent p-0"
                   />
                 </td></tr>
               )}
-              {filtered.map((c: CandidateRow) => (
-                <tr
-                  key={c.id}
-                  className="hover:bg-secondary/30 transition cursor-pointer"
-                  onClick={() => setSelected(c)}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-full bg-gradient-to-br from-primary/40 to-purple/40 grid place-items-center text-[11px] font-semibold">
-                        {initialsOf(c.name)}
+              {rows.map((c: CandidateRow) => {
+                const match = matchMap.get(c.id);
+                return (
+                  <tr key={c.id} className="hover:bg-secondary/30 transition"
+                    onClick={() => setGridOpenCandidate(c.id)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="size-8 rounded-full bg-gradient-to-br from-primary/40 to-purple/40 grid place-items-center text-[11px] font-semibold shrink-0">
+                          {initialsOf(c.name)}
+                        </div>
+                        <div className="leading-tight min-w-0">
+                          <button className="font-medium hover:text-primary hover:underline text-left truncate max-w-[200px]">
+                            {c.name}
+                          </button>
+                          <div className="text-[11px] text-muted-foreground truncate max-w-[200px]">{c.email ?? UNKNOWN}</div>
+                        </div>
                       </div>
-                      <div className="leading-tight">
-                        <div className="font-medium">{c.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{c.email ?? "—"}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-2 py-3">
-                    <div className="text-xs">{c.role ?? "—"}</div>
-                    <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
-                      <Briefcase className="size-3" />{c.experience ?? "—"}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 text-xs">
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="size-3 text-muted-foreground" />{c.location ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-2 py-3 text-xs">
-                    <span className="inline-flex items-center gap-1">
-                      <Building2 className="size-3 text-muted-foreground" />{c.current_company ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-2 py-3 text-xs">{formatSalaryRange(c.salary_min, c.salary_max, c.salary)}</td>
-                  <td className="px-2 py-3 text-xs">
-                    {c.source_client ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-secondary/60 border border-border">
-                        <span className="size-1.5 rounded-full" style={{ background: c.source_client.color ?? "hsl(var(--muted-foreground))" }} />
-                        <span className="truncate max-w-[140px]">{c.source_client.name}</span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
+                    </td>
+                    {matchMap.size > 0 && (
+                      <td className="px-2 py-3">
+                        {match ? (
+                          <span className="text-xs font-semibold text-primary">{match.score}%</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
+                        )}
+                      </td>
                     )}
-                  </td>
-                  <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
-                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                    <CvCellButton candidate={c} />
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-2 py-3">
+                      <div className="text-xs truncate max-w-[200px]">{c.role ?? UNKNOWN}</div>
+                      <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                        <Briefcase className="size-3" />{c.experience ?? UNKNOWN}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <Building2 className="size-3 text-muted-foreground" />
+                        <span className="truncate max-w-[150px]">{c.current_company ?? UNKNOWN}</span>
+                      </span>
+                    </td>
+                    <td className="px-2 py-3 text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="size-3 text-muted-foreground" />{c.location ?? UNKNOWN}
+                      </span>
+                    </td>
+                    <td className="px-2 py-3">
+                      {c.skills?.length ? (
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          {c.skills.slice(0, 3).map((s) => (
+                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary/70">{s}</span>
+                          ))}
+                          {c.skills.length > 3 && (
+                            <span className="text-[10px] text-muted-foreground">+{c.skills.length - 3}</span>
+                          )}
+                        </div>
+                      ) : <span className="text-xs text-muted-foreground">{UNKNOWN}</span>}
+                    </td>
+                    <td className="px-2 py-3 text-xs">
+                      {c.current_ctc != null ? ctcLabel(c.current_ctc) : formatSalaryRange(c.salary_min, c.salary_max, c.salary)}
+                    </td>
+                    <td className="px-2 py-3 text-xs">{ctcLabel(c.expected_ctc)}</td>
+                    <td className="px-2 py-3 text-xs">{c.notice_period ?? UNKNOWN}</td>
+                    <td className="px-2 py-3 text-xs truncate max-w-[140px]">{c.industry ?? UNKNOWN}</td>
+                    <td className="px-2 py-3">
+                      <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_TONE[c.status] ?? "bg-secondary"}`}>
+                        {CANDIDATE_STATUS_LABEL[c.status] ?? c.status}
+                      </span>
+                    </td>
+                    <td className="px-2 py-3 text-xs capitalize">{c.source}</td>
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                      <CvCellButton candidate={c} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -274,7 +444,7 @@ function Page() {
       <AddCandidateDialog
         open={open}
         onOpenChange={setOpen}
-        onSubmit={(d) => create.mutate(d)}
+        onSubmit={(d) => create.mutate(d as never)}
         submitting={create.isPending}
         clients={clients}
       />
@@ -285,17 +455,52 @@ function Page() {
       />
       <CandidateDetailSheet
         candidate={selected}
-        onClose={() => setSelected(null)}
+        match={selected ? (matchMap.get(selected.id) ?? null) : null}
+        matchQuery={nlQuery}
+        onClose={() => setGridOpenCandidate(null)}
       />
    </CvDropImport>
   );
 }
 
+function FilterInput({
+  label, value, onChange, placeholder, className,
+}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+  return (
+    <div className="grid gap-1">
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className={`h-9 ${className ?? "w-44"}`} />
+    </div>
+  );
+}
+
+function FilterSelect({
+  label, value, onChange, options,
+}: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <div className="grid gap-1">
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 rounded-md border border-input bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40 w-44"
+      >
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function CandidateDetailSheet({
   candidate,
+  match,
+  matchQuery,
   onClose,
 }: {
   candidate: CandidateRow | null;
+  match: MatchInfo | null;
+  matchQuery: string;
   onClose: () => void;
 }) {
   const fetchApps = useServerFn(listApplications);
@@ -316,22 +521,25 @@ function CandidateDetailSheet({
                 <div className="size-10 rounded-full bg-gradient-to-br from-primary/40 to-purple/40 grid place-items-center text-sm font-semibold">
                   {initialsOf(candidate.name)}
                 </div>
-                <div className="leading-tight">
-                  <div>{candidate.name}</div>
-                  <div className="text-xs font-normal text-muted-foreground">
-                    {candidate.role ?? "—"}
+                <div className="leading-tight min-w-0">
+                  <div className="truncate">{candidate.name}</div>
+                  <div className="text-xs font-normal text-muted-foreground truncate">
+                    {candidate.role ?? UNKNOWN}
+                    {candidate.current_company ? ` · ${candidate.current_company}` : ""}
                   </div>
                 </div>
                 <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setEditing(true)}>
                   <Pencil className="size-3.5" /> Edit
                 </Button>
               </SheetTitle>
-              <SheetDescription className="sr-only">Candidate details and history</SheetDescription>
+              <SheetDescription className="sr-only">Candidate profile, sources and history</SheetDescription>
             </SheetHeader>
 
             <Tabs defaultValue="profile" className="mt-5">
               <TabsList>
                 <TabsTrigger value="profile">Profile</TabsTrigger>
+                <TabsTrigger value="sources">Sources</TabsTrigger>
+                {match && <TabsTrigger value="match">Match</TabsTrigger>}
                 <TabsTrigger value="history" className="gap-1.5">
                   History
                   {apps.length > 0 && (
@@ -341,22 +549,87 @@ function CandidateDetailSheet({
                   )}
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="profile" className="space-y-2 text-sm">
-                <Row k="Email" v={candidate.email} />
-                <Row k="Phone" v={candidate.phone} />
-                <Row k="Experience" v={candidate.experience} />
-                <Row k="Location" v={candidate.location} />
-                <Row k="Current company" v={candidate.current_company} />
-                <Row k="Salary range" v={formatSalaryRange(candidate.salary_min, candidate.salary_max, candidate.salary)} />
-                <Row k="Source client" v={candidate.source_client?.name ?? null} />
-                <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
-                <Row k="Source" v={candidate.source} />
-                <CvRow candidate={candidate} />
-                {candidate.linkedin_url && (
-                  <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
-                    className="text-primary text-xs underline">View LinkedIn profile</a>
-                )}
+
+              <TabsContent value="profile" className="space-y-4 text-sm">
+                <Section title="Overview">
+                  <Row k="Email" v={candidate.email} />
+                  <Row k="Phone" v={candidate.phone} />
+                  <Row k="Designation" v={candidate.role} />
+                  <Row k="Current company" v={candidate.current_company} />
+                  <Row k="Location" v={candidate.location} />
+                  <Row k="Total experience" v={candidate.experience} />
+                  <Row k="Relevant experience" v={candidate.relevant_experience} />
+                </Section>
+                <Section title="Professional profile">
+                  <Row k="Skills" v={candidate.skills?.length ? candidate.skills.join(", ") : null} />
+                  <Row k="Industry / function" v={candidate.industry} />
+                  <Row k="Previous companies" v={candidate.previous_companies?.length ? candidate.previous_companies.join(", ") : null} />
+                  <Row k="Education" v={candidate.education} />
+                </Section>
+                <Section title="Compensation & availability">
+                  <Row k="Current CTC" v={candidate.current_ctc != null ? ctcLabel(candidate.current_ctc) : null} />
+                  <Row k="Expected CTC" v={candidate.expected_ctc != null ? ctcLabel(candidate.expected_ctc) : null} />
+                  <Row k="Salary range" v={formatSalaryRange(candidate.salary_min, candidate.salary_max, candidate.salary)} />
+                  <Row k="Notice period" v={candidate.notice_period} />
+                  <Row k="Availability" v={candidate.availability} />
+                </Section>
+                <Section title="Recruiter information">
+                  <Row k="Status" v={CANDIDATE_STATUS_LABEL[candidate.status] ?? candidate.status} />
+                  <Row k="Owner" v={candidate.owner_id ? "Assigned" : "Unassigned"} />
+                  <Row k="Source" v={candidate.source} />
+                  <Row k="Source client" v={candidate.source_client?.name ?? null} />
+                  <Row k="Last contacted" v={candidate.last_contacted_at ? new Date(candidate.last_contacted_at).toLocaleDateString() : null} />
+                  <Row k="Notes" v={candidate.notes} />
+                  <CvRow candidate={candidate} />
+                  {candidate.linkedin_url && (
+                    <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
+                      className="text-primary text-xs underline">View LinkedIn profile</a>
+                  )}
+                </Section>
               </TabsContent>
+
+              <TabsContent value="sources" className="space-y-3">
+                <CandidateSourcesPanel candidateId={candidate.id} />
+              </TabsContent>
+
+              {match && (
+                <TabsContent value="match" className="space-y-3">
+                  <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2.5">
+                    <div className="text-2xl font-semibold leading-none text-primary">{match.score}%</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                      Match for “{matchQuery}”
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-2">
+                      Occupation evidence: {match.tier === "specific" ? "exact occupation match" : match.tier === "related" ? "adjacent occupation" : match.tier === "generic" ? "generic role family" : "no role evidence"}
+                    </div>
+                  </div>
+                  {match.matched.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Why this matched</div>
+                      <ul className="space-y-1">
+                        {match.matched.map((m) => (
+                          <li key={m} className="text-xs inline-flex items-center gap-1.5 mr-2">
+                            <CheckCircle2 className="size-3 text-emerald-600" />{m}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {match.missing.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Unknown or missing</div>
+                      <ul className="space-y-1">
+                        {match.missing.map((m) => (
+                          <li key={m} className="text-xs inline-flex items-center gap-1.5 mr-2">
+                            <XCircle className="size-3 text-muted-foreground" />{m}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </TabsContent>
+              )}
+
               <TabsContent value="history" className="space-y-3">
                 {isLoading && <div className="text-xs text-muted-foreground py-6">Loading history…</div>}
                 {!isLoading && apps.length === 0 && (
@@ -390,14 +663,27 @@ function CandidateDetailSheet({
   );
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{title}</div>
+      <div className="rounded-lg border border-border bg-secondary/20 px-3 py-2">{children}</div>
+    </div>
+  );
+}
+
+/** Label / value line. Unknown values always render as an em dash, never invented. */
 function Row({ k, v }: { k: string; v: string | null | undefined }) {
   return (
     <div className="flex gap-3 py-1">
       <span className="text-xs text-muted-foreground w-32 shrink-0">{k}</span>
-      <span className="text-xs">{v ?? "—"}</span>
+      <span className="text-xs break-words">{v ?? UNKNOWN}</span>
     </div>
   );
 }
+
+
+
 
 function CvRow({ candidate }: { candidate: CandidateRow }) {
   const qc = useQueryClient();
