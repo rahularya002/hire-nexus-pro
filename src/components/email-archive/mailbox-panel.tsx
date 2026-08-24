@@ -270,7 +270,6 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listMailboxCandidates);
   const addFn = useServerFn(addMailboxMessageToCandidates);
-  const openAttachment = useAttachmentOpener();
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
