@@ -132,3 +132,47 @@ export const addMailboxMessageToCandidates = createServerFn({ method: "POST" })
       messageId: data.messageId,
     });
   });
+/**
+ * The primary Recruitment Mail view: one page of Gmail messages turned into
+ * candidate rows (email body + attached CV parsed). Read-only — nothing is
+ * written to the candidate database until the recruiter adds a row explicitly.
+ */
+export const listMailboxCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        label: z.string().max(200).optional(),
+        q: z.string().max(500).optional(),
+        pageToken: z.string().max(500).nullish(),
+        pageSize: z.number().int().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const conn = await gmailConnection(context.userId);
+    const { listMessageIds } = await import("./gmail.server");
+    const { hydrateCandidatePage } = await import("./mailbox-grid.server");
+
+    const parts: string[] = [];
+    if (data.q?.trim()) parts.push(data.q.trim());
+    if (data.label && data.label !== "ALL") parts.push(`label:${JSON.stringify(data.label)}`);
+    parts.push("-in:spam", "-in:trash");
+    const size = Math.max(5, Math.min(25, data.pageSize ?? 12));
+
+    const page = await listMessageIds(conn.access_token, parts.join(" ").trim(), data.pageToken ?? null, size);
+    const candidates = await hydrateCandidatePage({
+      userId: context.userId,
+      accessToken: conn.access_token,
+      googleEmail: conn.google_email ?? null,
+      refs: page.messages,
+    });
+
+    return {
+      email: conn.google_email ?? null,
+      candidates,
+      scanned: page.messages.length,
+      nextPageToken: page.nextPageToken,
+      estimate: page.estimate,
+    };
+  });
