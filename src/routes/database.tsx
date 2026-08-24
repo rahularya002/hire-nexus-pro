@@ -151,6 +151,7 @@ function Page() {
 
   const nlActive = nlQuery.trim().length >= 2;
 
+
   const rows = useMemo(() => {
     // While a natural-language search is in flight, never fall back to the full
     // pool — that would flash unrelated candidates as if they matched.
