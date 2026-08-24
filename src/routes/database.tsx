@@ -150,6 +150,10 @@ function Page() {
   });
 
   const nlActive = nlQuery.trim().length >= 2;
+  /** Kept in sync with the header cells so full-width states span the table. */
+  const colCount = matchMap.size > 0 ? 13 : 12;
+
+
 
 
   const rows = useMemo(() => {
