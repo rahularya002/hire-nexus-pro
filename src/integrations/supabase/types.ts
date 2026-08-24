@@ -321,17 +321,27 @@ export type Database = {
       candidates: {
         Row: {
           agency_id: string
+          availability: string | null
           created_at: string
           created_by: string | null
           current_company: string | null
+          current_ctc: number | null
+          education: string | null
           email: string | null
+          expected_ctc: number | null
           experience: string | null
           id: string
+          industry: string | null
+          last_contacted_at: string | null
           linkedin_url: string | null
           location: string | null
           name: string
           notes: string | null
+          notice_period: string | null
+          owner_id: string | null
           phone: string | null
+          previous_companies: string[]
+          relevant_experience: string | null
           resume_url: string | null
           role: string | null
           salary: string | null
@@ -340,21 +350,32 @@ export type Database = {
           skills: string[]
           source: Database["public"]["Enums"]["candidate_source"]
           source_client_id: string | null
+          status: Database["public"]["Enums"]["candidate_status"]
           updated_at: string
         }
         Insert: {
           agency_id: string
+          availability?: string | null
           created_at?: string
           created_by?: string | null
           current_company?: string | null
+          current_ctc?: number | null
+          education?: string | null
           email?: string | null
+          expected_ctc?: number | null
           experience?: string | null
           id?: string
+          industry?: string | null
+          last_contacted_at?: string | null
           linkedin_url?: string | null
           location?: string | null
           name: string
           notes?: string | null
+          notice_period?: string | null
+          owner_id?: string | null
           phone?: string | null
+          previous_companies?: string[]
+          relevant_experience?: string | null
           resume_url?: string | null
           role?: string | null
           salary?: string | null
@@ -363,21 +384,32 @@ export type Database = {
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           source_client_id?: string | null
+          status?: Database["public"]["Enums"]["candidate_status"]
           updated_at?: string
         }
         Update: {
           agency_id?: string
+          availability?: string | null
           created_at?: string
           created_by?: string | null
           current_company?: string | null
+          current_ctc?: number | null
+          education?: string | null
           email?: string | null
+          expected_ctc?: number | null
           experience?: string | null
           id?: string
+          industry?: string | null
+          last_contacted_at?: string | null
           linkedin_url?: string | null
           location?: string | null
           name?: string
           notes?: string | null
+          notice_period?: string | null
+          owner_id?: string | null
           phone?: string | null
+          previous_companies?: string[]
+          relevant_experience?: string | null
           resume_url?: string | null
           role?: string | null
           salary?: string | null
@@ -386,6 +418,7 @@ export type Database = {
           skills?: string[]
           source?: Database["public"]["Enums"]["candidate_source"]
           source_client_id?: string | null
+          status?: Database["public"]["Enums"]["candidate_status"]
           updated_at?: string
         }
         Relationships: [
@@ -2902,6 +2935,15 @@ export type Database = {
         | "on_hold"
       billing_cycle: "monthly" | "per_joining"
       candidate_source: "manual" | "scout" | "referral" | "database" | "inbound"
+      candidate_status:
+        | "new"
+        | "contacted"
+        | "screening"
+        | "shortlisted"
+        | "submitted"
+        | "placed"
+        | "on_hold"
+        | "rejected"
       client_member_role: "client_admin" | "client_recruiter" | "client_viewer"
       client_status: "active" | "inactive"
       document_kind: "jd" | "onboarding" | "offer" | "resume" | "other"
@@ -3135,6 +3177,16 @@ export const Constants = {
       ],
       billing_cycle: ["monthly", "per_joining"],
       candidate_source: ["manual", "scout", "referral", "database", "inbound"],
+      candidate_status: [
+        "new",
+        "contacted",
+        "screening",
+        "shortlisted",
+        "submitted",
+        "placed",
+        "on_hold",
+        "rejected",
+      ],
       client_member_role: ["client_admin", "client_recruiter", "client_viewer"],
       client_status: ["active", "inactive"],
       document_kind: ["jd", "onboarding", "offer", "resume", "other"],

@@ -40,6 +40,29 @@ export const CLIENT_VISIBLE_STAGES: ApplicationStage[] = [
   "closed",
 ];
 
+export const CANDIDATE_STATUSES = [
+  "new",
+  "contacted",
+  "screening",
+  "shortlisted",
+  "submitted",
+  "placed",
+  "on_hold",
+  "rejected",
+] as const;
+export type CandidateStatus = (typeof CANDIDATE_STATUSES)[number];
+
+export const CANDIDATE_STATUS_LABEL: Record<CandidateStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  screening: "Screening",
+  shortlisted: "Shortlisted",
+  submitted: "Submitted",
+  placed: "Placed",
+  on_hold: "On hold",
+  rejected: "Rejected",
+};
+
 export type CandidateRow = {
   id: string;
   name: string;
@@ -61,7 +84,20 @@ export type CandidateRow = {
   updated_at: string;
   source_client_id: string | null;
   source_client?: { id: string; name: string; color: string | null } | null;
+  // Canonical candidate-intelligence fields.
+  current_ctc: number | null;
+  expected_ctc: number | null;
+  relevant_experience: string | null;
+  previous_companies: string[];
+  industry: string | null;
+  education: string | null;
+  notice_period: string | null;
+  availability: string | null;
+  last_contacted_at: string | null;
+  owner_id: string | null;
+  status: CandidateStatus;
 };
+
 
 export type ApplicationRow = {
   id: string;
@@ -102,6 +138,18 @@ const candidateSchema = z.object({
   salary: z.string().max(200).optional().nullable(),
   salary_min: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
   salary_max: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  current_ctc: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  expected_ctc: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  relevant_experience: z.string().max(100).optional().nullable(),
+  previous_companies: z.array(z.string().min(1).max(200)).max(30).optional(),
+  industry: z.string().max(200).optional().nullable(),
+  education: z.string().max(500).optional().nullable(),
+  notice_period: z.string().max(100).optional().nullable(),
+  availability: z.string().max(200).optional().nullable(),
+  last_contacted_at: emptyToNull(z.string().datetime().optional().nullable()),
+  owner_id: z.string().uuid().optional().nullable(),
+  status: z.enum(CANDIDATE_STATUSES).optional(),
+
   source: z.enum(["manual", "scout", "referral", "database", "inbound"]).optional(),
   notes: z.string().max(10_000).optional().nullable(),
   source_client_id: z.string().uuid().nullable().optional(),
@@ -755,4 +803,190 @@ export const discardCvUpload = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try { await context.supabase.storage.from("documents").remove([data.storagePath]); } catch { /* ignore */ }
     return { ok: true };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Candidate Grid: structured-pool natural-language search + Gmail provenance
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PoolSearchResult = {
+  candidate: CandidateRow;
+  score: number;
+  matched: string[];
+  missing: string[];
+  /** How strongly the candidate's actual occupation matched the query. */
+  tier: string;
+};
+
+/**
+ * Natural-language search over the *structured* candidate pool. No Gmail sweep:
+ * candidates already in the database are answered from the database. The
+ * occupation gate is identical to mailbox search, so "fashion designer" never
+ * returns a Graphic/UX designer just because skills or city line up.
+ */
+export const searchCandidatePool = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ query: z.string().min(2).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { planSearch } = await import("./search/query-plan.server");
+    const { expandLocations } = await import("./search/query-plan.server");
+    const { matchPoolCandidate } = await import("./search/pool-match");
+
+    const { plan } = await planSearch(data.query);
+    const { data: rows, error } = await context.supabase
+      .from("candidates")
+      .select("*, source_client:clients!candidates_source_client_id_fkey(id,name,color)")
+      .limit(1000);
+    if (error) throw new Error(error.message);
+
+    const poolPlan = {
+      roles: plan.roles,
+      skills: plan.skills,
+      keywords: plan.keywords,
+      locations: expandLocations(plan.locations),
+      minYears: plan.minYears,
+      maxYears: plan.maxYears,
+    };
+
+    const results: PoolSearchResult[] = [];
+    for (const row of (rows ?? []) as CandidateRow[]) {
+      const m = matchPoolCandidate(poolPlan, row as never);
+      if (!m.qualified || m.score <= 0) continue;
+      results.push({ candidate: row, score: m.score, matched: m.matched, missing: m.missing, tier: m.tier });
+    }
+    results.sort((a, b) => b.score - a.score);
+    return { plan, results: results.slice(0, 200) };
+  });
+
+export type CandidateSource = {
+  kind: "email" | "attachment";
+  fileName: string | null;
+  subject: string | null;
+  fromEmail: string | null;
+  gmailThreadId: string | null;
+  date: string | null;
+  excerpt: string | null;
+  /** Present for stored attachments so the UI can request a signed link. */
+  storagePath: string | null;
+};
+
+/**
+ * Provenance for a candidate discovered through the mailbox: the emails, threads
+ * and stored resumes behind them. Read through the caller's own RLS client so a
+ * candidate from another tenant/user can never leak.
+ */
+export const listCandidateSources = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ candidateId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: candidate } = await context.supabase
+      .from("candidates")
+      .select("id")
+      .eq("id", data.candidateId)
+      .maybeSingle();
+    if (!candidate) throw new Error("Candidate not found");
+
+    const { data: people } = await context.supabase
+      .from("email_candidates")
+      .select("id")
+      .eq("promoted_candidate_id", data.candidateId);
+    const personIds = (people ?? []).map((p) => p.id as string);
+    const sources: CandidateSource[] = [];
+    if (!personIds.length) return { sources };
+
+    const { data: versions } = await context.supabase
+      .from("email_resume_versions")
+      .select("file_name,storage_path,received_at,extracted_text,email_message_id")
+      .in("email_candidate_id", personIds)
+      .order("received_at", { ascending: false })
+      .limit(20);
+
+    const messageIds = Array.from(
+      new Set((versions ?? []).map((v) => v.email_message_id as string | null).filter(Boolean) as string[]),
+    );
+    let msgs: Record<string, { subject: string | null; from_email: string | null; gmail_thread_id: string | null }> = {};
+    if (messageIds.length) {
+      const { data: rows } = await context.supabase
+        .from("email_messages")
+        .select("id,subject,from_email,gmail_thread_id")
+        .in("id", messageIds);
+      msgs = Object.fromEntries((rows ?? []).map((r) => [r.id as string, r as never]));
+    }
+
+    for (const v of versions ?? []) {
+      const m = v.email_message_id ? msgs[v.email_message_id as string] : undefined;
+      sources.push({
+        kind: "attachment",
+        fileName: (v.file_name as string | null) ?? "Resume",
+        subject: m?.subject ?? null,
+        fromEmail: m?.from_email ?? null,
+        gmailThreadId: m?.gmail_thread_id ?? null,
+        date: (v.received_at as string | null) ?? null,
+        excerpt: ((v.extracted_text as string | null) ?? "").replace(/\s+/g, " ").trim().slice(0, 400) || null,
+        storagePath: (v.storage_path as string | null) ?? null,
+      });
+    }
+
+    const { data: mails } = await context.supabase
+      .from("email_messages")
+      .select("subject,from_email,gmail_thread_id,sent_at,snippet")
+      .in("email_candidate_id", personIds)
+      .order("sent_at", { ascending: false })
+      .limit(20);
+    for (const m of mails ?? []) {
+      if (!m.gmail_thread_id) continue;
+      sources.push({
+        kind: "email",
+        fileName: null,
+        subject: (m.subject as string | null) ?? null,
+        fromEmail: (m.from_email as string | null) ?? null,
+        gmailThreadId: m.gmail_thread_id as string,
+        date: (m.sent_at as string | null) ?? null,
+        excerpt: (m.snippet as string | null) ?? null,
+        storagePath: null,
+      });
+    }
+
+    return { sources };
+  });
+
+/** Short-lived signed link for one stored file behind a candidate's provenance. */
+export const getCandidateSourceUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ candidateId: z.string().uuid(), storagePath: z.string().min(1).max(500) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    // The path must be reachable through the caller's own rows — never sign
+    // an arbitrary storage path.
+    const { data: people } = await context.supabase
+      .from("email_candidates")
+      .select("id")
+      .eq("promoted_candidate_id", data.candidateId);
+    const personIds = (people ?? []).map((p) => p.id as string);
+    let allowed = false;
+    if (personIds.length) {
+      const { data: v } = await context.supabase
+        .from("email_resume_versions")
+        .select("id")
+        .in("email_candidate_id", personIds)
+        .eq("storage_path", data.storagePath)
+        .maybeSingle();
+      allowed = !!v;
+    }
+    if (!allowed) {
+      const { data: own } = await context.supabase
+        .from("candidates")
+        .select("id")
+        .eq("id", data.candidateId)
+        .eq("resume_url", data.storagePath)
+        .maybeSingle();
+      allowed = !!own;
+    }
+    if (!allowed) throw new Error("This file is not part of this candidate.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage.from("documents").createSignedUrl(data.storagePath, 300);
+    if (error) throw new Error(error.message);
+    return { url: signed!.signedUrl };
   });
