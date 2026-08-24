@@ -207,12 +207,18 @@ function Page() {
       if (f.client !== "all" && f.client !== "unassigned" && c.source_client_id !== f.client) return false;
       return true;
     });
-  }, [candidates, nl, nlQuery, f, myId]);
+  }, [candidates, nl, nlActive, f, myId]);
 
+  // A search result can legitimately sit outside the first page of the pool, so
+  // resolve the open candidate from both sources before giving up.
   const selected = useMemo(
-    () => candidates.find((c) => c.id === openCandidateId) ?? null,
-    [candidates, openCandidateId],
+    () =>
+      candidates.find((c) => c.id === openCandidateId) ??
+      nl?.results.find((r) => r.candidate.id === openCandidateId)?.candidate ??
+      null,
+    [candidates, nl, openCandidateId],
   );
+
 
   function runNlSearch() {
     setGridNlQuery(nlDraft.trim());
