@@ -350,14 +350,20 @@ function Page() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {(isLoading || (nlQuery && nlLoading && !nl)) && <TableRowsSkeleton rows={6} cols={12} />}
+              {(isLoading || (nlActive && nlLoading && !nl)) && <TableRowsSkeleton rows={6} cols={colCount} />}
               {isError && !isLoading && (
-                <tr><td colSpan={13} className="px-4 py-8 text-center text-xs text-destructive">
+                <tr><td colSpan={colCount} className="px-4 py-8 text-center text-xs text-destructive">
                   Could not load your candidates. Refresh to try again.
                 </td></tr>
               )}
-              {!isLoading && !isError && rows.length === 0 && (
-                <tr><td colSpan={13} className="px-4 py-8">
+              {nlActive && nlError && (
+                <tr><td colSpan={colCount} className="px-4 py-8 text-center text-xs text-destructive">
+                  Search failed, so no results are shown. Try again in a moment.
+                </td></tr>
+              )}
+              {!isLoading && !isError && !(nlActive && (nlError || (nlLoading && !nl))) && rows.length === 0 && (
+                <tr><td colSpan={colCount} className="px-4 py-8">
+
                   <EmptyState
                     icon={f.q || nlQuery || hasActiveFilters(f) ? SearchX : Database}
                     title={nlQuery ? "No candidates match that brief" : f.q || hasActiveFilters(f) ? "No matches found" : "No candidates yet"}
