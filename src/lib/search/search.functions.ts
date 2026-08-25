@@ -131,7 +131,8 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    const searchId = row!.id as string;
+    const searchId = row?.id as string | undefined;
+    if (!searchId) throw new Error("Candidate search could not be started.");
 
     // Archive-first: people we already know about need no Gmail call at all.
     const terms = Array.from(new Set([...plan.roles, ...plan.skills, ...plan.keywords])).slice(0, 6);
@@ -151,26 +152,86 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
     }
 
     if (archived.length) {
+      const { cleanBodyText, extractDeterministic } = await import("../pipeline/normalize.server");
+      const { sanitizeCandidateIdentity } = await import("../candidate-identity");
+      const archiveIds = archived.map((p) => p.id as string).filter(Boolean);
+      const [messageResult, resumeResult] = archiveIds.length
+        ? await Promise.all([
+            supabaseAdmin
+              .from("email_messages")
+              .select("email_candidate_id,subject,snippet,from_email,from_name,to_emails,sent_at")
+              .in("email_candidate_id", archiveIds)
+              .order("sent_at", { ascending: false }),
+            supabaseAdmin
+              .from("email_resume_versions")
+              .select("email_candidate_id,file_name,extracted_text,received_at")
+              .in("email_candidate_id", archiveIds)
+              .order("received_at", { ascending: false }),
+          ])
+        : [{ data: [] }, { data: [] }];
+
+      const messagesByPerson = new Map<string, {
+        subject: string | null;
+        snippet: string | null;
+        from_email: string | null;
+        from_name: string | null;
+        to_emails: string[] | null;
+        sent_at: string | null;
+      }>();
+      for (const m of messageResult.data ?? []) {
+        const id = m.email_candidate_id as string | null;
+        if (id && !messagesByPerson.has(id)) messagesByPerson.set(id, m as never);
+      }
+
+      const resumesByPerson = new Map<string, { file_name: string | null; extracted_text: string | null }>();
+      for (const r of resumeResult.data ?? []) {
+        const id = r.email_candidate_id as string | null;
+        if (id && !resumesByPerson.has(id)) resumesByPerson.set(id, r as never);
+      }
+
       const rows = archived.flatMap((p) => {
+        const sourceMessage = messagesByPerson.get(p.id as string);
+        const sourceResume = resumesByPerson.get(p.id as string);
+        const bodyText = cleanBodyText(`${sourceMessage?.subject ?? ""}\n${sourceMessage?.snippet ?? ""}`);
+        const docText = sourceResume?.extracted_text ?? "";
+        const deterministic = extractDeterministic({
+          fromEmail: sourceMessage?.from_email ?? null,
+          fromName: sourceMessage?.from_name ?? null,
+          cleanBody: bodyText,
+          docText,
+          primaryFileName: sourceResume?.file_name ?? null,
+        }).fields;
+        const safeStoredIdentity = sanitizeCandidateIdentity(
+          { name: p.name, email: p.email, phone: p.phone },
+          {
+            fromEmail: sourceMessage?.from_email ?? null,
+            fromName: sourceMessage?.from_name ?? null,
+            bodyText,
+            docText,
+            hasAttachment: !!sourceResume,
+          },
+        );
+        const skills = Array.from(new Set([...(deterministic.skills ?? []), ...((p.skills as string[] | null) ?? [])])).slice(0, 30);
         const extracted = {
-          name: p.name,
-          email: p.email,
-          phone: p.phone,
-          role: p.role,
-          location: p.location,
-          experience: p.experience,
-          current_company: p.current_company,
-          skills: (p.skills as string[] | null) ?? [],
-          salary_min: p.salary_min,
-          salary_max: p.salary_max,
+          name: deterministic.name ?? safeStoredIdentity.name ?? null,
+          email: deterministic.email ?? safeStoredIdentity.email ?? null,
+          phone: deterministic.phone ?? safeStoredIdentity.phone ?? null,
+          role: deterministic.role ?? p.role,
+          location: deterministic.location ?? p.location,
+          experience: deterministic.experience ?? p.experience,
+          current_company: deterministic.current_company ?? p.current_company,
+          skills,
+          salary_min: deterministic.salary_min ?? p.salary_min,
+          salary_max: deterministic.salary_max ?? p.salary_max,
           notes: null,
         };
+        const haystack = [p.search_blob as string | null, docText, bodyText].filter(Boolean).join("\n");
         const ranked = rankItem(plan, {
           extracted: extracted as never,
           confidence: 90,
-          hasResume: true,
-          sentAt: (p.last_email_at as string | null) ?? null,
-          haystack: (p.search_blob as string | null) ?? "",
+          hasResume: !!sourceResume,
+          sentAt: (sourceMessage?.sent_at as string | null) ?? (p.last_email_at as string | null) ?? null,
+          haystack,
         });
         // Same role gate as live Gmail hits: no occupation evidence, no result.
         if (!ranked.qualified) return [];
@@ -180,17 +241,18 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           user_id: context.userId,
           gmail_message_id: `archive:${p.id}`,
           gmail_thread_id: null,
-          subject: p.role ?? p.name,
-          snippet: ((p.search_blob as string | null) ?? "").slice(0, 240),
-          from_email: p.email,
-          from_name: p.name,
-          sent_at: p.last_email_at,
+          subject: sourceMessage?.subject ?? extracted.role ?? extracted.name,
+          snippet: haystack.slice(0, 240),
+          from_email: sourceMessage?.from_email ?? null,
+          from_name: sourceMessage?.from_name ?? null,
+          sent_at: sourceMessage?.sent_at ?? p.last_email_at,
           score: ranked.score,
           score_parts: ranked.parts as never,
           confidence: 90,
           artifact_type: "candidate_resume",
           reason: "Already in your recruitment memory",
           extracted: extracted as never,
+          resume_file_name: sourceResume?.file_name ?? null,
           origin: "archive",
           email_candidate_id: p.id,
           saved_candidate_id: (p.promoted_candidate_id as string | null) ?? null,
