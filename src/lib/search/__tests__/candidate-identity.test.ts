@@ -19,6 +19,18 @@ Mobile: 9822011223
 Mumbai
 5 years experience`;
 
+const KOPAL_CV = `Kopal Sachan
+Fashion Designer
+kopal.sachan2022@gmail.com
+Delhi
+4 years experience`;
+
+const RASHMI_CV = `Rashmi Gupta
+Womenswear Designer
+guptarashmi1111@gmail.com
+Mumbai
+6 years experience`;
+
 describe("candidate identity comes from the resume, never the Gmail sender", () => {
   it("uses the CV name when Itisha Bindal forwards Prem Lata Chauhan's resume", () => {
     const { fields } = extractDeterministic({
@@ -43,6 +55,48 @@ describe("candidate identity comes from the resume, never the Gmail sender", () 
     });
     expect(fields.name).toBe("Naushad Belim");
     expect(fields.email).toBe("naushad.belim@outlook.com");
+  });
+
+  it("does not turn Kopal or Rashmi into recruiter Itisha", () => {
+    for (const [docText, email, name] of [
+      [KOPAL_CV, "kopal.sachan2022@gmail.com", "Kopal Sachan"],
+      [RASHMI_CV, "guptarashmi1111@gmail.com", "Rashmi Gupta"],
+    ] as const) {
+      const { fields } = extractDeterministic({
+        fromEmail: "itisha.bindal@agency.com",
+        fromName: "Itisha Bindal",
+        cleanBody: "Please find attached profile. Regards, Itisha Bindal",
+        docText,
+        primaryFileName: `${name.replace(/\s+/g, "_")}_CV.pdf`,
+      });
+      expect(fields.name).toBe(name);
+      expect(fields.email).toBe(email);
+      expect(fields.name).not.toBe("Itisha Bindal");
+    }
+  });
+
+  it("extracts Naushad from CV text even when the forwarding body has no identity", () => {
+    const { fields } = extractDeterministic({
+      fromEmail: "june.kom@recruiters.in",
+      fromName: "June Kom",
+      cleanBody: "Attached profile for review.",
+      docText: NAUSHAD_CV,
+      primaryFileName: "profile.pdf",
+    });
+    expect(fields.name).toBe("Naushad Belim");
+    expect(fields.role).toBe("Apparel Designer");
+  });
+
+  it("does not use the body role request as candidate role when a CV is attached", () => {
+    const { fields } = extractDeterministic({
+      fromEmail: "itisha.bindal@agency.com",
+      fromName: "Itisha Bindal",
+      cleanBody: "Sharing this profile for Fashion Designer role. Regards, Itisha",
+      docText: "Ravi Kumar\nravi@example.com\nMumbai\n5 years experience",
+      primaryFileName: "Ravi_Kumar_CV.pdf",
+    });
+    expect(fields.name).toBe("Ravi Kumar");
+    expect(fields.role).toBeNull();
   });
 
   it("reads a labelled candidate name out of a recruiter's submission mail", () => {
@@ -142,6 +196,15 @@ describe("dedupe uses candidate identity, not the recruiter", () => {
     expect(rows).toHaveLength(10);
   });
 
+  it("same recruiter sending different CVs creates different candidates", () => {
+    const rows = mergeCandidateRows([
+      row({ messageId: "m-kopal", name: "Kopal Sachan", email: "kopal.sachan2022@gmail.com", role: "Fashion Designer" }),
+      row({ messageId: "m-rashmi", name: "Rashmi Gupta", email: "guptarashmi1111@gmail.com", role: "Womenswear Designer" }),
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.name).sort()).toEqual(["Kopal Sachan", "Rashmi Gupta"]);
+  });
+
   it("merges one candidate seen in several emails into a single row with all sources", () => {
     const rows = mergeCandidateRows([
       row({ messageId: "m1", name: "Prem Lata Chauhan", email: "prem.lata@gmail.com" }),
@@ -177,6 +240,7 @@ describe("role relevance outweighs generic skill overlap", () => {
 
   it("rejects unrelated occupations even with matching city and years", () => {
     expect(run({ role: "Sales Associate", location: "Delhi", experience: "9 years" }, "sales associate delhi excel").qualified).toBe(false);
+    expect(run({ role: "Makeup Artist", location: "Delhi", experience: "5 years" }, "makeup artist delhi styling").qualified).toBe(false);
     expect(
       run({ role: "Software Engineer", location: "Mumbai", experience: "7 years", skills: ["spring", "express"] }, "software engineer mumbai spring express").qualified,
     ).toBe(false);

@@ -18,18 +18,14 @@ import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
 import { BATCH_SIZE, MESSAGE_CONCURRENCY, PAGES_PER_BATCH, WRITE_CONCURRENCY } from "./pipeline/config";
+import { pickPrimaryCandidateAttachment } from "./candidate-attachment";
+import { candidateNameFromFile, senderLooksLikeCandidate } from "./candidate-identity";
 
 export type { Extracted };
 
 function digits(v?: string | null) {
   const d = (v ?? "").replace(/\D+/g, "");
   return d.length >= 8 ? d.slice(-10) : null;
-}
-
-function niceName(fileName: string, fallback: string | null) {
-  const base = fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-  const cleaned = base.replace(/\b(resume|cv|final|updated|new|copy|\d{2,})\b/gi, "").replace(/\s+/g, " ").trim();
-  return cleaned.length >= 3 ? cleaned : fallback || "Unknown";
 }
 
 type Run = {
@@ -109,15 +105,22 @@ export async function upsertPersonFromPayload(
 ): Promise<{ personId: string; name: string; email: string | null; merged: boolean }> {
   const ex = payload.extracted;
   const primary = payload.attachments[0] ?? null;
+  const senderIsCandidate = senderLooksLikeCandidate({
+    fromEmail: payload.from_email,
+    fromName: payload.from_name,
+    docText: primary?.extracted_text ?? "",
+    bodyText: payload.body_text ?? "",
+    hasAttachment: !!primary,
+  });
   // With an attachment the sender is usually a forwarding recruiter, so their
   // address is provenance, not candidate identity.
   const email =
     (ex.email ?? "").toLowerCase() ||
-    (primary ? null : payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) ||
+    (!primary && senderIsCandidate ? (payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) : null) ||
     null;
   const phoneDigits = digits(ex.phone);
   // Never the Gmail sender: on a forwarded resume that is the recruiter.
-  const name = ex.name || (primary ? niceName(primary.file_name, email) : null) || email || "Name not found";
+  const name = ex.name || (primary ? candidateNameFromFile(primary.file_name) : null) || email || "Name not found";
   const skills = (ex.skills ?? []).slice(0, 30);
 
   let person: Person | null = null;
@@ -220,13 +223,15 @@ export async function upsertPersonFromPayload(
     person = created as unknown as Person;
   }
 
+  if (!person) throw new Error("Candidate could not be saved");
+
   const { data: msgRow, error: mErr } = await supabaseAdmin
     .from("email_messages")
     .upsert(
       {
         agency_id: payload.agency_id,
         user_id: payload.user_id,
-        email_candidate_id: person!.id,
+        email_candidate_id: person.id,
         gmail_message_id: payload.gmail_message_id,
         gmail_thread_id: payload.gmail_thread_id,
         subject: payload.subject,
@@ -243,13 +248,15 @@ export async function upsertPersonFromPayload(
     .select("id")
     .single();
   if (mErr) throw new Error(mErr.message);
+  const emailMessageId = msgRow?.id as string | undefined;
+  if (!emailMessageId) throw new Error("Candidate source email could not be saved");
 
   for (const att of payload.attachments) {
     await supabaseAdmin.from("email_resume_versions").insert({
       agency_id: payload.agency_id,
       user_id: payload.user_id,
-      email_candidate_id: person!.id,
-      email_message_id: msgRow!.id as string,
+      email_candidate_id: person.id,
+      email_message_id: emailMessageId,
       storage_path: att.path,
       file_name: att.file_name,
       mime: att.mime,
@@ -260,7 +267,7 @@ export async function upsertPersonFromPayload(
     });
   }
 
-  return { personId: person!.id, name, email, merged };
+  return { personId: person.id, name, email, merged };
 }
 
 type SkipRow = Record<string, unknown>;
@@ -281,7 +288,8 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
     for (;;) {
       const i = next++;
       if (i >= items.length) return;
-      out[i] = await fn(items[i]!);
+      const item = items[i];
+      if (item !== undefined) out[i] = await fn(item);
     }
   });
   await Promise.all(workers);
@@ -450,7 +458,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
       let docText = "";
       let primaryBytes: Uint8Array | null = null;
       let primaryHash: string | null = null;
-      const primary = attachments[0] ?? null;
+      const primary = pickPrimaryCandidateAttachment(attachments);
       if (primary) {
         try {
           primaryBytes = await getAttachmentBytes(accessToken, ref.id, primary.externalId);
@@ -664,7 +672,7 @@ export async function processRunBatch(run: Run, accessToken: string, pageSize = 
     const key =
       (p.extracted?.email ?? "").toLowerCase() ||
       digits(p.extracted?.phone) ||
-      (p.direction === "inbound" ? p.from_email : p.to_emails[0]) ||
+      (p.extracted?.name ? `${p.extracted.name.toLowerCase()}|${(p.extracted.role ?? "").toLowerCase()}` : null) ||
       `msg:${p.gmail_message_id}`;
     const bucket = importGroups.get(key);
     if (bucket) bucket.push(p);

@@ -871,10 +871,11 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
     }
     if (!hashes.length && docText) hashes.push(await sha256Text(docText.slice(0, 4000)));
 
-    const fromEmail = first?.from_email ?? (r.email as string | null);
+    const fromEmail = first?.from_email ?? null;
+    const fromName = first?.from_name ?? null;
     const det = extractDeterministic({
       fromEmail,
-      fromName: first?.from_name ?? (r.name as string | null),
+      fromName,
       cleanBody: bodyText,
       docText,
       primaryFileName: attachmentNames[0] ?? null,
@@ -884,7 +885,7 @@ async function rescoreImpl(context: { supabase: any; userId: string }) {
       userId: context.userId,
       signal: {
         fromEmail,
-        fromName: first?.from_name ?? (r.name as string | null),
+        fromName,
         toEmails: first?.to_emails ?? [],
         myEmail: null,
         subject: first?.subject ?? null,

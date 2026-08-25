@@ -1,10 +1,12 @@
 // NORMALIZATION stage — hashing, body cleaning and deterministic (AI-free) field
 // extraction. Nothing in this file ever calls a model.
 import {
+  candidateNameFromFile,
   candidateNameFromText,
   sanitizeCandidateIdentity,
   senderLooksLikeCandidate,
 } from "../candidate-identity";
+import { extractCandidateRows, findCandidateRow } from "../candidate-row-extract";
 import type { Extracted } from "../recruitment-classify.server";
 import { AI_MAX_BODY_CHARS, COVERAGE_TARGETS, type Facet } from "./config";
 import type { FieldCoverage } from "./types";
@@ -84,13 +86,17 @@ export function cleanBodyText(input: string): string {
 /* ------------------------- deterministic extraction ------------------------- */
 
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+const EMAIL_GLOBAL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 const PHONE_RE = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,5}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/;
+const PHONE_GLOBAL_RE = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,5}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/g;
 const LINKEDIN_RE = /(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[a-z0-9\-_%]{3,}/i;
 const YEARS_RE = /(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\b[^.\n]{0,30}(?:experience|exp\b)?/i;
 const CTC_RE = /(?:ctc|salary|package|compensation)[^\n]{0,40}?(\d{1,3}(?:\.\d{1,2})?)\s*(?:-|to|–)?\s*(\d{1,3}(?:\.\d{1,2})?)?\s*(lpa|lakh|lacs?|l\b)/i;
 const COMPANY_RE = /\b(?:currently (?:working )?(?:at|with)|working (?:at|with)|employed (?:at|with)|company\s*[:\-])\s*([A-Z][\w&.,'\- ]{2,40})/;
 const LOCATION_RE =
   /\b(bengaluru|bangalore|mumbai|pune|hyderabad|chennai|delhi|new delhi|noida|gurgaon|gurugram|kolkata|ahmedabad|jaipur|indore|chandigarh|kochi|coimbatore|nagpur|lucknow|bhopal|vadodara|surat|thiruvananthapuram|mysuru|mysore|remote|singapore|dubai|london|new york|san francisco|berlin|toronto|sydney)\b/i;
+const ROLE_LABEL_RE =
+  /\b(?:designation|current\s+role|current\s+designation|job\s+title|profile|position(?:\s+applied\s+for)?|role)\s*[:\-–]\s*([^\n|,;]{2,80})/i;
 
 const SKILL_DICTIONARY = [
   "javascript","typescript","react","react native","next.js","node.js","express","angular","vue","svelte",
@@ -111,17 +117,12 @@ const SKILL_DICTIONARY = [
 
 const NAME_LINE_RE = /^[A-Z][a-z'’\-]{1,20}(?:\s+[A-Z][a-z'’\-]{1,20}){1,3}$/;
 const NAME_STOPWORDS = /\b(resume|curriculum|vitae|profile|confidential|contact|address|objective|summary)\b/i;
+const ROLE_HEAD_RE =
+  /\b(designer|developer|engineer|manager|analyst|architect|consultant|recruiter|accountant|executive|lead|director|specialist|technician|officer|assistant|associate|scientist|administrator|merchandiser|stylist|copywriter|marketer|tester|nurse|teacher|chef|supervisor|coordinator|planner|buyer|operator|artist)\b/i;
+const ROLE_STOPWORDS = /\b(resume|curriculum|vitae|profile|summary|objective|contact|email|mobile|phone|address|education|skills?|experience|employment|certification|declaration|languages?)\b/i;
 
 function titleCase(s: string) {
   return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
-}
-
-function nameFromFile(fileName: string | null): string | null {
-  if (!fileName) return null;
-  const base = fileName.replace(/\.[^.]+$/, "").replace(/[_\-.]+/g, " ");
-  const cleaned = base.replace(/\b(resume|cv|final|updated|new|copy|latest|v\d+|\d{2,})\b/gi, "").replace(/\s+/g, " ").trim();
-  const words = cleaned.split(" ").filter((w) => /^[A-Za-z]{2,20}$/.test(w));
-  return words.length >= 2 && words.length <= 4 ? titleCase(words.join(" ")) : null;
 }
 
 function nameFromDoc(docText: string): string | null {
@@ -141,6 +142,42 @@ function nameFromEmail(email: string | null): string | null {
   return words.length >= 2 ? titleCase(words.slice(0, 3).join(" ")) : null;
 }
 
+function cleanRole(raw: string | null | undefined): string | null {
+  const role = (raw ?? "")
+    .replace(/\b(?:applying|applied)\s+for\b/gi, "")
+    .replace(/\b(?:role|position|designation|profile)\b\s*[:\-–]?/gi, "")
+    .replace(/[^A-Za-z0-9+#/&. -]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!role || role.length < 3 || role.length > 70) return null;
+  if (!ROLE_HEAD_RE.test(role) || ROLE_STOPWORDS.test(role)) return null;
+  return titleCase(role.toLowerCase());
+}
+
+function roleFromText(text: string): string | null {
+  const labelled = ROLE_LABEL_RE.exec(text)?.[1];
+  const fromLabel = cleanRole(labelled);
+  if (fromLabel) return fromLabel;
+  return null;
+}
+
+function roleFromDoc(docText: string, knownName: string | null): string | null {
+  const lines = docText
+    .split("\n")
+    .slice(0, 24)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const nameNorm = (knownName ?? "").toLowerCase();
+  for (const line of lines) {
+    const l = line.toLowerCase();
+    if (nameNorm && l === nameNorm) continue;
+    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || LOCATION_RE.test(line)) continue;
+    const role = cleanRole(line);
+    if (role) return role;
+  }
+  return null;
+}
+
 export type DeterministicInput = {
   fromEmail: string | null;
   fromName: string | null;
@@ -155,6 +192,7 @@ export type DeterministicResult = { fields: Extracted; coverage: FieldCoverage; 
 export function extractDeterministic(i: DeterministicInput): DeterministicResult {
   const text = `${i.docText}\n${i.cleanBody}`;
   const lower = text.toLowerCase();
+  const hasAttachment = !!i.primaryFileName;
 
   // Gmail's sender is the SOURCE. Only a self-application may donate identity.
   const senderIsCandidate = senderLooksLikeCandidate({
@@ -162,20 +200,28 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
     fromName: i.fromName,
     docText: i.docText,
     bodyText: i.cleanBody,
-    hasAttachment: !!i.primaryFileName,
+    hasAttachment,
   });
 
   const sender = (i.fromEmail ?? "").toLowerCase();
-  const candidateEmails = [
-    ...(i.docText.match(EMAIL_RE) ?? []),
-    ...(i.cleanBody.match(EMAIL_RE) ?? []),
-  ].map((e) => e.toLowerCase());
+  const docEmails = (i.docText.match(EMAIL_GLOBAL_RE) ?? []).map((e) => e.toLowerCase());
+  const bodyEmails = (i.cleanBody.match(EMAIL_GLOBAL_RE) ?? []).map((e) => e.toLowerCase());
+  const candidateRows = [...extractCandidateRows(i.docText), ...extractCandidateRows(i.cleanBody)];
+  const firstRow = findCandidateRow(candidateRows, {
+    email: docEmails.find((e) => e !== sender) ?? bodyEmails.find((e) => e !== sender) ?? null,
+    phone: i.docText.match(PHONE_GLOBAL_RE)?.[0] ?? i.cleanBody.match(PHONE_GLOBAL_RE)?.[0] ?? null,
+    name: nameFromDoc(i.docText) ?? candidateNameFromText(text) ?? candidateNameFromFile(i.primaryFileName),
+  });
   const email =
-    candidateEmails.find((e) => e !== sender) ??
+    docEmails.find((e) => e !== sender) ??
+    firstRow?.email ??
+    (hasAttachment ? null : bodyEmails.find((e) => e !== sender)) ??
     (senderIsCandidate ? sender || null : null) ??
     null;
 
-  const phoneRaw = text.match(PHONE_RE)?.[0] ?? null;
+  const docPhoneRaw = i.docText.match(PHONE_GLOBAL_RE)?.[0] ?? null;
+  const bodyPhoneRaw = i.cleanBody.match(PHONE_GLOBAL_RE)?.[0] ?? null;
+  const phoneRaw = docPhoneRaw ?? firstRow?.phone ?? (hasAttachment ? null : bodyPhoneRaw ?? text.match(PHONE_RE)?.[0] ?? null);
   const phone = phoneRaw && phoneRaw.replace(/\D/g, "").length >= 10 ? phoneRaw.trim() : null;
 
   const linkedin = text.match(LINKEDIN_RE)?.[0] ?? null;
@@ -185,16 +231,19 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const name =
     nameFromDoc(i.docText) ??
     candidateNameFromText(text) ??
-    nameFromFile(i.primaryFileName) ??
+    firstRow?.name ??
+    candidateNameFromFile(i.primaryFileName) ??
     (senderIsCandidate
       ? (i.fromName && !/no.?reply|team|support|hr\b/i.test(i.fromName) ? i.fromName : null) ?? nameFromEmail(email)
       : null);
 
+  const role = firstRow?.role ?? roleFromDoc(i.docText, name) ?? roleFromText(i.docText) ?? (hasAttachment ? null : roleFromText(i.cleanBody));
+
   const years = text.match(YEARS_RE)?.[1] ?? null;
   const experience = years ? `${years} years` : null;
 
-  const company = text.match(COMPANY_RE)?.[1]?.trim().replace(/[.,;]$/, "") ?? null;
-  const location = text.match(LOCATION_RE)?.[0] ?? null;
+  const company = firstRow?.current_company ?? text.match(COMPANY_RE)?.[1]?.trim().replace(/[.,;]$/, "") ?? null;
+  const location = firstRow?.location ?? text.match(LOCATION_RE)?.[0] ?? null;
 
   const ctc = text.match(CTC_RE);
   const salaryMin = ctc?.[1] ? Number(ctc[1]) : null;
@@ -212,9 +261,9 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
     name: name ?? null,
     email,
     phone,
-    role: null,
+    role: role ?? null,
     current_company: company ? titleCase(company) : null,
-    experience,
+    experience: firstRow?.experience ?? experience,
     location: location ? titleCase(location) : null,
     salary_min: Number.isFinite(salaryMin as number) ? salaryMin : null,
     salary_max: Number.isFinite(salaryMax as number) ? salaryMax : null,

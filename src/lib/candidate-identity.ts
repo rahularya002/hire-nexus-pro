@@ -40,14 +40,18 @@ export function senderLooksLikeCandidate(ctx: IdentityContext): boolean {
   if (!sender) return false;
   const doc = ctx.docText ?? "";
   const body = ctx.bodyText ?? "";
-  const found = emailsIn(`${doc}\n${body}`);
-  if (found.includes(sender)) return true;
-  // A CV is present but never mentions the sender → the sender forwarded it.
+  // With a CV attached, recruiter signatures in the email body frequently repeat
+  // the sender address. That must not make the sender the candidate. Only the CV
+  // text itself can prove sender == candidate in an attachment-backed mail.
+  const docEmails = emailsIn(doc);
+  if (docEmails.includes(sender)) return true;
   if (doc.trim().length > 0 || ctx.hasAttachment) return false;
+  const bodyEmails = emailsIn(body);
+  if (bodyEmails.includes(sender)) return true;
   // The sender's display name appears in the body signature.
   const name = squash(ctx.fromName);
   if (name && name.split(" ").length >= 2 && squash(body).includes(name)) return true;
-  return found.length === 0;
+  return false;
 }
 
 /** Sender display name, or a name derived from their address — never a candidate. */
@@ -75,8 +79,52 @@ export function candidateNameFromText(text: string | null | undefined): string |
   const words = raw.split(" ").filter((w) => /^[A-Za-z][A-Za-z.'’-]*$/.test(w));
   if (words.length < 2 || words.length > 4) return null;
   return words
-    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .map((w) => {
+      const first = w[0];
+      return first ? first.toUpperCase() + w.slice(1) : w;
+    })
     .join(" ");
+}
+
+const FILE_STOPWORDS = new Set([
+  "resume", "resum", "cv", "curriculum", "vitae", "profile", "candidate", "final", "updated", "latest",
+  "copy", "new", "naukri", "linkedin", "biodata", "bio", "data",
+]);
+
+const FILE_ROLE_WORDS = new Set([
+  "fashion", "apparel", "garment", "garments", "clothing", "womenswear", "menswear", "designer", "design",
+  "stylist", "merchandiser", "manager", "developer", "engineer", "analyst", "consultant", "executive",
+  "associate", "artist", "makeup", "sales", "marketing", "sourcing", "category", "retail", "planner", "head",
+]);
+
+function titleWord(w: string) {
+  const first = w[0];
+  if (!first) return w;
+  return w.length <= 3 && w === w.toUpperCase() ? w : first.toUpperCase() + w.slice(1).toLowerCase();
+}
+
+/** Candidate-looking name from a CV filename, never from the Gmail sender. */
+export function candidateNameFromFile(fileName: string | null | undefined): string | null {
+  if (!fileName) return null;
+  const base = fileName
+    .replace(/\.[^.]+$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.()[\]{}]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const picked: string[] = [];
+  for (const raw of base.split(" ")) {
+    const word = raw.replace(/[^A-Za-z]/g, "");
+    if (!word || /\d/.test(raw)) continue;
+    const key = word.toLowerCase();
+    if (FILE_STOPWORDS.has(key)) continue;
+    if (FILE_ROLE_WORDS.has(key) && picked.length >= 2) break;
+    if (FILE_ROLE_WORDS.has(key) && picked.length < 2) continue;
+    if (!/^[A-Za-z]{2,20}$/.test(word)) continue;
+    picked.push(word);
+    if (picked.length === 4) break;
+  }
+  return picked.length >= 2 ? picked.map(titleWord).join(" ") : null;
 }
 
 export type IdentityFields = {

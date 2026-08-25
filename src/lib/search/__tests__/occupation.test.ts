@@ -77,6 +77,11 @@ describe("fashion designer query — screenshot regression", () => {
     expect(r.qualified).toBe(false);
   });
 
+  it("rejects Product Designer and Makeup Artist despite matching city and experience", () => {
+    expect(run({ role: "Product Designer", location: "Mumbai", experience: "7 years", skills: ["figma"] }, "product designer mumbai figma").qualified).toBe(false);
+    expect(run({ role: "Makeup Artist", location: "Delhi", experience: "5 years", skills: ["fashion", "styling"] }, "makeup artist delhi fashion styling").qualified).toBe(false);
+  });
+
   it("rejects Sales Associate · 9 years · Delhi", () => {
     const r = run({ role: "Sales Associate", location: "Delhi", experience: "9 years", skills: ["sales", "excel"] }, "sales associate delhi excel");
     expect(r.qualified).toBe(false);
@@ -95,9 +100,9 @@ describe("fashion designer query — screenshot regression", () => {
     expect(r.qualified).toBe(false);
   });
 
-  it("accepts fashion evidence from the resume text when the title is empty", () => {
+  it("does not accept raw resume/body text when role extraction failed", () => {
     const r = run({ role: null, location: "Delhi", experience: "4 years" }, "resume of a fashion designer in delhi with 4 years in womenswear");
-    expect(r.qualified).toBe(true);
+    expect(r.qualified).toBe(false);
   });
 });
 

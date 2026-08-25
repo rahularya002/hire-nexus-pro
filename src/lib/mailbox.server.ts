@@ -18,6 +18,7 @@ import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
 import { upsertPersonFromPayload, type CandidatePayload, type StoredAttachment } from "./email-import.server";
+import { pickPrimaryCandidateAttachment } from "./candidate-attachment";
 
 export type MailboxAttachment = {
   attachmentId: string;
@@ -89,8 +90,10 @@ export async function hydrateListPage(
       for (;;) {
         const i = next++;
         if (i >= ids.length) return;
+        const id = ids[i];
+        if (!id) continue;
         try {
-          const msg = await getMessageMeta(accessToken, ids[i]!.id);
+          const msg = await getMessageMeta(accessToken, id.id);
           out[i] = toListItem(msg);
         } catch {
           out[i] = null;
@@ -146,7 +149,7 @@ export async function importMessageAsCandidate(args: {
   const bodyText = cleanBodyText(raw.bodyText);
   const mine = (args.googleEmail ?? "").toLowerCase() || null;
 
-  const primary = raw.attachments[0] ?? null;
+  const primary = pickPrimaryCandidateAttachment(raw.attachments);
   let docText = "";
   let bytes: Uint8Array | null = null;
   let hash: string | null = null;
