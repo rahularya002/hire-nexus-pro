@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { candidateNameFromText, sanitizeCandidateIdentity, senderLooksLikeCandidate } from "@/lib/candidate-identity";
+import { selectResumeForCandidate } from "@/lib/candidate-resume-selection";
 import { extractDeterministic } from "@/lib/pipeline/normalize.server";
 import { candidateKey, mergeCandidateRows, type GridCandidate } from "@/lib/mailbox-grid";
 import { deterministicPlan } from "../query-plan.server";
@@ -214,6 +215,20 @@ describe("dedupe uses candidate identity, not the recruiter", () => {
     expect(rows).toHaveLength(2); // email-identified row merged; phone-only row stays distinct
     expect(rows[0]!.sources).toHaveLength(2);
     expect(rows[0]!.location).toBe("Delhi");
+  });
+});
+
+describe("archive CV evidence selection", () => {
+  it("uses the resume matching the stored candidate email when a polluted archive row has multiple CVs", () => {
+    const chosen = selectResumeForCandidate(
+      [
+        { file_name: "Navita Chandwani - Resume.pdf", extracted_text: "Navita Chandwani\nFashion Stylist\nnavita@example.com" },
+        { file_name: "Naushad_Khan_Fashion_Designer_Stylist_Resume_2026.pdf", extracted_text: "Naushad Belim\nFashion Designer\nnaushadbelim50@gmail.com\nMumbai" },
+      ],
+      { name: "Name not found", email: "naushadbelim50@gmail.com", phone: null },
+    );
+
+    expect(chosen?.file_name).toBe("Naushad_Khan_Fashion_Designer_Stylist_Resume_2026.pdf");
   });
 });
 

@@ -154,6 +154,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
     if (archived.length) {
       const { cleanBodyText, extractDeterministic } = await import("../pipeline/normalize.server");
       const { sanitizeCandidateIdentity } = await import("../candidate-identity");
+      const { selectResumeForCandidate } = await import("../candidate-resume-selection");
       const archiveIds = archived.map((p) => p.id as string).filter(Boolean);
       const [messageResult, resumeResult] = archiveIds.length
         ? await Promise.all([
@@ -183,15 +184,22 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
         if (id && !messagesByPerson.has(id)) messagesByPerson.set(id, m as never);
       }
 
-      const resumesByPerson = new Map<string, { file_name: string | null; extracted_text: string | null }>();
+      const resumesByPerson = new Map<string, { file_name: string | null; extracted_text: string | null }[]>();
       for (const r of resumeResult.data ?? []) {
         const id = r.email_candidate_id as string | null;
-        if (id && !resumesByPerson.has(id)) resumesByPerson.set(id, r as never);
+        if (!id) continue;
+        const list = resumesByPerson.get(id) ?? [];
+        list.push(r as never);
+        resumesByPerson.set(id, list);
       }
 
       const rows = archived.flatMap((p) => {
         const sourceMessage = messagesByPerson.get(p.id as string);
-        const sourceResume = resumesByPerson.get(p.id as string);
+        const sourceResume = selectResumeForCandidate(resumesByPerson.get(p.id as string) ?? [], {
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+        });
         const bodyText = cleanBodyText(`${sourceMessage?.subject ?? ""}\n${sourceMessage?.snippet ?? ""}`);
         const docText = sourceResume?.extracted_text ?? "";
         const deterministic = extractDeterministic({

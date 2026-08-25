@@ -3,6 +3,7 @@
 // owns the candidate row, so double clicks can never create two candidates.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sanitizeCandidateIdentity } from "./candidate-identity";
+import { selectResumeForCandidate } from "./candidate-resume-selection";
 import { cleanBodyText, extractDeterministic } from "./pipeline/normalize.server";
 
 export async function linkOrCreateCandidate(
@@ -22,7 +23,7 @@ export async function linkOrCreateCandidate(
 
   const agencyId = person.agency_id as string;
 
-  const [{ data: latestMessage }, { data: latestResume }] = await Promise.all([
+  const [{ data: latestMessage }, { data: resumeRows }] = await Promise.all([
     supabaseAdmin
       .from("email_messages")
       .select("subject,snippet,from_email,from_name")
@@ -35,9 +36,17 @@ export async function linkOrCreateCandidate(
       .select("file_name,storage_path,extracted_text")
       .eq("email_candidate_id", personId)
       .order("received_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(20),
   ]);
+  const latestResume = selectResumeForCandidate((resumeRows ?? []) as {
+    file_name: string | null;
+    storage_path: string | null;
+    extracted_text: string | null;
+  }[], {
+    name: person.name as string | null,
+    email: person.email as string | null,
+    phone: person.phone as string | null,
+  });
   const bodyText = cleanBodyText(`${latestMessage?.subject ?? ""}\n${latestMessage?.snippet ?? ""}`);
   const docText = (latestResume?.extracted_text as string | null) ?? "";
   const deterministic = extractDeterministic({
