@@ -73,6 +73,21 @@ describe("candidate grid: fashion designer query", () => {
     expect(adjacent.qualified).toBe(true);
     expect(adjacent.score).toBeLessThan(exact.score);
   });
+
+  it("allows ambiguous Designer only when profile text has strong fashion occupation context", () => {
+    const generic = matchPoolCandidate(
+      fashionPlan,
+      cand({ role: "Designer", notes: "portfolio includes apparel designer work, womenswear and garment collections", experience: "5 years", location: "Delhi" }),
+    );
+    const weak = matchPoolCandidate(
+      fashionPlan,
+      cand({ role: "Designer", notes: "figma portfolio and wireframing", experience: "5 years", location: "Delhi" }),
+    );
+    const exact = matchPoolCandidate(fashionPlan, cand({ role: "Fashion Designer", experience: "5 years", location: "Delhi" }));
+    expect(generic.qualified).toBe(true);
+    expect(generic.score).toBeLessThan(exact.score);
+    expect(weak.qualified).toBe(false);
+  });
 });
 
 describe("candidate grid: other occupation queries", () => {

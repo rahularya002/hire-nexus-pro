@@ -6,6 +6,7 @@ import {
   extractNoticePeriod,
   hitsToGridRows,
   candidateGridStatus,
+  gridRowsForSearchState,
   matchesGridQuery,
   mergeCandidateRows,
   type GridCandidate,
@@ -155,5 +156,17 @@ describe("grid search status", () => {
 
   it("uses final wording only after search completes", () => {
     expect(candidateGridStatus({ rowCount: 19, searchActive: true, searching: false })).toBe("19 matching candidates");
+  });
+
+  it("labels search failure without presenting zero as final", () => {
+    expect(candidateGridStatus({ rowCount: 12, searchActive: true, searching: false, searchFailed: true })).toBe(
+      "Search failed · showing existing candidate grid",
+    );
+  });
+
+  it("keeps the existing grid when a search fails before returning rows", () => {
+    const candidates = [base({ messageId: "m1", name: "Existing Candidate" })];
+    const rows = gridRowsForSearchState({ candidates, searchRows: [], searchActive: true, searchFailed: true });
+    expect(rows).toBe(candidates);
   });
 });

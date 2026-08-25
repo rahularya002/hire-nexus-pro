@@ -71,6 +71,7 @@ const DOMAINS: { id: string; qualifiers: string[]; related?: string[] }[] = [
     related: ["textile", "textiles", "fabric", "surface", "embroidery", "print", "accessory", "accessories", "leather"],
   },
   { id: "graphic", qualifiers: ["graphic", "visual", "brand", "branding", "layout", "packaging"] },
+  { id: "product", qualifiers: ["product"] },
   { id: "ux", qualifiers: ["ux", "ui", "uiux", "uxui", "interaction", "usability", "experience"], related: ["product"] },
   { id: "interior", qualifiers: ["interior", "space", "furniture"], related: ["architectural"] },
   { id: "industrial", qualifiers: ["industrial", "mechanical", "automotive"] },
@@ -183,6 +184,16 @@ function adjacent(text: string, qualifiers: string[], heads: string[]): string |
   return null;
 }
 
+function sameDomainAdjacentTitle(spec: OccupationSpec, roleText: string): string | null {
+  const hasDomain = spec.qualifiers.some((q) => hasWord(roleText, q));
+  if (!hasDomain) return null;
+  if (spec.qualifiers.includes("fashion")) {
+    if (hasWord(roleText, "stylist") || hasWord(roleText, "styling")) return "fashion stylist";
+    if (hasWord(roleText, "costume")) return "costume designer";
+  }
+  return null;
+}
+
 export type RoleSignal = {
   /** Extracted role / current title — the strongest evidence. */
   role: string | null | undefined;
@@ -223,9 +234,24 @@ export function matchOccupation(req: OccupationRequirement, signal: RoleSignal):
         if (techHit && primaryHead) return { tier: "specific", hits: [`${techHit} ${primaryHead}`] };
       }
 
-      // 4. Adjacent domain (textile designer for a fashion designer query).
+      // 4. Same-domain adjacent title: not an exact title, but clearly the same
+      //    fashion/apparel occupation family rather than a generic design hit.
+      const adjacentTitle = sameDomainAdjacentTitle(spec, roleText);
+      if (adjacentTitle) return { tier: "related", hits: [adjacentTitle] };
+
+      // 5. Resume / profile text says the occupation even though the extracted
+      //    title is missing or vague. This restores recall for CVs where title
+      //    extraction failed, but explicit conflicting titles still win.
+      const textCanClarify = !roleText.trim() || roleHasHead;
+      if (textCanClarify && !conflicting(spec, roleText)) {
+        const inText = adjacent(bodyText, spec.qualifiers, spec.heads);
+        const atomicInText = spec.atomic.find((p) => bodyText.includes(` ${p} `));
+        if (inText || atomicInText) return { tier: "related", hits: [(inText ?? atomicInText) as string] };
+      }
+
+      // 6. Adjacent domain (textile designer for a fashion designer query).
       if (spec.related.length) {
-        const rel = adjacent(roleText, spec.related, spec.heads);
+        const rel = adjacent(roleText, spec.related, spec.heads) ?? (roleHasHead ? adjacent(bodyText, spec.related, spec.heads) : null);
         if (rel) return { tier: "related", hits: [rel] };
       }
 

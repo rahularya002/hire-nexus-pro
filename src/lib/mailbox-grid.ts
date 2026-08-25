@@ -273,13 +273,25 @@ export function hitsToGridRows(hits: HitLike[]): GridRow[] {
   return [...byKey.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
+export function gridRowsForSearchState(args: {
+  candidates: GridRow[];
+  searchRows: GridRow[];
+  searchActive: boolean;
+  searchFailed: boolean;
+}): GridRow[] {
+  if (args.searchActive && (!args.searchFailed || args.searchRows.length > 0)) return args.searchRows;
+  return args.candidates;
+}
+
 export function candidateGridStatus(args: {
   rowCount: number;
   searchActive: boolean;
   searching: boolean;
+  searchFailed?: boolean;
   scanned?: number | null;
 }): string {
   const noun = args.rowCount === 1 ? "candidate" : "candidates";
+  if (args.searchFailed) return "Search failed · showing existing candidate grid";
   if (args.searchActive && args.searching) return `${args.rowCount} progressive matching ${noun} · searching`;
   if (args.searchActive) return `${args.rowCount} matching ${noun}`;
   const suffix = args.scanned ? ` · from ${args.scanned} scanned emails` : "";

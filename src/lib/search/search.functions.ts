@@ -49,6 +49,7 @@ export type SearchStatus = {
   cache_hits: number;
   created_at: string;
   finished_at: string | null;
+  error?: string | null;
 };
 
 const HIT_COLUMNS =
@@ -91,6 +92,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
       .eq("raw_query", raw)
       .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString())
       .eq("status", "done")
+      .gt("hit_count", 0)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -165,7 +167,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
               .order("sent_at", { ascending: false }),
             supabaseAdmin
               .from("email_resume_versions")
-              .select("email_candidate_id,file_name,extracted_text,received_at")
+              .select("id,email_candidate_id,file_name,mime,storage_path,extracted_text,received_at")
               .in("email_candidate_id", archiveIds)
               .order("received_at", { ascending: false }),
           ])
@@ -184,7 +186,10 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
         if (id && !messagesByPerson.has(id)) messagesByPerson.set(id, m as never);
       }
 
-      const resumesByPerson = new Map<string, { file_name: string | null; extracted_text: string | null }[]>();
+      const resumesByPerson = new Map<
+        string,
+        { id: string | null; file_name: string | null; mime: string | null; storage_path: string | null; extracted_text: string | null }[]
+      >();
       for (const r of resumeResult.data ?? []) {
         const id = r.email_candidate_id as string | null;
         if (!id) continue;
@@ -193,7 +198,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
         resumesByPerson.set(id, list);
       }
 
-      const rows = archived.flatMap((p) => {
+      const rows = (await Promise.all(archived.map(async (p) => {
         const sourceMessage = messagesByPerson.get(p.id as string);
         const sourceResume = selectResumeForCandidate(resumesByPerson.get(p.id as string) ?? [], {
           name: p.name,
@@ -201,7 +206,22 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           phone: p.phone,
         });
         const bodyText = cleanBodyText(`${sourceMessage?.subject ?? ""}\n${sourceMessage?.snippet ?? ""}`);
-        const docText = sourceResume?.extracted_text ?? "";
+        let docText = sourceResume?.extracted_text ?? "";
+        if (!docText.trim() && sourceResume?.storage_path) {
+          try {
+            const downloaded = await supabaseAdmin.storage.from("documents").download(sourceResume.storage_path);
+            if (downloaded.data && !downloaded.error) {
+              const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+              const { extractCvText } = await import("../cv-parse.server");
+              docText = await extractCvText(bytes, sourceResume.file_name ?? "resume.pdf", sourceResume.mime);
+              if (sourceResume.id && docText.trim()) {
+                await supabaseAdmin.from("email_resume_versions").update({ extracted_text: docText }).eq("id", sourceResume.id);
+              }
+            }
+          } catch {
+            docText = "";
+          }
+        }
         const deterministic = extractDeterministic({
           fromEmail: sourceMessage?.from_email ?? null,
           fromName: sourceMessage?.from_name ?? null,
@@ -266,7 +286,7 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
           saved_candidate_id: (p.promoted_candidate_id as string | null) ?? null,
           saved_at: p.promoted_candidate_id ? new Date().toISOString() : null,
         }];
-      });
+      }))).flat();
       archiveHits = rows.length;
       if (rows.length) {
         await supabaseAdmin.from("email_search_hits").upsert(rows as never, { onConflict: "search_id,gmail_message_id" });
@@ -319,7 +339,7 @@ export const getCandidateSearch = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: search } = await context.supabase
       .from("email_searches")
-      .select("id,raw_query,status,listed_count,hydrated_count,hit_count,ai_calls,cache_hits,created_at,finished_at")
+      .select("id,raw_query,status,listed_count,hydrated_count,hit_count,ai_calls,cache_hits,created_at,finished_at,error")
       .eq("id", data.searchId)
       .maybeSingle();
     const { data: hits } = await context.supabase

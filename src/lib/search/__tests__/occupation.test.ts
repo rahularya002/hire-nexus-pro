@@ -33,6 +33,16 @@ describe("occupation parsing", () => {
     expect(matchOccupation(req, { role: "Apparel Designer" }).tier).toBe("specific");
     expect(matchOccupation(req, { role: "Womenswear Designer" }).tier).toBe("specific");
   });
+
+  it("uses strong resume occupation context for an ambiguous designer title", () => {
+    const req = occupationRequirement(deterministicPlan(FASHION).roles);
+    const m = matchOccupation(req, {
+      role: "Designer",
+      skills: ["illustration"],
+      text: "portfolio for apparel designer and womenswear design across Delhi markets",
+    });
+    expect(m.tier).toBe("related");
+  });
 });
 
 describe("fashion designer query — screenshot regression", () => {
@@ -77,6 +87,17 @@ describe("fashion designer query — screenshot regression", () => {
     expect(r.qualified).toBe(false);
   });
 
+  it("rejects UI/UX, Graphic, Product, Visual and Web Designers despite Figma", () => {
+    for (const role of ["UI/UX Designer", "Graphic Designer", "Product Designer", "Visual Designer", "Web Designer"]) {
+      const r = run(
+        { role, location: "Delhi", experience: "7 years", skills: ["figma", "wireframing", "photoshop"] },
+        `${role} Delhi 7 years figma wireframing photoshop fashion`,
+      );
+      expect(r.qualified, role).toBe(false);
+      expect(r.score, role).toBe(0);
+    }
+  });
+
   it("rejects Product Designer and Makeup Artist despite matching city and experience", () => {
     expect(run({ role: "Product Designer", location: "Mumbai", experience: "7 years", skills: ["figma"] }, "product designer mumbai figma").qualified).toBe(false);
     expect(run({ role: "Makeup Artist", location: "Delhi", experience: "5 years", skills: ["fashion", "styling"] }, "makeup artist delhi fashion styling").qualified).toBe(false);
@@ -100,9 +121,37 @@ describe("fashion designer query — screenshot regression", () => {
     expect(r.qualified).toBe(false);
   });
 
-  it("does not accept raw resume/body text when role extraction failed", () => {
+  it("allows a missing extracted title only when resume text states the fashion occupation", () => {
     const r = run({ role: null, location: "Delhi", experience: "4 years" }, "resume of a fashion designer in delhi with 4 years in womenswear");
+    expect(r.qualified).toBe(true);
+    expect(r.score).toBeGreaterThan(0);
+    expect(r.score).toBeLessThan(run({ role: "Fashion Designer", location: "Delhi", experience: "4 years" }, "fashion designer delhi").score);
+  });
+
+  it("does not accept a missing role with fashion-adjacent skills but no occupation phrase", () => {
+    const r = run({ role: null, location: "Delhi", experience: "4 years", skills: ["figma", "illustration"] }, "fashion styling portfolio figma delhi 4 years");
     expect(r.qualified).toBe(false);
+  });
+
+  it("allows ambiguous Designer with strong fashion resume context at lower confidence", () => {
+    const explicit = run({ role: "Fashion Designer", location: "Delhi", experience: "5 years" }, "fashion designer delhi womenswear");
+    const ambiguous = run(
+      { role: "Designer", location: "Delhi", experience: "5 years", skills: ["illustration"] },
+      "apparel designer womenswear clothing design portfolio delhi 5 years",
+    );
+    expect(ambiguous.qualified).toBe(true);
+    expect(ambiguous.score).toBeGreaterThan(0);
+    expect(ambiguous.score).toBeLessThan(explicit.score);
+  });
+
+  it("returns positive candidates on fixture data for the exact fashion query", () => {
+    const fixtures = [
+      { extracted: { name: "Prem Lata", role: "Fashion Designer", location: "Delhi", experience: "7 years" }, haystack: "fashion designer delhi womenswear" },
+      { extracted: { name: "Naushad Belim", role: "Designer", location: "Mumbai", experience: "5 years" }, haystack: "apparel designer clothing fashion portfolio mumbai" },
+      { extracted: { name: "Wrong", role: "Graphic Designer", location: "Mumbai", experience: "8 years", skills: ["figma"] }, haystack: "graphic designer mumbai figma" },
+    ];
+    const matches = fixtures.map((f) => run(f.extracted, f.haystack)).filter((r) => r.qualified && r.score > 0);
+    expect(matches.length).toBeGreaterThan(0);
   });
 });
 
