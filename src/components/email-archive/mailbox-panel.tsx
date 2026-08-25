@@ -32,7 +32,15 @@ import {
   listMailboxCandidates,
   type MailboxAttachmentRef,
 } from "@/lib/mailbox.functions";
-import { matchesGridQuery, mergeCandidateRows, type GridCandidate } from "@/lib/mailbox-grid";
+import {
+  hitsToGridRows,
+  matchesGridQuery,
+  mergeCandidateRows,
+  type GridCandidate,
+  type GridRow,
+} from "@/lib/mailbox-grid";
+import { clearSearchSession, useSearchSession } from "@/lib/search/search-session";
+import { getCandidateSearch } from "@/lib/search/search.functions";
 
 type Props = {
   authed: boolean;
@@ -227,6 +235,8 @@ const COLUMNS: { key: keyof GridCandidate | "actions"; label: string; width: str
   { key: "actions", label: "Source", width: "min-w-[11rem]" },
 ];
 
+const MATCH_COLUMN = { key: "match" as const, label: "Match", width: "min-w-[5rem]" };
+
 /** Missing data is always shown as missing — never guessed. */
 function Cell({ value }: { value: string | null | undefined }) {
   return value && value.trim() ? (
@@ -250,14 +260,21 @@ function SkillCell({ skills }: { skills: string[] }) {
   );
 }
 
-function GridSkeleton({ rows = 6 }: { rows?: number }) {
+/** Match score for natural-language results — a column, never a separate card. */
+function MatchCell({ score }: { score: number | null | undefined }) {
+  if (score == null) return <span className="text-muted-foreground/60">–</span>;
+  const tone = score >= 70 ? "text-success" : score >= 45 ? "text-warning" : "text-muted-foreground";
+  return <span className={`tabular-nums font-semibold ${tone}`}>{score}</span>;
+}
+
+function GridSkeleton({ rows = 10, cols = COLUMNS.length }: { rows?: number; cols?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
         <tr key={r} className="border-t border-border">
-          {COLUMNS.map((c) => (
-            <td key={String(c.key)} className="px-3 py-3">
-              <div className="h-3 rounded bg-secondary animate-pulse" style={{ width: `${50 + ((r * 13 + c.label.length * 7) % 40)}%` }} />
+          {Array.from({ length: cols }).map((_c, c) => (
+            <td key={c} className="px-3 py-2.5">
+              <div className="h-3 rounded bg-secondary animate-pulse" style={{ width: `${50 + ((r * 13 + c * 7) % 40)}%` }} />
             </td>
           ))}
         </tr>
@@ -270,6 +287,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listMailboxCandidates);
   const addFn = useServerFn(addMailboxMessageToCandidates);
+  const searchFn = useServerFn(getCandidateSearch);
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
@@ -290,16 +308,46 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
+  // The committed natural-language search (shared session store, so it survives
+  // tab switches) and its cached results.
+  const { query: nlQuery, searchId } = useSearchSession();
+  const search = useQuery({
+    queryKey: ["candidate-search", searchId],
+    queryFn: () => searchFn({ data: { searchId: searchId! } }),
+    enabled: authed && !!searchId,
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+
   // Candidates can appear in more than one page of mail, so merge across pages too.
   const candidates = useMemo(
     () => mergeCandidateRows((list.data?.pages ?? []).flatMap((p) => p.candidates as GridCandidate[])),
     [list.data],
   );
-  const rows = useMemo(() => candidates.filter((c) => matchesGridQuery(c, query)), [candidates, query]);
+  // Natural-language search results land in this same grid: the rows change,
+  // the columns and actions do not.
+  const searchRows = useMemo<GridRow[]>(
+    () => (search.data?.hits ? hitsToGridRows(search.data.hits as never) : []),
+    [search.data],
+  );
+  const searchActive = !!searchId;
+  const searching = search.data?.search?.status === "running";
+
+  const rows = useMemo<GridRow[]>(() => {
+    // Structured filters and the natural-language search combine: the search
+    // decides the row set, the text filter narrows it further.
+    const base: GridRow[] = searchActive ? searchRows : candidates;
+    return base.filter((c) => matchesGridQuery(c, query));
+  }, [candidates, searchRows, searchActive, query]);
   const scanned = useMemo(
     () => (list.data?.pages ?? []).reduce((n, p) => n + (p.scanned ?? 0), 0),
     [list.data],
   );
+
+  const cols = searchActive ? [MATCH_COLUMN, ...COLUMNS] : COLUMNS;
+  const loading = searchActive ? search.isLoading && !search.data : list.isLoading;
 
   const add = useMutation({
     mutationFn: (messageId: string) => addFn({ data: { messageId } }),
@@ -398,6 +446,25 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
         </div>
       </div>
 
+      {/* Same grid, filtered: a one-line status, never a separate results list. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap text-[11px] text-muted-foreground">
+        <span>
+          {rows.length} {searchActive ? "matching " : ""}candidate{rows.length === 1 ? "" : "s"}
+          {searching ? " · still searching" : ""}
+          {scanned && !searchActive ? ` · from ${scanned} scanned emails` : ""}
+        </span>
+        {searchActive && (
+          <span className="inline-flex items-center gap-2">
+            <span className="max-w-[22rem] truncate rounded-full border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-primary">
+              Search: {nlQuery || "natural-language query"}
+            </span>
+            <button onClick={clearSearchSession} className="hover:text-foreground">
+              Clear search
+            </button>
+          </span>
+        )}
+      </div>
+
       {list.isError && !list.isLoading ? (
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex items-start gap-2">
           <AlertTriangle className="size-4 mt-0.5" />
@@ -411,11 +478,11 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
       ) : (
         <>
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="max-h-[68vh] overflow-auto">
+            <div className="h-[calc(100vh-22rem)] min-h-[26rem] overflow-auto">
               <table className="w-full text-xs border-separate border-spacing-0">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-secondary/60 backdrop-blur">
-                    {COLUMNS.map((c) => (
+                    {cols.map((c) => (
                       <th
                         key={String(c.key)}
                         className={`${c.width} whitespace-nowrap border-b border-border px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}
@@ -426,17 +493,25 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.isLoading && <GridSkeleton />}
-                  {!list.isLoading && rows.length === 0 && (
+                  {loading && <GridSkeleton rows={12} cols={cols.length} />}
+                  {!loading && rows.length === 0 && (
                     <tr>
-                      <td colSpan={COLUMNS.length} className="px-4 py-10">
+                      <td colSpan={cols.length} className="px-4 py-10">
                         <EmptyState
                           icon={Users}
-                          title={query ? "No candidates match this filter" : "No candidates found in this view"}
+                          title={
+                            searchActive
+                              ? "No candidates matched this search"
+                              : query
+                                ? "No candidates match this filter"
+                                : "No candidates found in this view"
+                          }
                           description={
-                            query
-                              ? "Clear the filter to see every candidate extracted from these emails."
-                              : "Try another scope or label, or load more mail — only emails that actually contain a candidate become rows."
+                            searchActive
+                              ? "Try fewer constraints, or clear the search to see every candidate extracted from your recruitment mail."
+                              : query
+                                ? "Clear the filter to see every candidate extracted from these emails."
+                                : "Try another scope or label, or load more mail — only emails that actually contain a candidate become rows."
                           }
                         />
                       </td>
@@ -446,7 +521,12 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                     const src = c.sources[0];
                     return (
                       <tr key={c.key} className="border-t border-border hover:bg-secondary/30 transition-colors">
-                        <td className="border-b border-border px-3 py-2.5">
+                        {searchActive && (
+                          <td className="border-b border-border px-3 py-2 whitespace-nowrap">
+                            <MatchCell score={c.score} />
+                          </td>
+                        )}
+                        <td className="border-b border-border px-3 py-2">
                           <button
                             className="text-left font-medium text-foreground hover:text-primary inline-flex items-center gap-1.5"
                             onClick={() => setSourcesFor(c)}
@@ -460,17 +540,17 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                             </span>
                           )}
                         </td>
-                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.phone} /></td>
-                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.email} /></td>
-                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.role} /></td>
-                        <td className="border-b border-border px-3 py-2.5"><SkillCell skills={c.skills} /></td>
-                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.experience} /></td>
-                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.company} /></td>
-                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.currentCtc} /></td>
-                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.expectedCtc} /></td>
-                        <td className="border-b border-border px-3 py-2.5 whitespace-nowrap"><Cell value={c.noticePeriod} /></td>
-                        <td className="border-b border-border px-3 py-2.5"><Cell value={c.location} /></td>
-                        <td className="border-b border-border px-3 py-2.5">
+                        <td className="border-b border-border px-3 py-2 whitespace-nowrap"><Cell value={c.phone} /></td>
+                        <td className="border-b border-border px-3 py-2"><Cell value={c.email} /></td>
+                        <td className="border-b border-border px-3 py-2"><Cell value={c.role} /></td>
+                        <td className="border-b border-border px-3 py-2"><SkillCell skills={c.skills} /></td>
+                        <td className="border-b border-border px-3 py-2 whitespace-nowrap"><Cell value={c.experience} /></td>
+                        <td className="border-b border-border px-3 py-2"><Cell value={c.company} /></td>
+                        <td className="border-b border-border px-3 py-2 whitespace-nowrap"><Cell value={c.currentCtc} /></td>
+                        <td className="border-b border-border px-3 py-2 whitespace-nowrap"><Cell value={c.expectedCtc} /></td>
+                        <td className="border-b border-border px-3 py-2 whitespace-nowrap"><Cell value={c.noticePeriod} /></td>
+                        <td className="border-b border-border px-3 py-2"><Cell value={c.location} /></td>
+                        <td className="border-b border-border px-3 py-2">
                           <div className="flex items-center gap-1">
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setSourcesFor(c)}>
                               <Mail className="size-3.5" /> Sources
@@ -501,12 +581,8 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-[11px] text-muted-foreground">
-              {rows.length} candidate{rows.length === 1 ? "" : "s"}
-              {scanned ? ` from ${scanned} scanned emails` : ""}
-            </p>
-            {list.hasNextPage && (
+          <div className="flex items-center justify-end gap-3 flex-wrap">
+            {list.hasNextPage && !searchActive && (
               <Button variant="outline" size="sm" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
                 {list.isFetchingNextPage ? <Loader2 className="size-3.5 animate-spin" /> : null}
                 Scan more emails
