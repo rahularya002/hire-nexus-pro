@@ -109,9 +109,11 @@ export async function upsertPersonFromPayload(
 ): Promise<{ personId: string; name: string; email: string | null; merged: boolean }> {
   const ex = payload.extracted;
   const primary = payload.attachments[0] ?? null;
+  // With an attachment the sender is usually a forwarding recruiter, so their
+  // address is provenance, not candidate identity.
   const email =
     (ex.email ?? "").toLowerCase() ||
-    (payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) ||
+    (primary ? null : payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) ||
     null;
   const phoneDigits = digits(ex.phone);
   // Never the Gmail sender: on a forwarded resume that is the recruiter.
