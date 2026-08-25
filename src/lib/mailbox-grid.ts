@@ -176,3 +176,98 @@ export function matchesGridQuery(c: GridCandidate, query: string): boolean {
     .toLowerCase();
   return q.split(/\s+/).every((t) => hay.includes(t));
 }
+
+/**
+ * A grid row that may carry natural-language match metadata. The grid stays the
+ * single surface: search results are the same rows, with a score column.
+ */
+export type GridRow = GridCandidate & {
+  score?: number | null;
+  hitId?: string | null;
+  savedAt?: string | null;
+};
+
+type HitLike = {
+  id: string;
+  score: number;
+  confidence?: number | null;
+  subject: string | null;
+  from_name: string | null;
+  from_email: string | null;
+  sent_at: string | null;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  resume_file_name: string | null;
+  saved_at?: string | null;
+  extracted: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    role?: string | null;
+    location?: string | null;
+    experience?: string | null;
+    current_company?: string | null;
+    skills?: string[] | null;
+  } | null;
+};
+
+/** Map one search hit onto the same shape the Gmail grid already renders. */
+export function hitToGridRow(h: HitLike): GridRow {
+  const ex = h.extracted ?? {};
+  const text = `${h.subject ?? ""}\n${h.snippetText ?? ""}`;
+  return {
+    key: candidateKey({ ...ex, messageId: h.gmail_message_id }),
+    name: ex.name ?? null,
+    email: ex.email ?? null,
+    phone: ex.phone ?? null,
+    role: ex.role ?? null,
+    company: ex.current_company ?? null,
+    experience: ex.experience ?? null,
+    location: ex.location ?? null,
+    skills: ex.skills ?? [],
+    currentCtc: extractCurrentCtc(text),
+    expectedCtc: extractExpectedCtc(text),
+    noticePeriod: extractNoticePeriod(text),
+    confidence: h.confidence ?? h.score,
+    unread: false,
+    sources: [
+      {
+        messageId: h.gmail_message_id,
+        threadId: h.gmail_thread_id ?? h.gmail_message_id,
+        subject: h.subject,
+        fromName: h.from_name,
+        fromEmail: h.from_email,
+        sentAt: h.sent_at,
+        attachmentNames: h.resume_file_name ? [h.resume_file_name] : [],
+        hasResume: !!h.resume_file_name,
+      },
+    ],
+    score: h.score,
+    hitId: h.id,
+    savedAt: h.saved_at ?? null,
+  };
+}
+
+/**
+ * Collapse hits into grid rows, highest score first. Identity comes from the
+ * candidate (email → phone → name+role), never from the forwarding sender, so
+ * two people sent by the same recruiter stay two rows.
+ */
+export function hitsToGridRows(hits: HitLike[]): GridRow[] {
+  const rows = hits.map(hitToGridRow);
+  const byKey = new Map<string, GridRow>();
+  for (const row of rows) {
+    const prev = byKey.get(row.key);
+    if (!prev) {
+      byKey.set(row.key, row);
+      continue;
+    }
+    const merged = mergeCandidates(prev, row) as GridRow;
+    const best = (row.score ?? 0) > (prev.score ?? 0) ? row : prev;
+    merged.score = Math.max(prev.score ?? 0, row.score ?? 0);
+    merged.hitId = best.hitId;
+    merged.savedAt = prev.savedAt ?? row.savedAt ?? null;
+    byKey.set(row.key, merged);
+  }
+  return [...byKey.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
