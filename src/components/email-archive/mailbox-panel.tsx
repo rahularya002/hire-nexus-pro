@@ -34,6 +34,7 @@ import {
 } from "@/lib/mailbox.functions";
 import {
   candidateGridStatus,
+  gridRowsForSearchState,
   hitsToGridRows,
   matchesGridQuery,
   mergeCandidateRows,
@@ -334,22 +335,24 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     [search.data],
   );
   const searchActive = !!searchId;
+  const searchFailed = searchActive && search.isError;
   const searching = search.data?.search?.status === "running";
+  const showSearchRows = searchActive && (!searchFailed || searchRows.length > 0);
 
   const rows = useMemo<GridRow[]>(() => {
     // Structured filters and the natural-language search combine: the search
     // decides the row set, the text filter narrows it further.
-    const base: GridRow[] = searchActive ? searchRows : candidates;
+    const base = gridRowsForSearchState({ candidates, searchRows, searchActive, searchFailed });
     return base.filter((c) => matchesGridQuery(c, query));
-  }, [candidates, searchRows, searchActive, query]);
+  }, [candidates, searchRows, searchActive, searchFailed, query]);
   const scanned = useMemo(
     () => (list.data?.pages ?? []).reduce((n, p) => n + (p.scanned ?? 0), 0),
     [list.data],
   );
 
-  const cols = searchActive ? [MATCH_COLUMN, ...COLUMNS] : COLUMNS;
-  const loading = searchActive ? search.isLoading && !search.data : list.isLoading;
-  const statusText = candidateGridStatus({ rowCount: rows.length, searchActive, searching, scanned });
+  const cols = showSearchRows ? [MATCH_COLUMN, ...COLUMNS] : COLUMNS;
+  const loading = searchActive ? search.isLoading && !search.data && !searchFailed : list.isLoading;
+  const statusText = candidateGridStatus({ rowCount: rows.length, searchActive, searching, searchFailed, scanned });
 
   const add = useMutation({
     mutationFn: (messageId: string) => addFn({ data: { messageId } }),
@@ -464,6 +467,13 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
           </span>
         )}
       </div>
+
+      {searchFailed && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          <span>{friendlyError(search.error)} Showing the existing candidate grid.</span>
+        </div>
+      )}
 
       {list.isError && !list.isLoading ? (
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex items-start gap-2">
