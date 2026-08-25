@@ -93,8 +93,6 @@ export function sanitizeCandidateIdentity<T extends IdentityFields>(fields: T, c
   if (senderLooksLikeCandidate(ctx)) return fields;
 
   const doc = ctx.docText ?? "";
-  const body = ctx.bodyText ?? "";
-  const haystack = squash(`${doc} ${body}`);
   const out = { ...fields };
 
   const name = squash(out.name);
@@ -114,6 +112,5 @@ export function sanitizeCandidateIdentity<T extends IdentityFields>(fields: T, c
     const inDoc = digitsOf(doc).includes(phone);
     if (!inDoc) out.phone = null;
   }
-  void haystack;
   return out;
 }
