@@ -114,7 +114,8 @@ export async function upsertPersonFromPayload(
     (payload.direction === "inbound" ? payload.from_email : payload.to_emails[0]) ||
     null;
   const phoneDigits = digits(ex.phone);
-  const name = ex.name || payload.from_name || (primary ? niceName(primary.file_name, email) : email) || "Unknown";
+  // Never the Gmail sender: on a forwarded resume that is the recruiter.
+  const name = ex.name || (primary ? niceName(primary.file_name, email) : null) || email || "Name not found";
   const skills = (ex.skills ?? []).slice(0, 30);
 
   let person: Person | null = null;
