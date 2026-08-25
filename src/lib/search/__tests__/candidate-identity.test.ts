@@ -230,6 +230,18 @@ describe("archive CV evidence selection", () => {
 
     expect(chosen?.file_name).toBe("Naushad_Khan_Fashion_Designer_Stylist_Resume_2026.pdf");
   });
+
+  it("uses filename/email evidence when old stored name points at the wrong CV and extracted text is empty", () => {
+    const chosen = selectResumeForCandidate(
+      [
+        { file_name: "Navita Chandwani - Resume.pdf", extracted_text: "" },
+        { file_name: "Naushad_Khan_Fashion_Designer_Stylist_Resume_2026.pdf", extracted_text: "" },
+      ],
+      { name: "Navita Chandwani", email: "naushadbelim50@gmail.com", phone: null },
+    );
+
+    expect(chosen?.file_name).toBe("Naushad_Khan_Fashion_Designer_Stylist_Resume_2026.pdf");
+  });
 });
 
 describe("role relevance outweighs generic skill overlap", () => {
