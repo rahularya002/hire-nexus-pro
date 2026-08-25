@@ -9,6 +9,7 @@ import { classifyItem } from "./pipeline/classify.server";
 import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/normalize.server";
 import { emptyMetrics } from "./pipeline/types";
 import { candidateEvidence, heuristicScore, isCandidateArtifact } from "./recruitment-classify.server";
+import { pickPrimaryCandidateAttachment } from "./candidate-attachment";
 import {
   candidateKey,
   extractCurrentCtc,
@@ -26,7 +27,8 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
       for (;;) {
         const i = next++;
         if (i >= items.length) return;
-        out[i] = await fn(items[i]!);
+        const item = items[i];
+        if (item !== undefined) out[i] = await fn(item);
       }
     }),
   );
@@ -71,7 +73,7 @@ export async function hydrateCandidatePage(args: {
 
       // The CV is the higher-confidence source for structured fields.
       let docText = "";
-      const primary = raw.attachments[0] ?? null;
+      const primary = pickPrimaryCandidateAttachment(raw.attachments);
       if (primary) {
         try {
           const bytes = await getAttachmentBytes(args.accessToken, ref.id, primary.externalId);

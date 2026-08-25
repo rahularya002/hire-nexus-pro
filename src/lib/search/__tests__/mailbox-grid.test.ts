@@ -5,6 +5,7 @@ import {
   extractExpectedCtc,
   extractNoticePeriod,
   hitsToGridRows,
+  candidateGridStatus,
   matchesGridQuery,
   mergeCandidateRows,
   type GridCandidate,
@@ -144,5 +145,15 @@ describe("search hits render as grid rows", () => {
       hit({ id: "2", score: 95, extracted: { name: "Mona Paul", role: "Merchandiser" } }),
     ]);
     expect(rows.map((r) => r.name)).toEqual(["Mona Paul", "Lucy Kom"]);
+  });
+});
+
+describe("grid search status", () => {
+  it("labels running search results as progressive instead of final", () => {
+    expect(candidateGridStatus({ rowCount: 19, searchActive: true, searching: true })).toBe("19 progressive matching candidates · searching");
+  });
+
+  it("uses final wording only after search completes", () => {
+    expect(candidateGridStatus({ rowCount: 19, searchActive: true, searching: false })).toBe("19 matching candidates");
   });
 });

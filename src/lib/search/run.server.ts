@@ -9,6 +9,7 @@ import { cleanBodyText, extractDeterministic, sha256Bytes } from "../pipeline/no
 import { emptyMetrics } from "../pipeline/types";
 import { candidateEvidence, heuristicScore, isCandidateArtifact } from "../recruitment-classify.server";
 import type { CandidatePayload, StoredAttachment } from "../email-import.server";
+import { pickPrimaryCandidateAttachment } from "../candidate-attachment";
 import {
   SEARCH_HYDRATE_PER_BATCH,
   SEARCH_LIST_PAGE,
@@ -46,7 +47,8 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
       for (;;) {
         const i = next++;
         if (i >= items.length) return;
-        out[i] = await fn(items[i]!);
+        const item = items[i];
+        if (item !== undefined) out[i] = await fn(item);
       }
     }),
   );
@@ -132,7 +134,7 @@ export async function runSearchSlice(
       let docText = "";
       let primaryBytes: Uint8Array | null = null;
       let primaryHash: string | null = null;
-      const primary = raw.attachments[0] ?? null;
+      const primary = pickPrimaryCandidateAttachment(raw.attachments);
       if (primary) {
         try {
           primaryBytes = await getAttachmentBytes(accessToken, ref.id, primary.externalId);

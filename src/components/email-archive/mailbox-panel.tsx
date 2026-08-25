@@ -33,6 +33,7 @@ import {
   type MailboxAttachmentRef,
 } from "@/lib/mailbox.functions";
 import {
+  candidateGridStatus,
   hitsToGridRows,
   matchesGridQuery,
   mergeCandidateRows,
@@ -348,6 +349,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
 
   const cols = searchActive ? [MATCH_COLUMN, ...COLUMNS] : COLUMNS;
   const loading = searchActive ? search.isLoading && !search.data : list.isLoading;
+  const statusText = candidateGridStatus({ rowCount: rows.length, searchActive, searching, scanned });
 
   const add = useMutation({
     mutationFn: (messageId: string) => addFn({ data: { messageId } }),
@@ -449,9 +451,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
       {/* Same grid, filtered: a one-line status, never a separate results list. */}
       <div className="flex items-center justify-between gap-3 flex-wrap text-[11px] text-muted-foreground">
         <span>
-          {rows.length} {searchActive ? "matching " : ""}candidate{rows.length === 1 ? "" : "s"}
-          {searching ? " · still searching" : ""}
-          {scanned && !searchActive ? ` · from ${scanned} scanned emails` : ""}
+          {statusText}
         </span>
         {searchActive && (
           <span className="inline-flex items-center gap-2">

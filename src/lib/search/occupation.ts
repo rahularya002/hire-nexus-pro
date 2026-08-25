@@ -122,7 +122,8 @@ export function occupationRequirement(roles: string[]): OccupationRequirement {
   for (const raw of roles) {
     const words = norm(raw).trim().split(" ").filter(Boolean);
     if (!words.length) continue;
-    const last = words[words.length - 1]!;
+    const last = words[words.length - 1];
+    if (!last) continue;
     const fam = headFamily(last);
     if (!fam) continue;
     sawHead = true;
@@ -131,7 +132,8 @@ export function occupationRequirement(roles: string[]): OccupationRequirement {
     const qualifierWords = words.slice(0, -1).filter((w) => w.length >= 2);
     if (!qualifierWords.length) continue;
 
-    const qualifier = qualifierWords[qualifierWords.length - 1]!;
+    const qualifier = qualifierWords[qualifierWords.length - 1];
+    if (!qualifier) continue;
     const domain = domainFor(qualifier);
     const qualifiers = Array.from(new Set([...qualifierWords, ...domain.qualifiers]));
     const atomic = Array.from(
@@ -198,8 +200,8 @@ export function matchOccupation(req: OccupationRequirement, signal: RoleSignal):
   if (req.specificity === "none") return { tier: "open", hits: [] };
 
   const roleText = norm(signal.role);
-  const bodyText = norm(signal.text);
   const skillText = norm((signal.skills ?? []).filter(Boolean).join(" "));
+  const bodyText = norm(signal.text);
   const hits: string[] = [];
 
   if (req.specificity === "specific") {
@@ -217,24 +219,18 @@ export function matchOccupation(req: OccupationRequirement, signal: RoleSignal):
       // 3. Technology qualifier: a Frontend Engineer who clearly works in React.
       if (spec.techQualifier && roleHasHead) {
         const techHit = spec.qualifiers.find((q) => hasWord(skillText, q) || hasWord(roleText, q) || hasWord(bodyText, q));
-        if (techHit) return { tier: "specific", hits: [`${techHit} ${spec.heads[0]}`] };
+        const primaryHead = spec.heads[0];
+        if (techHit && primaryHead) return { tier: "specific", hits: [`${techHit} ${primaryHead}`] };
       }
 
-      // 4. Resume / email text says the occupation even though the title field is
-      //    empty or vague. Requires the qualifier next to the head — never alone.
-      const inText = adjacent(bodyText, spec.qualifiers, spec.heads);
-      const atomicInText = spec.atomic.find((p) => bodyText.includes(` ${p} `));
-      if ((inText || atomicInText) && !conflicting(spec, roleText)) {
-        return { tier: "specific", hits: [(inText ?? atomicInText)!] };
-      }
-
-      // 5. Adjacent domain (textile designer for a fashion designer query).
+      // 4. Adjacent domain (textile designer for a fashion designer query).
       if (spec.related.length) {
-        const rel = adjacent(roleText, spec.related, spec.heads) ?? adjacent(bodyText, spec.related, spec.heads);
+        const rel = adjacent(roleText, spec.related, spec.heads);
         if (rel) return { tier: "related", hits: [rel] };
       }
 
-      if (roleHasHead) hits.push(spec.heads[0]!);
+      const primaryHead = spec.heads[0];
+      if (roleHasHead && primaryHead) hits.push(primaryHead);
     }
     // Only the generic head noun was found: not the requested occupation.
     return hits.length ? { tier: "generic", hits: [] } : { tier: "none", hits: [] };

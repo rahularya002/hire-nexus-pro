@@ -150,7 +150,7 @@ export function mergeCandidateRows(rows: GridCandidate[]): GridCandidate[] {
       byKey.set(row.key, mergeCandidates(prev, row));
     }
   }
-  return order.map((k) => byKey.get(k)!);
+  return order.map((k) => byKey.get(k)).filter((row): row is GridCandidate => !!row);
 }
 
 /** Client-side text filter across every visible column. */
@@ -271,4 +271,17 @@ export function hitsToGridRows(hits: HitLike[]): GridRow[] {
     byKey.set(row.key, merged);
   }
   return [...byKey.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
+export function candidateGridStatus(args: {
+  rowCount: number;
+  searchActive: boolean;
+  searching: boolean;
+  scanned?: number | null;
+}): string {
+  const noun = args.rowCount === 1 ? "candidate" : "candidates";
+  if (args.searchActive && args.searching) return `${args.rowCount} progressive matching ${noun} · searching`;
+  if (args.searchActive) return `${args.rowCount} matching ${noun}`;
+  const suffix = args.scanned ? ` · from ${args.scanned} scanned emails` : "";
+  return `${args.rowCount} ${noun}${suffix}`;
 }
