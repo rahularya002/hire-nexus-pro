@@ -53,7 +53,7 @@ function scoreResumeForCandidate(resume: CandidateResumeEvidence, hint: Candidat
     if (fileCandidateTokens.includes(token)) score += 18;
   }
   for (const token of fileCandidateTokens) {
-    if (emailLocal.length >= 5 && emailLocal.includes(token)) score += 55;
+    if (emailLocal.length >= 5 && emailLocal.includes(token)) score += 90;
   }
 
   if ((resume.extracted_text ?? "").trim()) score += 4;
