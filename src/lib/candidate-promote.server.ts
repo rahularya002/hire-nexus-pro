@@ -103,7 +103,6 @@ export async function linkOrCreateCandidate(
     candidateId = match.id;
     alreadyExisted = true;
   } else {
-    const { data: latest } = await supabaseAdmin
     const insert = async (withEmail: boolean) =>
       supabaseAdmin
         .from("candidates")
@@ -141,14 +140,18 @@ export async function linkOrCreateCandidate(
         } else {
           const retry = await insert(false);
           if (retry.error) throw new Error(retry.error.message);
-          candidateId = retry.data!.id as string;
+          const retryId = retry.data?.id as string | undefined;
+          if (!retryId) throw new Error("Candidate could not be created");
+          candidateId = retryId;
           createdByUs = true;
         }
       } else {
         throw new Error(first.error.message);
       }
     } else {
-      candidateId = first.data!.id as string;
+      const firstId = first.data?.id as string | undefined;
+      if (!firstId) throw new Error("Candidate could not be created");
+      candidateId = firstId;
       createdByUs = true;
     }
   }
