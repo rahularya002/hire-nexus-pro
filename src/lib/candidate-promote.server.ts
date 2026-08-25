@@ -2,6 +2,8 @@
 // `email_candidates.promoted_candidate_id` is the lock: whoever claims it first
 // owns the candidate row, so double clicks can never create two candidates.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sanitizeCandidateIdentity } from "./candidate-identity";
+import { cleanBodyText, extractDeterministic } from "./pipeline/normalize.server";
 
 export async function linkOrCreateCandidate(
   personId: string,
@@ -19,8 +21,46 @@ export async function linkOrCreateCandidate(
   if (already) return { candidateId: already, alreadyExisted: true };
 
   const agencyId = person.agency_id as string;
-  const email = ((person.email as string | null) ?? "").trim().toLowerCase() || null;
-  const phoneDigits = ((person.phone as string | null) ?? "").replace(/\D+/g, "");
+
+  const [{ data: latestMessage }, { data: latestResume }] = await Promise.all([
+    supabaseAdmin
+      .from("email_messages")
+      .select("subject,snippet,from_email,from_name")
+      .eq("email_candidate_id", personId)
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("email_resume_versions")
+      .select("file_name,storage_path,extracted_text")
+      .eq("email_candidate_id", personId)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const bodyText = cleanBodyText(`${latestMessage?.subject ?? ""}\n${latestMessage?.snippet ?? ""}`);
+  const docText = (latestResume?.extracted_text as string | null) ?? "";
+  const deterministic = extractDeterministic({
+    fromEmail: (latestMessage?.from_email as string | null) ?? null,
+    fromName: (latestMessage?.from_name as string | null) ?? null,
+    cleanBody: bodyText,
+    docText,
+    primaryFileName: (latestResume?.file_name as string | null) ?? null,
+  }).fields;
+  const safeStoredIdentity = sanitizeCandidateIdentity(
+    { name: person.name as string | null, email: person.email as string | null, phone: person.phone as string | null },
+    {
+      fromEmail: (latestMessage?.from_email as string | null) ?? null,
+      fromName: (latestMessage?.from_name as string | null) ?? null,
+      bodyText,
+      docText,
+      hasAttachment: !!latestResume,
+    },
+  );
+  const safeName = deterministic.name ?? safeStoredIdentity.name ?? deterministic.email ?? safeStoredIdentity.email ?? "Unknown candidate";
+  const email = ((deterministic.email ?? safeStoredIdentity.email) ?? "").trim().toLowerCase() || null;
+  const phone = deterministic.phone ?? safeStoredIdentity.phone ?? null;
+  const phoneDigits = (phone ?? "").replace(/\D+/g, "");
   const phoneTail = phoneDigits.length >= 8 ? phoneDigits.slice(-10) : null;
 
   // Only ever link to a candidate inside the promoting user's own agency —
@@ -64,32 +104,25 @@ export async function linkOrCreateCandidate(
     alreadyExisted = true;
   } else {
     const { data: latest } = await supabaseAdmin
-      .from("email_resume_versions")
-      .select("storage_path")
-      .eq("email_candidate_id", personId)
-      .order("received_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     const insert = async (withEmail: boolean) =>
       supabaseAdmin
         .from("candidates")
         .insert({
           agency_id: agencyId,
-          name: (person.name as string) || (email ?? "Unknown candidate"),
+          name: safeName,
           email: withEmail ? email : null,
-          phone: (person.phone as string | null) ?? null,
-          role: (person.role as string | null) ?? null,
-          experience: (person.experience as string | null) ?? null,
-          location: (person.location as string | null) ?? null,
-          current_company: (person.current_company as string | null) ?? null,
-          skills: (person.skills as string[] | null) ?? [],
-          salary_min: (person.salary_min as number | null) ?? null,
-          salary_max: (person.salary_max as number | null) ?? null,
+          phone,
+          role: deterministic.role ?? (person.role as string | null) ?? null,
+          experience: deterministic.experience ?? (person.experience as string | null) ?? null,
+          location: deterministic.location ?? (person.location as string | null) ?? null,
+          current_company: deterministic.current_company ?? (person.current_company as string | null) ?? null,
+          skills: Array.from(new Set([...(deterministic.skills ?? []), ...((person.skills as string[] | null) ?? [])])).slice(0, 30),
+          salary_min: deterministic.salary_min ?? (person.salary_min as number | null) ?? null,
+          salary_max: deterministic.salary_max ?? (person.salary_max as number | null) ?? null,
           notes: withEmail
             ? ((person.notes as string | null) ?? null)
             : [person.notes as string | null, email ? `Email: ${email}` : null].filter(Boolean).join("\n") || null,
-          resume_url: (latest?.storage_path as string | undefined) ?? null,
+          resume_url: (latestResume?.storage_path as string | undefined) ?? null,
           source: "inbound",
           created_by: userId,
         })
@@ -137,10 +170,11 @@ export async function linkOrCreateCandidate(
       .maybeSingle();
     const winnerId = (winner?.promoted_candidate_id as string | null) ?? null;
     if (winnerId && winnerId !== candidateId) {
-      if (createdByUs) await supabaseAdmin.from("candidates").delete().eq("id", candidateId!);
+          if (createdByUs && candidateId) await supabaseAdmin.from("candidates").delete().eq("id", candidateId);
       return { candidateId: winnerId, alreadyExisted: true };
     }
   }
 
-  return { candidateId: candidateId!, alreadyExisted };
+  if (!candidateId) throw new Error("Candidate could not be promoted");
+  return { candidateId, alreadyExisted };
 }
