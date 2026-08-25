@@ -4,6 +4,7 @@ import {
   extractCurrentCtc,
   extractExpectedCtc,
   extractNoticePeriod,
+  hitsToGridRows,
   matchesGridQuery,
   mergeCandidateRows,
   type GridCandidate,
@@ -94,5 +95,54 @@ describe("grid query filter", () => {
     expect(matchesGridQuery(c, "draping")).toBe(true);
     expect(matchesGridQuery(c, "bangalore")).toBe(false);
     expect(matchesGridQuery(c, "")).toBe(true);
+  });
+});
+
+describe("search hits render as grid rows", () => {
+  const hit = (over: Partial<Record<string, unknown>> & { id: string }) =>
+    ({
+      score: 80,
+      confidence: 70,
+      subject: "Fashion designer profile",
+      snippet: "Current CTC: 12 LPA. Notice period: 30 days",
+      from_name: "Recruiter",
+      from_email: "recruiter@agency.com",
+      sent_at: "2026-08-02T00:00:00.000Z",
+      gmail_message_id: `g-${over.id}`,
+      gmail_thread_id: `t-${over.id}`,
+      resume_file_name: "cv.pdf",
+      saved_at: null,
+      extracted: {},
+      ...over,
+    }) as never;
+
+  it("maps a hit to a grid row with score and source, extracting stated fields", () => {
+    const [row] = hitsToGridRows([
+      hit({ id: "1", extracted: { name: "Gitu Paul", role: "Fashion Designer", email: "gitu@x.com" } }),
+    ]);
+    expect(row!.name).toBe("Gitu Paul");
+    expect(row!.score).toBe(80);
+    expect(row!.currentCtc).toBe("12 LPA");
+    expect(row!.noticePeriod).toBe("30 days");
+    expect(row!.sources[0]!.hasResume).toBe(true);
+  });
+
+  it("dedupes the same candidate across hits and keeps the best score", () => {
+    const rows = hitsToGridRows([
+      hit({ id: "1", score: 60, extracted: { name: "Gitu Paul", email: "gitu@x.com" } }),
+      hit({ id: "2", score: 90, extracted: { name: "Gitu Paul", email: "GITU@x.com", location: "Mumbai" } }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.score).toBe(90);
+    expect(rows[0]!.location).toBe("Mumbai");
+    expect(rows[0]!.sources).toHaveLength(2);
+  });
+
+  it("keeps distinct candidates forwarded by the same recruiter apart, ranked by score", () => {
+    const rows = hitsToGridRows([
+      hit({ id: "1", score: 40, extracted: { name: "Lucy Kom", role: "Designer" } }),
+      hit({ id: "2", score: 95, extracted: { name: "Mona Paul", role: "Merchandiser" } }),
+    ]);
+    expect(rows.map((r) => r.name)).toEqual(["Mona Paul", "Lucy Kom"]);
   });
 });
