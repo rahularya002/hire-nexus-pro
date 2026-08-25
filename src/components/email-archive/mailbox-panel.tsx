@@ -32,7 +32,15 @@ import {
   listMailboxCandidates,
   type MailboxAttachmentRef,
 } from "@/lib/mailbox.functions";
-import { matchesGridQuery, mergeCandidateRows, type GridCandidate } from "@/lib/mailbox-grid";
+import {
+  hitsToGridRows,
+  matchesGridQuery,
+  mergeCandidateRows,
+  type GridCandidate,
+  type GridRow,
+} from "@/lib/mailbox-grid";
+import { clearSearchSession, useSearchSession } from "@/lib/search/search-session";
+import { getCandidateSearch } from "@/lib/search/search.functions";
 
 type Props = {
   authed: boolean;
@@ -227,6 +235,8 @@ const COLUMNS: { key: keyof GridCandidate | "actions"; label: string; width: str
   { key: "actions", label: "Source", width: "min-w-[11rem]" },
 ];
 
+const MATCH_COLUMN = { key: "match" as const, label: "Match", width: "min-w-[5rem]" };
+
 /** Missing data is always shown as missing — never guessed. */
 function Cell({ value }: { value: string | null | undefined }) {
   return value && value.trim() ? (
@@ -250,7 +260,14 @@ function SkillCell({ skills }: { skills: string[] }) {
   );
 }
 
-function GridSkeleton({ rows = 6 }: { rows?: number }) {
+/** Match score for natural-language results — a column, never a separate card. */
+function MatchCell({ score }: { score: number | null | undefined }) {
+  if (score == null) return <span className="text-muted-foreground/60">–</span>;
+  const tone = score >= 70 ? "text-success" : score >= 45 ? "text-warning" : "text-muted-foreground";
+  return <span className={`tabular-nums font-semibold ${tone}`}>{score}</span>;
+}
+
+function GridSkeleton({ rows = 10 }: { rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
@@ -270,6 +287,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listMailboxCandidates);
   const addFn = useServerFn(addMailboxMessageToCandidates);
+  const searchFn = useServerFn(getCandidateSearch);
 
   const [scope, setScope] = useState<string>("recruitment");
   const [labelName, setLabelName] = useState<string>("ALL");
@@ -290,12 +308,39 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
 
+  // The committed natural-language search (shared session store, so it survives
+  // tab switches) and its cached results.
+  const { query: nlQuery, searchId } = useSearchSession();
+  const search = useQuery({
+    queryKey: ["candidate-search", searchId],
+    queryFn: () => searchFn({ data: { searchId: searchId! } }),
+    enabled: authed && !!searchId,
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+
   // Candidates can appear in more than one page of mail, so merge across pages too.
   const candidates = useMemo(
     () => mergeCandidateRows((list.data?.pages ?? []).flatMap((p) => p.candidates as GridCandidate[])),
     [list.data],
   );
-  const rows = useMemo(() => candidates.filter((c) => matchesGridQuery(c, query)), [candidates, query]);
+  // Natural-language search results land in this same grid: the rows change,
+  // the columns and actions do not.
+  const searchRows = useMemo<GridRow[]>(
+    () => (search.data?.hits ? hitsToGridRows(search.data.hits as never) : []),
+    [search.data],
+  );
+  const searchActive = !!searchId;
+  const searching = search.data?.search?.status === "running";
+
+  const rows = useMemo<GridRow[]>(() => {
+    // Structured filters and the natural-language search combine: the search
+    // decides the row set, the text filter narrows it further.
+    const base: GridRow[] = searchActive ? searchRows : candidates;
+    return base.filter((c) => matchesGridQuery(c, query));
+  }, [candidates, searchRows, searchActive, query]);
   const scanned = useMemo(
     () => (list.data?.pages ?? []).reduce((n, p) => n + (p.scanned ?? 0), 0),
     [list.data],
