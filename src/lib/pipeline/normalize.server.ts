@@ -1,5 +1,10 @@
 // NORMALIZATION stage — hashing, body cleaning and deterministic (AI-free) field
 // extraction. Nothing in this file ever calls a model.
+import {
+  candidateNameFromText,
+  sanitizeCandidateIdentity,
+  senderLooksLikeCandidate,
+} from "../candidate-identity";
 import type { Extracted } from "../recruitment-classify.server";
 import { AI_MAX_BODY_CHARS, COVERAGE_TARGETS, type Facet } from "./config";
 import type { FieldCoverage } from "./types";
@@ -151,19 +156,39 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const text = `${i.docText}\n${i.cleanBody}`;
   const lower = text.toLowerCase();
 
-  const emailMatch = i.docText.match(EMAIL_RE)?.[0] ?? i.cleanBody.match(EMAIL_RE)?.[0] ?? null;
-  const email = (emailMatch ?? i.fromEmail ?? null)?.toLowerCase() ?? null;
+  // Gmail's sender is the SOURCE. Only a self-application may donate identity.
+  const senderIsCandidate = senderLooksLikeCandidate({
+    fromEmail: i.fromEmail,
+    fromName: i.fromName,
+    docText: i.docText,
+    bodyText: i.cleanBody,
+    hasAttachment: !!i.primaryFileName,
+  });
+
+  const sender = (i.fromEmail ?? "").toLowerCase();
+  const candidateEmails = [
+    ...(i.docText.match(EMAIL_RE) ?? []),
+    ...(i.cleanBody.match(EMAIL_RE) ?? []),
+  ].map((e) => e.toLowerCase());
+  const email =
+    candidateEmails.find((e) => e !== sender) ??
+    (senderIsCandidate ? sender || null : null) ??
+    null;
 
   const phoneRaw = text.match(PHONE_RE)?.[0] ?? null;
   const phone = phoneRaw && phoneRaw.replace(/\D/g, "").length >= 10 ? phoneRaw.trim() : null;
 
   const linkedin = text.match(LINKEDIN_RE)?.[0] ?? null;
 
+  // Resume first, then a labelled name in the mail, then the CV file name. The
+  // Gmail display name is only acceptable when the sender IS the candidate.
   const name =
     nameFromDoc(i.docText) ??
-    (i.fromName && !/no.?reply|team|support|hr\b/i.test(i.fromName) ? i.fromName : null) ??
+    candidateNameFromText(text) ??
     nameFromFile(i.primaryFileName) ??
-    nameFromEmail(email);
+    (senderIsCandidate
+      ? (i.fromName && !/no.?reply|team|support|hr\b/i.test(i.fromName) ? i.fromName : null) ?? nameFromEmail(email)
+      : null);
 
   const years = text.match(YEARS_RE)?.[1] ?? null;
   const experience = years ? `${years} years` : null;
@@ -197,9 +222,23 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
     notes: linkedin ? `LinkedIn: ${linkedin}` : null,
   };
 
+  const clean = sanitizeCandidateIdentity(
+    { name: fields.name, email: fields.email, phone: fields.phone },
+    {
+      fromEmail: i.fromEmail,
+      fromName: i.fromName,
+      docText: i.docText,
+      bodyText: i.cleanBody,
+      hasAttachment: !!i.primaryFileName,
+    },
+  );
+  fields.name = clean.name ?? null;
+  fields.email = clean.email ?? null;
+  fields.phone = clean.phone ?? null;
+
   const coverage: FieldCoverage = {
-    identity: name ? 100 : 0,
-    contact: (email ? 55 : 0) + (phone ? 30 : 0) + (linkedin ? 15 : 0),
+    identity: fields.name ? 100 : 0,
+    contact: (fields.email ? 55 : 0) + (fields.phone ? 30 : 0) + (linkedin ? 15 : 0),
     experience: (experience ? 55 : 0) + (company ? 45 : 0),
     skills: Math.min(100, skills.length * 20),
   };

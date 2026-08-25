@@ -532,7 +532,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                             onClick={() => setSourcesFor(c)}
                           >
                             {c.unread && <Dot className="size-4 text-primary shrink-0" />}
-                            {c.name || "Unnamed candidate"}
+                            {c.name || "Name not found"}
                           </button>
                           {c.sources.length > 1 && (
                             <span className="ml-1.5 text-[10px] text-muted-foreground">

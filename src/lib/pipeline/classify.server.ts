@@ -14,6 +14,7 @@ import {
   type Extracted,
   type SignalInput,
 } from "../recruitment-classify.server";
+import { sanitizeCandidateIdentity } from "../candidate-identity";
 import { emailCacheKey, readCache, resumeCacheKey, writeCache } from "./cache.server";
 import {
   AI_MAX_BODY_CHARS,
@@ -187,6 +188,28 @@ export type ClassifyContext = {
  * Rules → bands → cache → model. Most items never reach the model at all.
  */
 export async function classifyItem(
+  ctx: ClassifyContext,
+): Promise<Classification & { route: "rules-import" | "rules-skip" | "cache" | "ai" }> {
+  const out = await classifyItemInner(ctx);
+  // Last line of defence: a cached row or a model answer must never hand back the
+  // forwarding recruiter as the candidate.
+  const identity = sanitizeCandidateIdentity(
+    { name: out.extracted.name, email: out.extracted.email, phone: out.extracted.phone },
+    {
+      fromEmail: ctx.signal.fromEmail,
+      fromName: ctx.signal.fromName,
+      docText: ctx.signal.docText,
+      bodyText: ctx.signal.bodyText,
+      hasAttachment: ctx.signal.attachmentNames.length > 0,
+    },
+  );
+  return {
+    ...out,
+    extracted: { ...out.extracted, name: identity.name ?? null, email: identity.email ?? null, phone: identity.phone ?? null },
+  };
+}
+
+async function classifyItemInner(
   ctx: ClassifyContext,
 ): Promise<Classification & { route: "rules-import" | "rules-skip" | "cache" | "ai" }> {
   const { signal, metrics } = ctx;
