@@ -192,6 +192,7 @@ type HitLike = {
   score: number;
   confidence?: number | null;
   subject: string | null;
+  snippet?: string | null;
   from_name: string | null;
   from_email: string | null;
   sent_at: string | null;
@@ -214,7 +215,7 @@ type HitLike = {
 /** Map one search hit onto the same shape the Gmail grid already renders. */
 export function hitToGridRow(h: HitLike): GridRow {
   const ex = h.extracted ?? {};
-  const text = `${h.subject ?? ""}\n${h.snippetText ?? ""}`;
+  const text = `${h.subject ?? ""}\n${h.snippet ?? ""}`;
   return {
     key: candidateKey({ ...ex, messageId: h.gmail_message_id }),
     name: ex.name ?? null,
