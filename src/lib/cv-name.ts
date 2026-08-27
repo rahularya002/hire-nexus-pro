@@ -64,14 +64,14 @@ export function normalizeCvLines(text: string | null | undefined): string[] {
     .replace(/\r/g, "\n")
     .replace(/\u00a0/g, " ")
     .split("\n")
-    .map((l) => unspaceGlyphs(l).replace(/[\t ]+/g, " ").trim())
+    .map((l) => unspaceGlyphs(l).replace(/\t+|[ ]{2,}/g, " \u2502 ").replace(/ +/g, " ").trim())
     .filter(Boolean);
 }
 
 /** Split a header line into candidate segments: "NAME | +91 ... | mail" etc. */
 function segments(line: string): string[] {
   return line
-    .split(/\s*(?:\||•|·|,|;|\u2013|\u2014|\/|\s-\s|\s{2,})\s*/)
+    .split(/\s*(?:\||\u2502|•|·|,|;|\u2013|\u2014|\/|\s-\s|\s{2,})\s*/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
