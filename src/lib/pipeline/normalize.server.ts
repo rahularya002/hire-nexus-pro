@@ -116,8 +116,6 @@ const SKILL_DICTIONARY = [
   "sales","business development","lead generation","digital marketing","seo","sem","content marketing",
 ];
 
-const NAME_LINE_RE = /^[A-Z][a-z'’\-]{1,20}(?:\s+[A-Z][a-z'’\-]{1,20}){1,3}$/;
-const NAME_STOPWORDS = /\b(resume|curriculum|vitae|profile|confidential|contact|address|objective|summary)\b/i;
 const ROLE_HEAD_RE =
   /\b(designer|developer|engineer|manager|analyst|architect|consultant|recruiter|accountant|executive|lead|director|specialist|technician|officer|assistant|associate|scientist|administrator|merchandiser|stylist|copywriter|marketer|tester|nurse|teacher|chef|supervisor|coordinator|planner|buyer|operator|artist)\b/i;
 const ROLE_STOPWORDS = /\b(resume|curriculum|vitae|profile|summary|objective|contact|email|mobile|phone|address|education|skills?|experience|employment|certification|declaration|languages?)\b/i;
