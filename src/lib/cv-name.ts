@@ -104,8 +104,11 @@ const FILE_STOPWORDS = new Set([
 ]);
 
 /** Name-looking words from a CV filename — never from the Gmail sender. */
+const FILE_NOISE_RE = /\b(job|jd|description|requirement|requirements|mandate|spec|specification|opening|vacancy|logo|invoice|offer|policy)\b/i;
+
 export function nameFromFileName(fileName: string | null | undefined): string | null {
   if (!fileName) return null;
+  if (FILE_NOISE_RE.test(fileName.replace(/[_\-.]+/g, " "))) return null;
   const base = fileName
     .replace(/\.[^.]+$/, "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
