@@ -531,7 +531,7 @@ export function MailboxPanel({ authed, gmailReady, labels, onConnect }: Props) {
                     const src = c.sources[0];
                     return (
                       <tr key={c.key} className="border-t border-border hover:bg-secondary/30 transition-colors">
-                        {searchActive && (
+                        {showSearchRows && (
                           <td className="border-b border-border px-3 py-2 whitespace-nowrap">
                             <MatchCell score={c.score} />
                           </td>
