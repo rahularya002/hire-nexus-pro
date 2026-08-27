@@ -160,7 +160,8 @@ export function extractCvName(
   const found: Cand[] = [];
   const window = lines.slice(0, 40);
   window.forEach((line, idx) => {
-    const parts = [line, ...segments(line)];
+    const flat = line.replace(/\u2502/g, " ").replace(/\s+/g, " ").trim();
+    const parts = [flat, line, ...segments(line)];
     const seen = new Set<string>();
     for (const part of parts) {
       const name = personNameFrom(part);
@@ -173,7 +174,7 @@ export function extractCvName(
       const words = name.toLowerCase().split(" ");
       if (words.some((w) => fileWords.has(w))) score += 40;
       if (emailLocal && words.some((w) => w.length >= 3 && emailLocal.includes(w))) score += 35;
-      if (part === line) score += 5;
+      if (part === flat) score += 5;
       found.push({ name, score, order: idx });
     }
   });
