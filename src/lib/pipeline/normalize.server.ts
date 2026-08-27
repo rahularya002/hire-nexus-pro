@@ -7,6 +7,7 @@ import {
   senderLooksLikeCandidate,
 } from "../candidate-identity";
 import { extractCandidateRows, findCandidateRow } from "../candidate-row-extract";
+import { extractCvName } from "../cv-name";
 import type { Extracted } from "../recruitment-classify.server";
 import { AI_MAX_BODY_CHARS, COVERAGE_TARGETS, type Facet } from "./config";
 import type { FieldCoverage } from "./types";
@@ -115,8 +116,6 @@ const SKILL_DICTIONARY = [
   "sales","business development","lead generation","digital marketing","seo","sem","content marketing",
 ];
 
-const NAME_LINE_RE = /^[A-Z][a-z'’\-]{1,20}(?:\s+[A-Z][a-z'’\-]{1,20}){1,3}$/;
-const NAME_STOPWORDS = /\b(resume|curriculum|vitae|profile|confidential|contact|address|objective|summary)\b/i;
 const ROLE_HEAD_RE =
   /\b(designer|developer|engineer|manager|analyst|architect|consultant|recruiter|accountant|executive|lead|director|specialist|technician|officer|assistant|associate|scientist|administrator|merchandiser|stylist|copywriter|marketer|tester|nurse|teacher|chef|supervisor|coordinator|planner|buyer|operator|artist)\b/i;
 const ROLE_STOPWORDS = /\b(resume|curriculum|vitae|profile|summary|objective|contact|email|mobile|phone|address|education|skills?|experience|employment|certification|declaration|languages?)\b/i;
@@ -125,15 +124,10 @@ function titleCase(s: string) {
   return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
-function nameFromDoc(docText: string): string | null {
-  for (const line of docText.split("\n").slice(0, 12)) {
-    const t = line.trim().replace(/\s{2,}/g, " ");
-    if (!t || t.length > 45 || NAME_STOPWORDS.test(t)) continue;
-    if (NAME_LINE_RE.test(t)) return t;
-    if (/^[A-Z][A-Z\s'’\-]{4,40}$/.test(t) && t.split(/\s+/).length >= 2) return titleCase(t);
-  }
-  return null;
+function nameFromDoc(docText: string, fileName?: string | null, email?: string | null): string | null {
+  return extractCvName(docText, fileName ?? null, { email: email ?? null });
 }
+
 
 function nameFromEmail(email: string | null): string | null {
   if (!email) return null;
@@ -210,7 +204,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const firstRow = findCandidateRow(candidateRows, {
     email: docEmails.find((e) => e !== sender) ?? bodyEmails.find((e) => e !== sender) ?? null,
     phone: i.docText.match(PHONE_GLOBAL_RE)?.[0] ?? i.cleanBody.match(PHONE_GLOBAL_RE)?.[0] ?? null,
-    name: nameFromDoc(i.docText) ?? candidateNameFromText(text) ?? candidateNameFromFile(i.primaryFileName),
+    name: nameFromDoc(i.docText, i.primaryFileName) ?? candidateNameFromText(text) ?? candidateNameFromFile(i.primaryFileName),
   });
   const email =
     docEmails.find((e) => e !== sender) ??
@@ -229,7 +223,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   // Resume first, then a labelled name in the mail, then the CV file name. The
   // Gmail display name is only acceptable when the sender IS the candidate.
   const name =
-    nameFromDoc(i.docText) ??
+    nameFromDoc(i.docText, i.primaryFileName, email) ??
     candidateNameFromText(text) ??
     firstRow?.name ??
     candidateNameFromFile(i.primaryFileName) ??
