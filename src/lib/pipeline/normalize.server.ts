@@ -125,15 +125,10 @@ function titleCase(s: string) {
   return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
-function nameFromDoc(docText: string): string | null {
-  for (const line of docText.split("\n").slice(0, 12)) {
-    const t = line.trim().replace(/\s{2,}/g, " ");
-    if (!t || t.length > 45 || NAME_STOPWORDS.test(t)) continue;
-    if (NAME_LINE_RE.test(t)) return t;
-    if (/^[A-Z][A-Z\s'’\-]{4,40}$/.test(t) && t.split(/\s+/).length >= 2) return titleCase(t);
-  }
-  return null;
+function nameFromDoc(docText: string, fileName?: string | null, email?: string | null): string | null {
+  return extractCvName(docText, fileName ?? null, { email: email ?? null });
 }
+
 
 function nameFromEmail(email: string | null): string | null {
   if (!email) return null;
