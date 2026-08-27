@@ -54,7 +54,12 @@ describe("A) occupation relevance for the production fashion query", () => {
   it("parses 'fashion designer' as one atomic, specific occupation", () => {
     expect(plan.roles).toContain("fashion designer");
     expect(plan.minYears).toBe(3);
-    expect(plan.locations.sort()).toEqual(["delhi", "mumbai"]);
+    // Both cities are retained, expanded with their real-world aliases (NCR, Bombay…).
+    expect(plan.locations).toContain("delhi");
+    expect(plan.locations).toContain("mumbai");
+    expect(plan.locations).toContain("ncr");
+    expect(plan.locations).toContain("bombay");
+    expect(plan.locations).not.toContain("bengaluru");
     const req = occupationRequirement(plan.roles);
     expect(req.specificity).toBe("specific");
     expect(req.specs[0]!.phrase).toBe("fashion designer");
