@@ -122,6 +122,27 @@ export const addMailboxMessageToCandidates = createServerFn({ method: "POST" })
     const agencyId = (member?.agency_id as string | undefined) ?? null;
     if (!agencyId) throw new Error("You must belong to an agency to add candidates.");
 
+    // Search hits that came from the recruitment memory carry a synthetic
+    // `archive:<personId>` id — there is no Gmail message to fetch, so we
+    // promote the stored person straight to a candidate record.
+    if (data.messageId.startsWith("archive:")) {
+      const personId = data.messageId.slice("archive:".length);
+      const { data: person } = await context.supabase
+        .from("email_candidates")
+        .select("id,name")
+        .eq("id", personId)
+        .maybeSingle();
+      if (!person) throw new Error("This candidate is no longer in your recruitment memory.");
+      const { promotePerson } = await import("./mailbox.server");
+      const res = await promotePerson(person.id as string, context.userId);
+      return {
+        personId: person.id as string,
+        candidateId: res.candidateId,
+        alreadyExisted: res.alreadyExisted,
+        name: (person.name as string | null) ?? "This candidate",
+      };
+    }
+
     const conn = await gmailConnection(context.userId);
     const { importMessageAsCandidate } = await import("./mailbox.server");
     return importMessageAsCandidate({
