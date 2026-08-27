@@ -7,6 +7,7 @@ import {
   senderLooksLikeCandidate,
 } from "../candidate-identity";
 import { extractCandidateRows, findCandidateRow } from "../candidate-row-extract";
+import { extractCvName } from "../cv-name";
 import type { Extracted } from "../recruitment-classify.server";
 import { AI_MAX_BODY_CHARS, COVERAGE_TARGETS, type Facet } from "./config";
 import type { FieldCoverage } from "./types";
@@ -205,7 +206,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const firstRow = findCandidateRow(candidateRows, {
     email: docEmails.find((e) => e !== sender) ?? bodyEmails.find((e) => e !== sender) ?? null,
     phone: i.docText.match(PHONE_GLOBAL_RE)?.[0] ?? i.cleanBody.match(PHONE_GLOBAL_RE)?.[0] ?? null,
-    name: nameFromDoc(i.docText) ?? candidateNameFromText(text) ?? candidateNameFromFile(i.primaryFileName),
+    name: nameFromDoc(i.docText, i.primaryFileName) ?? candidateNameFromText(text) ?? candidateNameFromFile(i.primaryFileName),
   });
   const email =
     docEmails.find((e) => e !== sender) ??
@@ -224,7 +225,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   // Resume first, then a labelled name in the mail, then the CV file name. The
   // Gmail display name is only acceptable when the sender IS the candidate.
   const name =
-    nameFromDoc(i.docText) ??
+    nameFromDoc(i.docText, i.primaryFileName, email) ??
     candidateNameFromText(text) ??
     firstRow?.name ??
     candidateNameFromFile(i.primaryFileName) ??
