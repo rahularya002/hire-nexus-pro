@@ -15,7 +15,8 @@ const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
 const PHONE_RE = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,5}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/;
 
 const HEADING_RE =
-  /\b(resume|résumé|resum|curriculum|vitae|c\.?v\.?|biodata|bio[\s_-]?data|profile|confidential|contact|contacts|address|objective|summary|career|declaration|references?|personal|details|education|qualification|skills?|experience|employment|projects?|certifications?|languages?|hobbies|interests|nationality|gender|marital|date\s*of\s*birth|dob|portfolio|linkedin|email|e-?mail|mobile|phone|tel|permanent|present)\b/i;
+  /\b(resume|résumé|resum|curriculum|vitae|c\.?v\.?|biodata|bio[\s_-]?data|profile|confidential|contact|contacts|address|objective|summary|career|declaration|references?|personal|details|education|qualification|skills?|experience|employment|projects?|certifications?|languages?|hobbies|interests|nationality|gender|marital|date\s*of\s*birth|dob|portfolio|linkedin|email|e-?mail|mobile|phone|tel|permanent|present|about|myself|strengths?|achievements?|awards?|activities|training|internships?|college|university|institute|institution|school|academy|academic|company|pvt|ltd|limited|inc|corp|technologies|solutions|services)\b/i;
+
 
 const ROLE_WORD_RE =
   /\b(designer|design|developer|engineer|engineering|manager|management|analyst|architect|consultant|recruiter|accountant|executive|lead|director|specialist|technician|officer|assistant|associate|scientist|administrator|merchandiser|merchandising|stylist|styling|copywriter|marketer|marketing|tester|nurse|teacher|chef|supervisor|coordinator|planner|buyer|operator|artist|intern|internship|trainee|freelance|freelancer|sales|hr|human|resources|fashion|apparel|garment|textile|graphic|product|software|senior|junior|sr|jr|head)\b/i;
@@ -85,17 +86,24 @@ export function personNameFrom(raw: string): string | null {
   if (HEADING_RE.test(s) || ROLE_WORD_RE.test(s) || PLACE_RE.test(s) || EMAIL_RE.test(s)) return null;
   const words = s.split(/\s+/);
   if (words.length < 2 || words.length > 4) return null;
-  for (const w of words) {
+  for (const [i, w] of words.entries()) {
     if (!WORD_RE.test(w)) return null;
-    if (NAME_STOPWORD_SET.has(w.toLowerCase())) return null;
     const letters = w.replace(/[^A-Za-z]/g, "");
+    // "A" is a stopword as a word but valid as an initial ("Kavya A").
+    if (letters.length > 1 && NAME_STOPWORD_SET.has(w.toLowerCase())) return null;
     if (letters.length < 1) return null;
-    // A one-letter word is only acceptable as an initial ("Prem L. Chauhan").
-    if (letters.length === 1 && !w.endsWith(".")) return null;
+    // A bare one-letter word is an initial ("Kavya A", "D Harshitha Reddy") —
+    // acceptable anywhere except as the sole word carrying the name.
+    if (letters.length === 1 && !w.endsWith(".") && i === 0 && words.length < 2) return null;
   }
   const meaningful = words.filter((w) => w.replace(/[^A-Za-z]/g, "").length >= 2);
-  if (meaningful.length < 2) return null;
+  if (!meaningful.length) return null;
+  // One real word plus an initial is a valid name; two bare words are required
+  // otherwise so ordinary prose pairs do not qualify.
+  const initials = words.length - meaningful.length;
+  if (meaningful.length < 2 && !(initials >= 1 && (meaningful[0]?.length ?? 0) >= 3)) return null;
   return titleCaseName(s.replace(/\s+/g, " "));
+
 }
 
 const FILE_STOPWORDS = new Set([
@@ -128,8 +136,16 @@ export function nameFromFileName(fileName: string | null | undefined): string | 
     picked.push(word);
     if (picked.length === 4) break;
   }
-  return picked.length >= 2 ? titleCaseName(picked.join(" ")) : null;
+  if (picked.length >= 2) return titleCaseName(picked.join(" "));
+  // A single distinctive word ("Roshni CV.pdf") is still the candidate's own
+  // name — far better than borrowing a name from the recruiter's mail body.
+  const solo = picked[0];
+  if (solo && solo.length >= 3 && !HEADING_RE.test(solo) && !PLACE_RE.test(solo)) {
+    return titleCaseName(solo);
+  }
+  return null;
 }
+
 
 const NAME_LABEL_RE =
   /\b(?:candidate(?:'s)?\s*name|full\s*name|name\s*of\s*(?:the\s*)?candidate|name)\s*[:\-–]\s*([A-Za-z][A-Za-z.'’\- ]{2,45})/i;
@@ -164,8 +180,26 @@ export function extractCvName(
   const window = lines.slice(0, 40);
   window.forEach((line, idx) => {
     const flat = line.replace(/\u2502/g, " ").replace(/\s+/g, " ").trim();
-    const parts = [flat, line, ...segments(line)];
+    // Some PDFs extract as one giant blob with no line breaks. Only the very
+    // start of such a blob can plausibly be the header name; scanning the whole
+    // paragraph invents names out of ordinary prose ("Resolving Issues").
+    const head = flat.length > 200 ? flat.slice(0, 60).replace(/\s+\S*$/, "") : flat;
+    const parts = flat.length > 200 ? [head, ...segments(head)] : [flat, line, ...segments(line)];
+    // Columned PDFs put each name word on its own line ("D" / "HARSHITHA" /
+    // "REDDY"); stitch short single-word neighbours back together.
+    const isWordLine = (l?: string) => !!l && /^[A-Za-z][A-Za-z'’.-]{0,20}$/.test(l.trim());
+    if (isWordLine(flat)) {
+      const run = [flat];
+      for (let j = idx + 1; j < Math.min(window.length, idx + 3); j++) {
+        const nxt = window[j]?.trim();
+        if (!isWordLine(nxt)) break;
+        run.push(nxt!);
+      }
+      if (run.length >= 2) parts.push(run.join(" "), run.slice(-2).join(" "));
+    }
     const seen = new Set<string>();
+
+
     for (const part of parts) {
       const name = personNameFrom(part);
       if (!name || seen.has(name)) continue;
@@ -178,6 +212,12 @@ export function extractCvName(
       if (words.some((w) => fileWords.has(w))) score += 40;
       if (emailLocal && words.some((w) => w.length >= 3 && emailLocal.includes(w))) score += 35;
       if (part === flat) score += 5;
+      const supported =
+        words.some((w) => fileWords.has(w)) ||
+        (!!emailLocal && words.some((w) => w.length >= 3 && emailLocal.includes(w)));
+      // Past the header block, only filename/e-mail agreement makes a phrase
+      // trustworthy — resume prose is full of innocent two-word phrases.
+      if (idx >= 6 && !supported) continue;
       found.push({ name, score, order: idx });
     }
   });
