@@ -138,3 +138,12 @@ describe("real-mail CV layouts", () => {
     expect(extractCvName("", "Document 72.pdf")).toBeNull();
   });
 });
+
+describe("scanned CV contact safety", () => {
+  it("does not borrow contact details from the recruiter's mail body", () => {
+    const fields = det("", "Roshni CV.pdf", "Tracker:\nSumen Sarkar - sarkar.s@gmail.com - 9876543948");
+    expect(fields.name).toBe("Roshni");
+    expect(fields.email).toBeNull();
+    expect(fields.phone).toBeNull();
+  });
+});
