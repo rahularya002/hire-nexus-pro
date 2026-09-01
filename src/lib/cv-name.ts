@@ -96,6 +96,11 @@ export function personNameFrom(raw: string): string | null {
     // acceptable anywhere except as the sole word carrying the name.
     if (letters.length === 1 && !w.endsWith(".") && i === 0 && words.length < 2) return null;
   }
+  // Sentence case ("Customer satisfaction focus") is prose. Real header names
+  // are Title Case, ALL CAPS or fully lower case — never mixed like that.
+  const cased = words.filter((w) => /[A-Za-z]{2,}/.test(w));
+  const caps = cased.filter((w) => /^[A-Z]/.test(w)).length;
+  if (caps > 0 && caps < cased.length) return null;
   const meaningful = words.filter((w) => w.replace(/[^A-Za-z]/g, "").length >= 2);
   if (!meaningful.length) return null;
   // One real word plus an initial is a valid name; two bare words are required
@@ -140,7 +145,8 @@ export function nameFromFileName(fileName: string | null | undefined): string | 
   // A single distinctive word ("Roshni CV.pdf") is still the candidate's own
   // name — far better than borrowing a name from the recruiter's mail body.
   const solo = picked[0];
-  if (solo && solo.length >= 3 && !HEADING_RE.test(solo) && !PLACE_RE.test(solo)) {
+  const resumeish = /\b(cv|resume|resum|résumé|biodata|profile)\b/i.test(fileName.replace(/[_\-.]+/g, " "));
+  if (resumeish && solo && solo.length >= 3 && !HEADING_RE.test(solo) && !PLACE_RE.test(solo)) {
     return titleCaseName(solo);
   }
   return null;
@@ -184,7 +190,11 @@ export function extractCvName(
     // start of such a blob can plausibly be the header name; scanning the whole
     // paragraph invents names out of ordinary prose ("Resolving Issues").
     const head = flat.length > 200 ? flat.slice(0, 60).replace(/\s+\S*$/, "") : flat;
-    const parts = flat.length > 200 ? [head, ...segments(head)] : [flat, line, ...segments(line)];
+    const headWords = head.split(" ");
+    const parts =
+      flat.length > 200
+        ? [head, ...segments(head), headWords.slice(0, 2).join(" "), headWords.slice(0, 3).join(" ")]
+        : [flat, line, ...segments(line)];
     // Columned PDFs put each name word on its own line ("D" / "HARSHITHA" /
     // "REDDY"); stitch short single-word neighbours back together.
     const isWordLine = (l?: string) => !!l && /^[A-Za-z][A-Za-z'’.-]{0,20}$/.test(l.trim());
@@ -217,7 +227,8 @@ export function extractCvName(
         (!!emailLocal && words.some((w) => w.length >= 3 && emailLocal.includes(w)));
       // Past the header block, only filename/e-mail agreement makes a phrase
       // trustworthy — resume prose is full of innocent two-word phrases.
-      if (idx >= 6 && !supported) continue;
+      const contactNear = EMAIL_RE.test(near) || PHONE_RE.test(near);
+      if (idx >= 6 && !supported && !contactNear) continue;
       found.push({ name, score, order: idx });
     }
   });
