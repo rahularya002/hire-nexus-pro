@@ -216,7 +216,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const docPhoneRaw = i.docText.match(PHONE_GLOBAL_RE)?.[0] ?? null;
   const bodyPhoneRaw = i.cleanBody.match(PHONE_GLOBAL_RE)?.[0] ?? null;
   const phoneRaw = docPhoneRaw ?? firstRow?.phone ?? (hasAttachment ? null : bodyPhoneRaw ?? text.match(PHONE_RE)?.[0] ?? null);
-  const phone = phoneRaw && phoneRaw.replace(/\D/g, "").length >= 10 ? phoneRaw.trim() : null;
+  const phoneCand = phoneRaw && phoneRaw.replace(/\D/g, "").length >= 10 ? phoneRaw.trim() : null;
 
   const linkedin = text.match(LINKEDIN_RE)?.[0] ?? null;
 
@@ -230,6 +230,18 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
     (senderIsCandidate
       ? (i.fromName && !/no.?reply|team|support|hr\b/i.test(i.fromName) ? i.fromName : null) ?? nameFromEmail(email)
       : null);
+
+  // A scanned CV yields no text, so any contact detail here came from the mail
+  // body — often the recruiter's tracker listing *other* people. Keep it only
+  // when it plainly belongs to this candidate.
+  const docHasContact = !!docEmails.length || !!docPhoneRaw;
+  const nameWords = (name ?? "").toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+  const emailAgrees =
+    !!email && nameWords.some((w) => (email.split("@")[0] ?? "").toLowerCase().includes(w));
+  const bodyContactTrusted = docHasContact || emailAgrees || !name;
+  const emailOut = bodyContactTrusted ? email : null;
+  const phone = bodyContactTrusted ? phoneCand : null;
+
 
   const role = firstRow?.role ?? roleFromDoc(i.docText, name) ?? roleFromText(i.docText) ?? (hasAttachment ? null : roleFromText(i.cleanBody));
 
@@ -253,7 +265,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
 
   const fields: Extracted = {
     name: name ?? null,
-    email,
+    email: emailOut,
     phone,
     role: role ?? null,
     current_company: company ? titleCase(company) : null,

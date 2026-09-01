@@ -110,3 +110,40 @@ describe("deterministic extraction keeps the CV identity, never the sender", () 
     expect(fields.phone).toBeNull();
   });
 });
+
+// Layouts observed in REAL mailbox resumes (Sept 2026 end-to-end run).
+describe("real-mail CV layouts", () => {
+  it("takes a trailing initial as part of the name", () => {
+    expect(extractCvName("Kavya A\n9535917010\nProfessional summary", "Kavya CV.pdf")).toBe("Kavya A");
+  });
+
+  it("stitches a name split across columned lines", () => {
+    const text = "D\nHARSHITHA\nREDDY\nAbout Me\nAspiring fashion consultant";
+    expect(extractCvName(text, "Harshitha cV.pdf")).toBe("D Harshitha Reddy");
+  });
+
+  it("never takes a section heading or institution as the name", () => {
+    expect(extractCvName("About Me\nBMS Womens College\nCustomer satisfaction focus", null)).toBeNull();
+  });
+
+  it("ignores prose pairs inside a single-blob PDF extraction", () => {
+    const blob =
+      "Kavya A Experience Professional summary Resolving issues in a timely manner " +
+      "Collaborated with team members to improve overall customer experience ".repeat(6);
+    expect(extractCvName(blob, "Kavya CV.pdf")).toBe("Kavya A");
+  });
+
+  it("uses a single-word CV filename when the PDF has no text layer", () => {
+    expect(extractCvName("", "Roshni CV.pdf")).toBe("Roshni");
+    expect(extractCvName("", "Document 72.pdf")).toBeNull();
+  });
+});
+
+describe("scanned CV contact safety", () => {
+  it("does not borrow contact details from the recruiter's mail body", () => {
+    const fields = det("", "Roshni CV.pdf", "Tracker:\nSumen Sarkar - sarkar.s@gmail.com - 9876543948");
+    expect(fields.name).toBe("Roshni");
+    expect(fields.email).toBeNull();
+    expect(fields.phone).toBeNull();
+  });
+});
