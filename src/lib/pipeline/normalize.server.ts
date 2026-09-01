@@ -265,7 +265,7 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
 
   const fields: Extracted = {
     name: name ?? null,
-    email,
+    email: emailOut,
     phone,
     role: role ?? null,
     current_company: company ? titleCase(company) : null,
