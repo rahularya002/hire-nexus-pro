@@ -6,13 +6,13 @@ import { pickPrimaryCandidateAttachment } from "@/lib/candidate-attachment";
 import { cleanBodyText, extractDeterministic } from "@/lib/pipeline/normalize.server";
 import { extractCvText } from "@/lib/cv-parse.server";
 import { rankItem } from "@/lib/search/rank.server";
-import { planQuery } from "@/lib/search/query-plan.server";
+import { planSearch } from "@/lib/search/query-plan.server";
 
 const USER_ID = process.env.E2E_USER_ID!;
 const QUERY = "Fashion designers with 3+ years experience in Delhi or Mumbai";
 
 const conn = (await getValidAccessToken(USER_ID))!;
-const plan = await planQuery({ userId: USER_ID, query: QUERY });
+const { plan } = await planSearch(QUERY);
 console.log("plan roles:", plan.roles, "| locations:", plan.locations, "| minYears:", plan.minYears);
 
 const page = await listMessageIds(conn.access_token, "has:attachment -in:spam -in:trash", null, 12);
