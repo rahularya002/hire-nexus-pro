@@ -228,7 +228,13 @@ export function extractCvName(
       // Past the header block, only filename/e-mail agreement makes a phrase
       // trustworthy — resume prose is full of innocent two-word phrases.
       const contactNear = EMAIL_RE.test(near) || PHONE_RE.test(near);
-      if (idx >= 6 && !supported && !contactNear) continue;
+      // Past the header block, an unsupported phrase is usually resume prose.
+      // Keep it as a last-resort candidate (heavy penalty) only when the whole
+      // line is the name, so recall never drops to zero.
+      if (idx >= 6 && !supported && !contactNear) {
+        if (part !== flat) continue;
+        score -= 60;
+      }
       found.push({ name, score, order: idx });
     }
   });
