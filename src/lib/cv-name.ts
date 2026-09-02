@@ -291,11 +291,12 @@ export function extractCvName(
       const contactNear = EMAIL_RE.test(near) || PHONE_RE.test(near);
       // Past the header block, an unsupported phrase is usually resume prose.
       // Keep it as a last-resort candidate (heavy penalty) only when the whole
-      // line is the name, so recall never drops to zero.
+      // line is the name and it is still near the top of the document.
       if (idx >= 6 && !supported && !contactNear) {
-        if (part !== flat) continue;
+        if (part !== flat || idx >= 12) continue;
         score -= 60;
       }
+
       found.push({ name, score, order: idx });
     }
   });
