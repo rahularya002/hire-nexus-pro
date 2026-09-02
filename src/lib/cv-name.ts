@@ -32,6 +32,21 @@ const NAME_STOPWORD_SET = new Set([
   "the", "and", "of", "for", "with", "to", "in", "at", "a", "an", "na", "n/a", "none", "unknown",
 ]);
 
+/**
+ * Words that can never be part of a person's name. Legacy rows contain values
+ * like "Arjitvideocon Gmail Dotcom", "Venkatesh Siddavatam Years Bosh" and
+ * "Tilak Raj Managr" — text stitched out of e-mail addresses, resume prose and
+ * abbreviations. Any of these words disqualifies the whole phrase.
+ */
+const NAME_NOISE_RE =
+  /\b(gmail|googlemail|yahoo|hotmail|outlook|rediff|rediffmail|icloud|dotcom|dot|com|co|in|net|org|mail|email|inbox|www|http|https|years?|yrs?|yr|month|months|exp|ctc|lpa|lakh|lacs?|salary|package|notice|period|immediate|immediately|joining|joiner|available|availability|dear|sir|madam|hi|hello|thanks|thank|regards|regard|best|kindly|please|find|attached|attachment|herewith|enclosed|below|above|forwarded|fwd|re|subject|team|hr|recruiter|recruitment|talent|acquisition|consultant|consultancy|solutions|services|technologies|pvt|ltd|limited|inc|corp|group|india|noreply|no|reply|support|info|admin|test|sample|unknown|not|found|null|undefined)\b/i;
+
+/** Reject stitched pseudo-names while accepting ordinary human names. */
+export function isPlausibleCandidateName(value: string | null | undefined): boolean {
+  return !!personNameFrom((value ?? "").trim());
+}
+
+
 function titleWord(w: string) {
   const first = w[0];
   if (!first) return w;
