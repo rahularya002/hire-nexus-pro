@@ -10,14 +10,8 @@ import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/nor
 import { emptyMetrics } from "./pipeline/types";
 import { candidateEvidence, heuristicScore, isCandidateArtifact } from "./recruitment-classify.server";
 import { pickPrimaryCandidateAttachment } from "./candidate-attachment";
-import {
-  candidateKey,
-  extractCurrentCtc,
-  extractExpectedCtc,
-  extractNoticePeriod,
-  mergeCandidateRows,
-  type GridCandidate,
-} from "./mailbox-grid";
+import { candidateKey, mergeCandidateRows, type GridCandidate } from "./mailbox-grid";
+
 
 async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
