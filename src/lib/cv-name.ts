@@ -139,7 +139,8 @@ const FILE_STOPWORDS = new Set([
 ]);
 
 /** Name-looking words from a CV filename — never from the Gmail sender. */
-const FILE_NOISE_RE = /\b(job|jd|description|requirement|requirements|mandate|spec|specification|opening|vacancy|logo|invoice|offer|policy)\b/i;
+const FILE_NOISE_RE =
+  /\b(job|jd|description|requirement|requirements|mandate|spec|specification|opening|vacancy|logo|invoice|offer|policy|pic|pics|photo|photos|image|img|scan|scanned|pan|aadhar|aadhaar|passport|marksheet|payslip|salary|slip)\b/i;
 
 export function nameFromFileName(fileName: string | null | undefined): string | null {
   if (!fileName) return null;
