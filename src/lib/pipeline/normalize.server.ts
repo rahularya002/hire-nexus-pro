@@ -6,7 +6,9 @@ import {
   sanitizeCandidateIdentity,
   senderLooksLikeCandidate,
 } from "../candidate-identity";
+import { extractScopedFields } from "../candidate-fields";
 import { extractCandidateRows, findCandidateRow } from "../candidate-row-extract";
+
 import { extractCvName } from "../cv-name";
 import type { Extracted } from "../recruitment-classify.server";
 import { AI_MAX_BODY_CHARS, COVERAGE_TARGETS, type Facet } from "./config";
