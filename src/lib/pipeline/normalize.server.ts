@@ -91,13 +91,9 @@ const EMAIL_GLOBAL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 const PHONE_RE = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,5}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/;
 const PHONE_GLOBAL_RE = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,5}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/g;
 const LINKEDIN_RE = /(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[a-z0-9\-_%]{3,}/i;
-const YEARS_RE = /(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\b[^.\n]{0,30}(?:experience|exp\b)?/i;
-const CTC_RE = /(?:ctc|salary|package|compensation)[^\n]{0,40}?(\d{1,3}(?:\.\d{1,2})?)\s*(?:-|to|–)?\s*(\d{1,3}(?:\.\d{1,2})?)?\s*(lpa|lakh|lacs?|l\b)/i;
-const COMPANY_RE = /\b(?:currently (?:working )?(?:at|with)|working (?:at|with)|employed (?:at|with)|company\s*[:\-])\s*([A-Z][\w&.,'\- ]{2,40})/;
-const LOCATION_RE =
-  /\b(bengaluru|bangalore|mumbai|pune|hyderabad|chennai|delhi|new delhi|noida|gurgaon|gurugram|kolkata|ahmedabad|jaipur|indore|chandigarh|kochi|coimbatore|nagpur|lucknow|bhopal|vadodara|surat|thiruvananthapuram|mysuru|mysore|remote|singapore|dubai|london|new york|san francisco|berlin|toronto|sydney)\b/i;
-const ROLE_LABEL_RE =
-  /\b(?:designation|current\s+role|current\s+designation|job\s+title|profile|position(?:\s+applied\s+for)?|role)\s*[:\-–]\s*([^\n|,;]{2,80})/i;
+// Role / experience / location / company / CTC now come from
+// src/lib/candidate-fields.ts, which scopes matches to candidate-owned text.
+
 
 const SKILL_DICTIONARY = [
   "javascript","typescript","react","react native","next.js","node.js","express","angular","vue","svelte",
