@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isPlausibleCandidateName } from "@/lib/cv-name";
 import { dedupeHits } from "./dedupe";
 
 export type SearchHit = {
@@ -243,7 +244,9 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
         // Rows written by older, buggier extractions are NOT trusted: their
         // role/location/experience were matched globally over the whole mail.
         // Only rows stamped with the current extraction version may donate.
-        const legacyTrusted = (p.extraction_version as number | null ?? 0) >= CURRENT_EXTRACTION_VERSION;
+        // Only fall back to the stored row when there is no text left to
+        // re-extract from; legacy rows matched fields globally over the whole mail.
+        const legacyTrusted = !docText.trim() && !bodyText.trim();
         const storedName = isPlausibleCandidateName(safeStoredIdentity.name) ? safeStoredIdentity.name : null;
         const skills = Array.from(new Set([...(deterministic.skills ?? []), ...((p.skills as string[] | null) ?? [])])).slice(0, 30);
         const extracted = {
