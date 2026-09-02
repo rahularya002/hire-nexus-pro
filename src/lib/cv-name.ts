@@ -245,6 +245,11 @@ export function extractCvName(
       }
       if (run.length >= 2) parts.push(run.join(" "), run.slice(-2).join(" "));
     }
+    // "SANTANUPATRA" — a letter-spaced header collapsed into one token.
+    if (/^[A-Za-z]{7,40}$/.test(flat)) {
+      const split = splitCollapsedName(flat, splitHints);
+      if (split) parts.push(split);
+    }
     const seen = new Set<string>();
 
 
