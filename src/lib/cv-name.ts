@@ -121,6 +121,8 @@ export function personNameFrom(raw: string): string | null {
   s = s.replace(HONORIFIC_RE, "").trim();
   if (s.length < 4 || s.length > 45) return null;
   if (HEADING_RE.test(s) || ROLE_WORD_RE.test(s) || PLACE_RE.test(s) || EMAIL_RE.test(s)) return null;
+  if (NAME_NOISE_RE.test(s)) return null;
+
   const words = s.split(/\s+/);
   if (words.length < 2 || words.length > 4) return null;
   for (const [i, w] of words.entries()) {
