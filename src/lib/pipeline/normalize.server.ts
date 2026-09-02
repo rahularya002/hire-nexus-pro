@@ -314,7 +314,17 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
 
   const gaps = (Object.keys(COVERAGE_TARGETS) as Facet[]).filter((f) => coverage[f] < COVERAGE_TARGETS[f]);
 
-  return { fields, coverage, gaps };
+  return {
+    fields,
+    coverage,
+    gaps,
+    scoped: {
+      currentCtc: scoped.currentCtc.value,
+      expectedCtc: scoped.expectedCtc.value,
+      noticePeriod: scoped.noticePeriod.value,
+    },
+  };
+
 }
 
 /** Merge AI-filled gaps on top of deterministic fields; deterministic wins on conflict. */
