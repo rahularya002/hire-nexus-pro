@@ -60,6 +60,28 @@ function unspaceGlyphs(line: string): string {
     .join(" ");
 }
 
+/**
+ * Letter-spaced headers whose word gaps were normalised away collapse into one
+ * long token ("S A N T A N U  P A T R A" → "SANTANUPATRA"). Split it back into
+ * words using the filename / e-mail tokens that belong to the same candidate.
+ */
+function splitCollapsedName(collapsed: string, hints: string[]): string | null {
+  const letters = collapsed.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 7 || letters.length > 40) return null;
+  const lower = letters.toLowerCase();
+  for (const hint of [...hints].sort((a, b) => b.length - a.length)) {
+    if (hint.length < 3) continue;
+    if (lower.startsWith(hint) && lower.length - hint.length >= 2) {
+      return titleCaseName(`${letters.slice(0, hint.length)} ${letters.slice(hint.length)}`);
+    }
+    if (lower.endsWith(hint) && lower.length - hint.length >= 2) {
+      const cut = lower.length - hint.length;
+      return titleCaseName(`${letters.slice(0, cut)} ${letters.slice(cut)}`);
+    }
+  }
+  return null;
+}
+
 export function normalizeCvLines(text: string | null | undefined): string[] {
   return (text ?? "")
     .replace(/\r/g, "\n")
@@ -117,7 +139,8 @@ const FILE_STOPWORDS = new Set([
 ]);
 
 /** Name-looking words from a CV filename — never from the Gmail sender. */
-const FILE_NOISE_RE = /\b(job|jd|description|requirement|requirements|mandate|spec|specification|opening|vacancy|logo|invoice|offer|policy)\b/i;
+const FILE_NOISE_RE =
+  /\b(job|jd|description|requirement|requirements|mandate|spec|specification|opening|vacancy|logo|invoice|offer|policy|pic|pics|photo|photos|image|img|scan|scanned|pan|aadhar|aadhaar|passport|marksheet|payslip|salary|slip)\b/i;
 
 export function nameFromFileName(fileName: string | null | undefined): string | null {
   if (!fileName) return null;
@@ -181,6 +204,22 @@ export function extractCvName(
   const fileWords = new Set(
     (nameFromFileName(fileName) ?? "").toLowerCase().split(" ").filter(Boolean),
   );
+  // Tokens that plausibly belong to the candidate, used to split letter-spaced
+  // headers. Sender data is never part of this — only the CV file and the
+  // candidate's own e-mail address.
+  const splitHints = [
+    ...fileWords,
+    ...(fileName ?? "")
+      .replace(/\.[^.]+$/, "")
+      .split(/[^A-Za-z]+/)
+      .map((w) => w.toLowerCase())
+      .filter((w) => w.length >= 3 && !FILE_STOPWORDS.has(w)),
+    ...((hints?.email ?? "").split("@")[0] ?? "")
+      .split(/[^A-Za-z]+/)
+      .map((w) => w.toLowerCase())
+      .filter((w) => w.length >= 3),
+  ];
+
 
   const found: Cand[] = [];
   const window = lines.slice(0, 40);
@@ -206,6 +245,11 @@ export function extractCvName(
         run.push(nxt!);
       }
       if (run.length >= 2) parts.push(run.join(" "), run.slice(-2).join(" "));
+    }
+    // "SANTANUPATRA" — a letter-spaced header collapsed into one token.
+    if (/^[A-Za-z]{7,40}$/.test(flat)) {
+      const split = splitCollapsedName(flat, splitHints);
+      if (split) parts.push(split);
     }
     const seen = new Set<string>();
 
