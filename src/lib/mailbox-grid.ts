@@ -209,13 +209,15 @@ type HitLike = {
     experience?: string | null;
     current_company?: string | null;
     skills?: string[] | null;
+    currentCtc?: string | null;
+    expectedCtc?: string | null;
+    noticePeriod?: string | null;
   } | null;
 };
 
 /** Map one search hit onto the same shape the Gmail grid already renders. */
 export function hitToGridRow(h: HitLike): GridRow {
   const ex = h.extracted ?? {};
-  const text = `${h.subject ?? ""}\n${h.snippet ?? ""}`;
   return {
     key: candidateKey({ ...ex, messageId: h.gmail_message_id }),
     name: ex.name ?? null,
@@ -226,9 +228,11 @@ export function hitToGridRow(h: HitLike): GridRow {
     experience: ex.experience ?? null,
     location: ex.location ?? null,
     skills: ex.skills ?? [],
-    currentCtc: extractCurrentCtc(text),
-    expectedCtc: extractExpectedCtc(text),
-    noticePeriod: extractNoticePeriod(text),
+    // Compensation / notice only from candidate-scoped extraction. A subject
+    // line or Gmail snippet routinely quotes another person's package.
+    currentCtc: ex.currentCtc ?? null,
+    expectedCtc: ex.expectedCtc ?? null,
+    noticePeriod: ex.noticePeriod ?? null,
     confidence: h.confidence ?? h.score,
     unread: false,
     sources: [
