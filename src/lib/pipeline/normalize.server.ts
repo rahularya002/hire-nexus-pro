@@ -250,17 +250,24 @@ export function extractDeterministic(i: DeterministicInput): DeterministicResult
   const phone = bodyContactTrusted ? phoneCand : null;
 
 
-  const role = firstRow?.role ?? roleFromDoc(i.docText, name) ?? roleFromText(i.docText) ?? (hasAttachment ? null : roleFromText(i.cleanBody));
+  // Role / experience / location / company / CTC come from candidate-owned text
+  // only. A recruiter mail listing several people must not donate another
+  // person's city, years or package to this row.
+  const bodyTrusted = candidateRows.length <= 1 && (!hasAttachment || !i.docText.trim());
+  const scoped = extractScopedFields({ docText: i.docText, bodyText: i.cleanBody, bodyTrusted });
 
-  const years = text.match(YEARS_RE)?.[1] ?? null;
-  const experience = years ? `${years} years` : null;
+  const role = firstRow?.role ?? scoped.role.value;
+  const experience = scoped.experience.value;
+  const company = firstRow?.current_company ?? scoped.company.value;
+  const location = firstRow?.location ?? scoped.location.value;
 
-  const company = firstRow?.current_company ?? text.match(COMPANY_RE)?.[1]?.trim().replace(/[.,;]$/, "") ?? null;
-  const location = firstRow?.location ?? text.match(LOCATION_RE)?.[0] ?? null;
+  const ctcNum = (v: string | null) => {
+    const n = v ? Number(/(\d{1,3}(?:\.\d{1,2})?)/.exec(v)?.[1] ?? NaN) : NaN;
+    return Number.isFinite(n) && n > 0 && n <= 999 ? n : null;
+  };
+  const salaryMin = ctcNum(scoped.currentCtc.value);
+  const salaryMax = ctcNum(scoped.expectedCtc.value);
 
-  const ctc = text.match(CTC_RE);
-  const salaryMin = ctc?.[1] ? Number(ctc[1]) : null;
-  const salaryMax = ctc?.[2] ? Number(ctc[2]) : null;
 
   const skills = SKILL_DICTIONARY.filter((s) => {
     const idx = lower.indexOf(s);
