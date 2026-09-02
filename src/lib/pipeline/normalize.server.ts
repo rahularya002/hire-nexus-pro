@@ -180,7 +180,14 @@ export type DeterministicInput = {
   primaryFileName: string | null;
 };
 
-export type DeterministicResult = { fields: Extracted; coverage: FieldCoverage; gaps: Facet[] };
+export type DeterministicResult = {
+  fields: Extracted;
+  coverage: FieldCoverage;
+  gaps: Facet[];
+  /** Compensation / notice, scoped to candidate-owned text (may be null). */
+  scoped: { currentCtc: string | null; expectedCtc: string | null; noticePeriod: string | null };
+};
+
 
 /** Pull every field a regex or dictionary can reliably find. No model calls. */
 export function extractDeterministic(i: DeterministicInput): DeterministicResult {
