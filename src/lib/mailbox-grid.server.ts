@@ -10,14 +10,8 @@ import { cleanBodyText, extractDeterministic, sha256Bytes } from "./pipeline/nor
 import { emptyMetrics } from "./pipeline/types";
 import { candidateEvidence, heuristicScore, isCandidateArtifact } from "./recruitment-classify.server";
 import { pickPrimaryCandidateAttachment } from "./candidate-attachment";
-import {
-  candidateKey,
-  extractCurrentCtc,
-  extractExpectedCtc,
-  extractNoticePeriod,
-  mergeCandidateRows,
-  type GridCandidate,
-} from "./mailbox-grid";
+import { candidateKey, mergeCandidateRows, type GridCandidate } from "./mailbox-grid";
+
 
 async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -104,6 +98,7 @@ export async function hydrateCandidatePage(args: {
         docText,
         primaryFileName: primary?.fileName ?? null,
       });
+
       const cls = await classifyItem({
         userId: args.userId,
         signal: { ...baseSignal, docText },
@@ -117,8 +112,9 @@ export async function hydrateCandidatePage(args: {
       if (cls.decision === "skip" || !isCandidateArtifact(cls.artifact)) return null;
 
       const ex = cls.extracted;
-      // Resume text first, then the email body — the CV states compensation more reliably.
-      const combined = `${docText}\n${bodyText}`;
+      // Compensation / notice come from candidate-scoped text only (resume
+      // labels, or a trusted single-candidate body) — never from a recruiter
+      // tracker listing other people.
       const row: GridCandidate = {
         key: candidateKey({ ...ex, messageId: ref.id }),
         name: ex.name ?? null,
@@ -129,9 +125,10 @@ export async function hydrateCandidatePage(args: {
         experience: ex.experience ?? null,
         location: ex.location ?? null,
         skills: ex.skills ?? [],
-        currentCtc: extractCurrentCtc(combined),
-        expectedCtc: extractExpectedCtc(combined),
-        noticePeriod: extractNoticePeriod(combined),
+        currentCtc: det.scoped.currentCtc,
+        expectedCtc: det.scoped.expectedCtc,
+        noticePeriod: det.scoped.noticePeriod,
+
         confidence: cls.confidence,
         unread: (msg.labelIds ?? []).includes("UNREAD"),
         sources: [

@@ -263,7 +263,8 @@ export async function runSearchSlice(
         confidence: cls.confidence,
         artifact_type: cls.artifact,
         reason: cls.reason,
-        extracted: cls.extracted,
+        extracted: { ...cls.extracted, ...det.scoped },
+
         pending_payload: payload,
         resume_storage_path: stored[0]?.path ?? null,
         resume_file_name: stored[0]?.file_name ?? null,

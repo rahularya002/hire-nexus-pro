@@ -124,8 +124,10 @@ describe("search hits render as grid rows", () => {
     ]);
     expect(row!.name).toBe("Gitu Paul");
     expect(row!.score).toBe(80);
-    expect(row!.currentCtc).toBe("12 LPA");
-    expect(row!.noticePeriod).toBe("30 days");
+    // Compensation is only trusted from candidate-scoped extraction, never
+    // from the Gmail subject/snippet, which often quotes someone else.
+    expect(row!.currentCtc).toBeNull();
+    expect(row!.noticePeriod).toBeNull();
     expect(row!.sources[0]!.hasResume).toBe(true);
   });
 
