@@ -60,6 +60,28 @@ function unspaceGlyphs(line: string): string {
     .join(" ");
 }
 
+/**
+ * Letter-spaced headers whose word gaps were normalised away collapse into one
+ * long token ("S A N T A N U  P A T R A" → "SANTANUPATRA"). Split it back into
+ * words using the filename / e-mail tokens that belong to the same candidate.
+ */
+function splitCollapsedName(collapsed: string, hints: string[]): string | null {
+  const letters = collapsed.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 7 || letters.length > 40) return null;
+  const lower = letters.toLowerCase();
+  for (const hint of [...hints].sort((a, b) => b.length - a.length)) {
+    if (hint.length < 3) continue;
+    if (lower.startsWith(hint) && lower.length - hint.length >= 2) {
+      return titleCaseName(`${letters.slice(0, hint.length)} ${letters.slice(hint.length)}`);
+    }
+    if (lower.endsWith(hint) && lower.length - hint.length >= 2) {
+      const cut = lower.length - hint.length;
+      return titleCaseName(`${letters.slice(0, cut)} ${letters.slice(cut)}`);
+    }
+  }
+  return null;
+}
+
 export function normalizeCvLines(text: string | null | undefined): string[] {
   return (text ?? "")
     .replace(/\r/g, "\n")
