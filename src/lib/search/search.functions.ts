@@ -222,13 +222,14 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
             docText = "";
           }
         }
-        const deterministic = extractDeterministic({
+        const deterministicResult = extractDeterministic({
           fromEmail: sourceMessage?.from_email ?? null,
           fromName: sourceMessage?.from_name ?? null,
           cleanBody: bodyText,
           docText,
           primaryFileName: sourceResume?.file_name ?? null,
-        }).fields;
+        });
+        const deterministic = deterministicResult.fields;
         const safeStoredIdentity = sanitizeCandidateIdentity(
           { name: p.name, email: p.email, phone: p.phone },
           {
@@ -239,20 +240,27 @@ export const startCandidateSearch = createServerFn({ method: "POST" })
             hasAttachment: !!sourceResume,
           },
         );
+        // Rows written by older, buggier extractions are NOT trusted: their
+        // role/location/experience were matched globally over the whole mail.
+        // Only rows stamped with the current extraction version may donate.
+        const legacyTrusted = (p.extraction_version as number | null ?? 0) >= CURRENT_EXTRACTION_VERSION;
+        const storedName = isPlausibleCandidateName(safeStoredIdentity.name) ? safeStoredIdentity.name : null;
         const skills = Array.from(new Set([...(deterministic.skills ?? []), ...((p.skills as string[] | null) ?? [])])).slice(0, 30);
         const extracted = {
-          name: deterministic.name ?? safeStoredIdentity.name ?? null,
+          name: deterministic.name ?? storedName ?? null,
           email: deterministic.email ?? safeStoredIdentity.email ?? null,
           phone: deterministic.phone ?? safeStoredIdentity.phone ?? null,
-          role: deterministic.role ?? p.role,
-          location: deterministic.location ?? p.location,
-          experience: deterministic.experience ?? p.experience,
-          current_company: deterministic.current_company ?? p.current_company,
+          role: deterministic.role ?? (legacyTrusted ? p.role : null),
+          location: deterministic.location ?? (legacyTrusted ? p.location : null),
+          experience: deterministic.experience ?? (legacyTrusted ? p.experience : null),
+          current_company: deterministic.current_company ?? (legacyTrusted ? p.current_company : null),
           skills,
-          salary_min: deterministic.salary_min ?? p.salary_min,
-          salary_max: deterministic.salary_max ?? p.salary_max,
+          salary_min: deterministic.salary_min ?? (legacyTrusted ? p.salary_min : null),
+          salary_max: deterministic.salary_max ?? (legacyTrusted ? p.salary_max : null),
           notes: null,
+          ...deterministicResult.scoped,
         };
+
         const haystack = [p.search_blob as string | null, docText, bodyText].filter(Boolean).join("\n");
         const ranked = rankItem(plan, {
           extracted: extracted as never,
