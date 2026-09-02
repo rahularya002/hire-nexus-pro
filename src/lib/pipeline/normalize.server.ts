@@ -112,10 +112,6 @@ const SKILL_DICTIONARY = [
   "sales","business development","lead generation","digital marketing","seo","sem","content marketing",
 ];
 
-const ROLE_HEAD_RE =
-  /\b(designer|developer|engineer|manager|analyst|architect|consultant|recruiter|accountant|executive|lead|director|specialist|technician|officer|assistant|associate|scientist|administrator|merchandiser|stylist|copywriter|marketer|tester|nurse|teacher|chef|supervisor|coordinator|planner|buyer|operator|artist)\b/i;
-const ROLE_STOPWORDS = /\b(resume|curriculum|vitae|profile|summary|objective|contact|email|mobile|phone|address|education|skills?|experience|employment|certification|declaration|languages?)\b/i;
-
 function titleCase(s: string) {
   return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
@@ -124,7 +120,6 @@ function nameFromDoc(docText: string, fileName?: string | null, email?: string |
   return extractCvName(docText, fileName ?? null, { email: email ?? null });
 }
 
-
 function nameFromEmail(email: string | null): string | null {
   if (!email) return null;
   const local = email.split("@")[0] ?? "";
@@ -132,41 +127,6 @@ function nameFromEmail(email: string | null): string | null {
   return words.length >= 2 ? titleCase(words.slice(0, 3).join(" ")) : null;
 }
 
-function cleanRole(raw: string | null | undefined): string | null {
-  const role = (raw ?? "")
-    .replace(/\b(?:applying|applied)\s+for\b/gi, "")
-    .replace(/\b(?:role|position|designation|profile)\b\s*[:\-–]?/gi, "")
-    .replace(/[^A-Za-z0-9+#/&. -]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!role || role.length < 3 || role.length > 70) return null;
-  if (!ROLE_HEAD_RE.test(role) || ROLE_STOPWORDS.test(role)) return null;
-  return titleCase(role.toLowerCase());
-}
-
-function roleFromText(text: string): string | null {
-  const labelled = ROLE_LABEL_RE.exec(text)?.[1];
-  const fromLabel = cleanRole(labelled);
-  if (fromLabel) return fromLabel;
-  return null;
-}
-
-function roleFromDoc(docText: string, knownName: string | null): string | null {
-  const lines = docText
-    .split("\n")
-    .slice(0, 24)
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-  const nameNorm = (knownName ?? "").toLowerCase();
-  for (const line of lines) {
-    const l = line.toLowerCase();
-    if (nameNorm && l === nameNorm) continue;
-    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || LOCATION_RE.test(line)) continue;
-    const role = cleanRole(line);
-    if (role) return role;
-  }
-  return null;
-}
 
 export type DeterministicInput = {
   fromEmail: string | null;
