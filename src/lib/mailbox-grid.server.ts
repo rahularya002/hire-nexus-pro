@@ -104,6 +104,7 @@ export async function hydrateCandidatePage(args: {
         docText,
         primaryFileName: primary?.fileName ?? null,
       });
+
       const cls = await classifyItem({
         userId: args.userId,
         signal: { ...baseSignal, docText },
