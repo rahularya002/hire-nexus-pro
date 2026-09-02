@@ -293,7 +293,7 @@ export function extractCvName(
       // Keep it as a last-resort candidate (heavy penalty) only when the whole
       // line is the name and it is still near the top of the document.
       if (idx >= 6 && !supported && !contactNear) {
-        if (part !== flat || idx >= 12) continue;
+        if (part !== flat || idx >= 16) continue;
         score -= 60;
       }
 
