@@ -80,5 +80,6 @@ for (const ref of page.messages) {
       sources: r.sources.length,
     });
   }
-  break;
+  if (docText.length > 200) break;
+  console.log("  (skipped: no extractable CV text, trying next message)");
 }
