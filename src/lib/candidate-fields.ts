@@ -142,6 +142,8 @@ function cleanRole(raw: string | null | undefined): string | null {
   const role = (raw ?? "")
     .replace(/\b(?:applying|applied)\s+for\b/gi, "")
     .replace(/\b(?:role|position|designation|profile)\b\s*[:\-–]?/gi, "")
+    .replace(/^\s*(?:the|of|a|an|for|as)\b\s*/gi, "")
+    .replace(/^\s*(?:the|of|a|an|for|as)\b\s*/gi, "")
     .replace(/[^A-Za-z0-9+#/&. -]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
