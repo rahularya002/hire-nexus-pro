@@ -203,6 +203,22 @@ export function extractCvName(
   const fileWords = new Set(
     (nameFromFileName(fileName) ?? "").toLowerCase().split(" ").filter(Boolean),
   );
+  // Tokens that plausibly belong to the candidate, used to split letter-spaced
+  // headers. Sender data is never part of this — only the CV file and the
+  // candidate's own e-mail address.
+  const splitHints = [
+    ...fileWords,
+    ...(fileName ?? "")
+      .replace(/\.[^.]+$/, "")
+      .split(/[^A-Za-z]+/)
+      .map((w) => w.toLowerCase())
+      .filter((w) => w.length >= 3 && !FILE_STOPWORDS.has(w)),
+    ...((hints?.email ?? "").split("@")[0] ?? "")
+      .split(/[^A-Za-z]+/)
+      .map((w) => w.toLowerCase())
+      .filter((w) => w.length >= 3),
+  ];
+
 
   const found: Cand[] = [];
   const window = lines.slice(0, 40);
