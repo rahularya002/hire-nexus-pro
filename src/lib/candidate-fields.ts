@@ -91,6 +91,9 @@ function labelled(text: string, label: string, valuePattern: string): string | n
 
 function normalizeYears(raw: string | null): string | null {
   if (!raw) return null;
+  // A four-digit calendar year ("2019 - 2023" under a WORK EXPERIENCE heading)
+  // is an employment date, never a duration.
+  if (/\b(19|20)\d{2}\b/.test(raw)) return null;
   const m = /(\d{1,2}(?:\.\d)?)\s*(?:\+)?\s*(?:years?|yrs?|y\b)?/i.exec(raw);
   const years = m?.[1] ? Number(m[1]) : null;
   if (years == null || !Number.isFinite(years) || years <= 0 || years > 45) {
@@ -101,16 +104,19 @@ function normalizeYears(raw: string | null): string | null {
 }
 
 function experienceFrom(text: string): string | null {
+  // The unit is mandatory: a bare number after a "WORK EXPERIENCE" heading is
+  // almost always a calendar year from an employment date, not a duration.
   const lab = labelled(
     text,
     "total\\s*(?:work\\s*)?experience|overall\\s*experience|years?\\s*of\\s*experience|work\\s*experience|experience|exp",
-    String.raw`\d{1,2}(?:\.\d)?\s*\+?\s*(?:years?|yrs?|y\b)?(?:\s*\d{1,2}\s*months?)?`,
+    String.raw`\d{1,2}(?:\.\d)?\s*\+?\s*(?:years?|yrs?|y\b)(?:\s*\d{1,2}\s*months?)?|\d{1,2}\s*months?`,
   );
   const fromLabel = normalizeYears(lab);
   if (fromLabel) return fromLabel;
   const inline = /(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|total\s+|professional\s+|work\s+)?experience/i.exec(text);
   return normalizeYears(inline?.[0] ?? null);
 }
+
 
 function locationFrom(text: string): string | null {
   const lab = labelled(
