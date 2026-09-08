@@ -104,6 +104,14 @@ function normalizeYears(raw: string | null): string | null {
 }
 
 function experienceFrom(text: string): string | null {
+  // "Having overall experience around 13+ years ..." — a total/overall claim wins
+  // over any of the many "4 years of experience in X" skill sentences below it.
+  const total =
+    /\b(?:overall|total)\s+(?:work\s+)?experience\b[^.\n]{0,24}?(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)/i.exec(text) ??
+    /\b(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:overall|total)\s+(?:work\s+)?experience\b/i.exec(text);
+  const fromTotal = normalizeYears(total?.[1] ? `${total[1]} years` : null);
+  if (fromTotal) return fromTotal;
+
   // The unit is mandatory: a bare number after a "WORK EXPERIENCE" heading is
   // almost always a calendar year from an employment date, not a duration.
   const lab = labelled(
@@ -116,6 +124,7 @@ function experienceFrom(text: string): string | null {
   const inline = /(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|total\s+|professional\s+|work\s+)?experience/i.exec(text);
   return normalizeYears(inline?.[0] ?? null);
 }
+
 
 
 function locationFrom(text: string): string | null {
