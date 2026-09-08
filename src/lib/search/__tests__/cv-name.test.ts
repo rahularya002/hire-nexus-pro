@@ -147,3 +147,14 @@ describe("scanned CV contact safety", () => {
     expect(fields.phone).toBeNull();
   });
 });
+
+describe("isPlausibleCandidateName single-word names", () => {
+  it("keeps a single distinctive stored name", () => {
+    expect(isPlausibleCandidateName("Roshni")).toBe(true);
+  });
+  it("still rejects noise and headings", () => {
+    expect(isPlausibleCandidateName("Resume")).toBe(false);
+    expect(isPlausibleCandidateName("Gmail")).toBe(false);
+    expect(isPlausibleCandidateName("Designer")).toBe(false);
+  });
+});
