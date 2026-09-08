@@ -95,4 +95,39 @@ describe("experience false positives", () => {
     });
     expect(f.experience.value).toBe("6 years");
   });
+
+  // Shapes taken from real resumes in the archive (names/contacts removed).
+  it("never turns a Professional Experience date range into a duration", () => {
+    for (const range of [
+      "PROFESSIONAL EXPERIENCE\n2004 – 2008 Oracle EBS Consultant",
+      "Professional Experience\n2019 to Present, Release Engineer",
+      "WORK EXPERIENCE\n2024-Till Date Retail Manager",
+      "work experience\n2008 to 2016 Security Engineer",
+      "EXPERIENCE\n2021 – Present Store Manager",
+    ]) {
+      const f = extractScopedFields({ docText: `Some Person\n\n${range}\n`, bodyText: "", bodyTrusted: false });
+      expect(f.experience.value ?? "").not.toMatch(/^(19|20)/);
+      expect(f.experience.value).toBeNull();
+    }
+  });
+
+  it("prefers the overall/total claim over a skill sentence's year count", () => {
+    const f = extractScopedFields({
+      docText:
+        "Professional Summary: Having overall experience around 13+ years as Java developer, lead and architect. 4 years of experience in Designing the architecture.\n\nPROFESSIONAL EXPERIENCE\n2022 to Till date\n",
+      bodyText: "",
+      bodyTrusted: false,
+    });
+    expect(f.experience.value).toBe("13 years");
+  });
+
+  it("reads a total experience claim written after the number", () => {
+    const f = extractScopedFields({
+      docText: "Having 8+ years of total experience in SAP FICO.\n",
+      bodyText: "",
+      bodyTrusted: false,
+    });
+    expect(f.experience.value).toBe("8 years");
+  });
 });
+
