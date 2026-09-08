@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCvName, nameFromFileName, personNameFrom } from "../../cv-name";
+import { extractCvName, nameFromFileName, personNameFrom, isPlausibleCandidateName } from "../../cv-name";
 import { extractDeterministic } from "../../pipeline/normalize.server";
 
 const RECRUITER = { fromEmail: "itisha@recruitfirm.com", fromName: "Itisha Bindal" };
