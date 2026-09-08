@@ -76,3 +76,23 @@ Notice Period: Immediate`;
     expect(f.noticePeriod.value).toBeNull();
   });
 });
+
+describe("experience false positives", () => {
+  it("does not read employment dates as years of experience", () => {
+    const f = extractScopedFields({
+      docText: "Ravi Kumar\nravi@example.com\n\nWORK EXPERIENCE\n2019 - 2023 Designer, Acme Ltd\n",
+      bodyText: "",
+      bodyTrusted: false,
+    });
+    expect(f.experience.value).toBeNull();
+  });
+
+  it("still reads an explicit labelled duration", () => {
+    const f = extractScopedFields({
+      docText: "Experience: 6 yrs\n",
+      bodyText: "",
+      bodyTrusted: false,
+    });
+    expect(f.experience.value).toBe("6 years");
+  });
+});

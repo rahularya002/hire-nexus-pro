@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCvName, nameFromFileName, personNameFrom } from "../../cv-name";
+import { extractCvName, nameFromFileName, personNameFrom, isPlausibleCandidateName } from "../../cv-name";
 import { extractDeterministic } from "../../pipeline/normalize.server";
 
 const RECRUITER = { fromEmail: "itisha@recruitfirm.com", fromName: "Itisha Bindal" };
@@ -145,5 +145,16 @@ describe("scanned CV contact safety", () => {
     expect(fields.name).toBe("Roshni");
     expect(fields.email).toBeNull();
     expect(fields.phone).toBeNull();
+  });
+});
+
+describe("isPlausibleCandidateName single-word names", () => {
+  it("keeps a single distinctive stored name", () => {
+    expect(isPlausibleCandidateName("Roshni")).toBe(true);
+  });
+  it("still rejects noise and headings", () => {
+    expect(isPlausibleCandidateName("Resume")).toBe(false);
+    expect(isPlausibleCandidateName("Gmail")).toBe(false);
+    expect(isPlausibleCandidateName("Designer")).toBe(false);
   });
 });

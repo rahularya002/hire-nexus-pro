@@ -43,8 +43,16 @@ const NAME_NOISE_RE =
 
 /** Reject stitched pseudo-names while accepting ordinary human names. */
 export function isPlausibleCandidateName(value: string | null | undefined): boolean {
-  return !!personNameFrom((value ?? "").trim());
+  const s = (value ?? "").trim();
+  if (!s) return false;
+  if (personNameFrom(s)) return true;
+  // A single distinctive word ("Roshni", from "Roshni CV.pdf") is a legitimate
+  // stored name; only stitched noise, headings, roles and places are rejected.
+  if (!/^[A-Za-z][A-Za-z'’\-]{2,24}$/.test(s)) return false;
+  if (NAME_NOISE_RE.test(s) || HEADING_RE.test(s) || ROLE_WORD_RE.test(s) || PLACE_RE.test(s)) return false;
+  return !NAME_STOPWORD_SET.has(s.toLowerCase());
 }
+
 
 
 function titleWord(w: string) {
